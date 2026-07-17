@@ -1,0 +1,370 @@
+[
+  {
+    "version": "v1.0.45",
+    "timestamp": "2026-07-17 17:25:27 UTC",
+    "changeDescription": "Seeded 18 CPWD standard master catalog specification templates.",
+    "historicalProjectsUsed": 7,
+    "masterItemsCount": 1548,
+    "historicalRatesCount": 2681
+  },
+  {
+    "version": "v1.0.44",
+    "timestamp": "2026-07-17 17:25:00 UTC",
+    "changeDescription": "Ingested historical BOQ file \"Priced_Nuvama I Hyd I C & I & Long Lead  MEP Tender BOQ I 06.08.25 (5).xlsx\" for project \"Priced Nuvama I Hyd I C & I & Long Lead  MEP Tender BOQ I 06\" containing 375 items.",
+    "historicalProjectsUsed": 6,
+    "masterItemsCount": 1530,
+    "historicalRatesCount": 2663
+  },
+  {
+    "version": "v1.0.43",
+    "timestamp": "2026-07-17 17:24:55 UTC",
+    "changeDescription": "Ingested historical BOQ file \"Priced_COWRKS, CHENNAI_Overall Price_BOQ_CW_MILLENIA 4A 2F.xlsx\" for project \"Priced COWRKS, CHENNAI Overall Price BOQ CW MILLENIA 4A 2F\" containing 452 items.",
+    "historicalProjectsUsed": 5,
+    "masterItemsCount": 1290,
+    "historicalRatesCount": 2288
+  },
+  {
+    "version": "v1.0.42",
+    "timestamp": "2026-07-17 17:24:51 UTC",
+    "changeDescription": "Ingested historical BOQ file \"KOHLER_PUNE_FS_16TH JUNE.xlsx\" for project \"KOHLER PUNE FS 16TH JUNE\" containing 533 items.",
+    "historicalProjectsUsed": 4,
+    "masterItemsCount": 1063,
+    "historicalRatesCount": 1836
+  },
+  {
+    "version": "v1.0.41",
+    "timestamp": "2026-07-17 17:24:48 UTC",
+    "changeDescription": "Ingested historical BOQ file \"Keppel Final BOQ - 30 Dec 2025_8.75Cr.xlsx\" for project \"Keppel Final BOQ   30 Dec 2025 8\" containing 493 items.",
+    "historicalProjectsUsed": 3,
+    "masterItemsCount": 932,
+    "historicalRatesCount": 1303
+  },
+  {
+    "version": "v1.0.40",
+    "timestamp": "2026-07-17 17:24:45 UTC",
+    "changeDescription": "Ingested historical BOQ file \"FS Submission_FINAL_SKF_Phoenix_22.05.2026_R4.xlsx\" for project \"FS Submission FINAL SKF Phoenix 22\" containing 711 items.",
+    "historicalProjectsUsed": 2,
+    "masterItemsCount": 574,
+    "historicalRatesCount": 810
+  },
+  {
+    "version": "v1.0.39",
+    "timestamp": "2026-07-17 17:24:40 UTC",
+    "changeDescription": "Ingested historical BOQ file \"DHL Chennai Estimated BOQ 31 March 2026_R0.xlsx\" for project \"DHL Chennai Estimated BOQ 31 March 2026 R0\" containing 99 items.",
+    "historicalProjectsUsed": 1,
+    "masterItemsCount": 73,
+    "historicalRatesCount": 99
+  },
+  {
+    "version": "v1.0.38",
+    "timestamp": "2026-07-17 17:24:13 UTC",
+    "changeDescription": "Cleared all historical BOQ files and database references.",
+    "historicalProjectsUsed": 0,
+    "masterItemsCount": 0,
+    "historicalRatesCount": 0
+  },
+  {
+    "version": "v1.0.37",
+    "timestamp": "2026-07-17 16:47:08 UTC",
+    "changeDescription": "Seeded 18 CPWD standard master catalog specification templates.",
+    "historicalProjectsUsed": 7,
+    "masterItemsCount": 1548,
+    "historicalRatesCount": 2681
+  },
+  {
+    "version": "v1.0.36",
+    "timestamp": "2026-07-17 16:46:56 UTC",
+    "changeDescription": "Ingested historical BOQ file \"Priced_Nuvama I Hyd I C & I & Long Lead  MEP Tender BOQ I 06.08.25 (5).xlsx\" for project \"Priced Nuvama I Hyd I C & I & Long Lead  MEP Tender BOQ I 06\" containing 375 items.",
+    "historicalProjectsUsed": 6,
+    "masterItemsCount": 1530,
+    "historicalRatesCount": 2663
+  },
+  {
+    "version": "v1.0.35",
+    "timestamp": "2026-07-17 16:46:40 UTC",
+    "changeDescription": "Ingested historical BOQ file \"Priced_COWRKS, CHENNAI_Overall Price_BOQ_CW_MILLENIA 4A 2F.xlsx\" for project \"Priced COWRKS, CHENNAI Overall Price BOQ CW MILLENIA 4A 2F\" containing 452 items.",
+    "historicalProjectsUsed": 5,
+    "masterItemsCount": 1290,
+    "historicalRatesCount": 2288
+  },
+  {
+    "version": "v1.0.34",
+    "timestamp": "2026-07-17 16:46:21 UTC",
+    "changeDescription": "Ingested historical BOQ file \"KOHLER_PUNE_FS_16TH JUNE.xlsx\" for project \"KOHLER PUNE FS 16TH JUNE\" containing 533 items.",
+    "historicalProjectsUsed": 4,
+    "masterItemsCount": 1063,
+    "historicalRatesCount": 1836
+  },
+  {
+    "version": "v1.0.33",
+    "timestamp": "2026-07-17 16:46:03 UTC",
+    "changeDescription": "Ingested historical BOQ file \"Keppel Final BOQ - 30 Dec 2025_8.75Cr.xlsx\" for project \"Keppel Final BOQ   30 Dec 2025 8\" containing 493 items.",
+    "historicalProjectsUsed": 3,
+    "masterItemsCount": 932,
+    "historicalRatesCount": 1303
+  },
+  {
+    "version": "v1.0.32",
+    "timestamp": "2026-07-17 16:35:13 UTC",
+    "changeDescription": "Ingested historical BOQ file \"FS Submission_FINAL_SKF_Phoenix_22.05.2026_R4.xlsx\" for project \"FS Submission FINAL SKF Phoenix 22\" containing 711 items.",
+    "historicalProjectsUsed": 2,
+    "masterItemsCount": 574,
+    "historicalRatesCount": 810
+  },
+  {
+    "version": "v1.0.31",
+    "timestamp": "2026-07-17 16:35:10 UTC",
+    "changeDescription": "Ingested historical BOQ file \"DHL Chennai Estimated BOQ 31 March 2026_R0.xlsx\" for project \"DHL Chennai Estimated BOQ 31 March 2026 R0\" containing 99 items.",
+    "historicalProjectsUsed": 1,
+    "masterItemsCount": 73,
+    "historicalRatesCount": 99
+  },
+  {
+    "version": "v1.0.30",
+    "timestamp": "2026-07-17 16:34:55 UTC",
+    "changeDescription": "Cleared all historical BOQ files and database references.",
+    "historicalProjectsUsed": 0,
+    "masterItemsCount": 0,
+    "historicalRatesCount": 0
+  },
+  {
+    "version": "v1.0.29",
+    "timestamp": "2026-07-17 16:30:18 UTC",
+    "changeDescription": "Seeded 18 CPWD standard master catalog specification templates.",
+    "historicalProjectsUsed": 3,
+    "masterItemsCount": 592,
+    "historicalRatesCount": 828
+  },
+  {
+    "version": "v1.0.28",
+    "timestamp": "2026-07-17 16:29:59 UTC",
+    "changeDescription": "Ingested historical BOQ file \"FS Submission_FINAL_SKF_Phoenix_22.05.2026_R4.xlsx\" for project \"FS Submission FINAL SKF Phoenix 22\" containing 711 items.",
+    "historicalProjectsUsed": 2,
+    "masterItemsCount": 574,
+    "historicalRatesCount": 810
+  },
+  {
+    "version": "v1.0.27",
+    "timestamp": "2026-07-17 16:29:55 UTC",
+    "changeDescription": "Ingested historical BOQ file \"DHL Chennai Estimated BOQ 31 March 2026_R0.xlsx\" for project \"DHL Chennai Estimated BOQ 31 March 2026 R0\" containing 99 items.",
+    "historicalProjectsUsed": 1,
+    "masterItemsCount": 73,
+    "historicalRatesCount": 99
+  },
+  {
+    "version": "v1.0.26",
+    "timestamp": "2026-07-17 16:29:39 UTC",
+    "changeDescription": "Cleared all historical BOQ files and database references.",
+    "historicalProjectsUsed": 0,
+    "masterItemsCount": 0,
+    "historicalRatesCount": 0
+  },
+  {
+    "version": "v1.0.25",
+    "timestamp": "2026-07-17 16:26:38 UTC",
+    "changeDescription": "Seeded 18 CPWD standard master catalog specification templates.",
+    "historicalProjectsUsed": 3,
+    "masterItemsCount": 592,
+    "historicalRatesCount": 828
+  },
+  {
+    "version": "v1.0.24",
+    "timestamp": "2026-07-17 16:26:29 UTC",
+    "changeDescription": "Ingested historical BOQ file \"FS Submission_FINAL_SKF_Phoenix_22.05.2026_R4.xlsx\" for project \"FS Submission FINAL SKF Phoenix 22\" containing 711 items.",
+    "historicalProjectsUsed": 2,
+    "masterItemsCount": 574,
+    "historicalRatesCount": 810
+  },
+  {
+    "version": "v1.0.23",
+    "timestamp": "2026-07-17 16:26:25 UTC",
+    "changeDescription": "Ingested historical BOQ file \"DHL Chennai Estimated BOQ 31 March 2026_R0.xlsx\" for project \"DHL Chennai Estimated BOQ 31 March 2026 R0\" containing 99 items.",
+    "historicalProjectsUsed": 1,
+    "masterItemsCount": 73,
+    "historicalRatesCount": 99
+  },
+  {
+    "version": "v1.0.22",
+    "timestamp": "2026-07-17 16:26:04 UTC",
+    "changeDescription": "Cleared all historical BOQ files and database references.",
+    "historicalProjectsUsed": 0,
+    "masterItemsCount": 0,
+    "historicalRatesCount": 0
+  },
+  {
+    "version": "v1.0.21",
+    "timestamp": "2026-07-17 16:11:01 UTC",
+    "changeDescription": "Seeded 18 CPWD standard master catalog specification templates.",
+    "historicalProjectsUsed": 3,
+    "masterItemsCount": 592,
+    "historicalRatesCount": 828
+  },
+  {
+    "version": "v1.0.20",
+    "timestamp": "2026-07-17 16:10:52 UTC",
+    "changeDescription": "Ingested historical BOQ file \"FS Submission_FINAL_SKF_Phoenix_22.05.2026_R4.xlsx\" for project \"FS Submission FINAL SKF Phoenix 22\" containing 711 items.",
+    "historicalProjectsUsed": 2,
+    "masterItemsCount": 574,
+    "historicalRatesCount": 810
+  },
+  {
+    "version": "v1.0.19",
+    "timestamp": "2026-07-17 16:10:48 UTC",
+    "changeDescription": "Ingested historical BOQ file \"DHL Chennai Estimated BOQ 31 March 2026_R0.xlsx\" for project \"DHL Chennai Estimated BOQ 31 March 2026 R0\" containing 99 items.",
+    "historicalProjectsUsed": 1,
+    "masterItemsCount": 73,
+    "historicalRatesCount": 99
+  },
+  {
+    "version": "v1.0.18",
+    "timestamp": "2026-07-17 16:10:25 UTC",
+    "changeDescription": "Cleared all historical BOQ files and database references.",
+    "historicalProjectsUsed": 0,
+    "masterItemsCount": 0,
+    "historicalRatesCount": 0
+  },
+  {
+    "version": "v1.0.17",
+    "timestamp": "2026-07-17 16:09:26 UTC",
+    "changeDescription": "Seeded 0 CPWD standard master catalog specification templates.",
+    "historicalProjectsUsed": 4,
+    "masterItemsCount": 958,
+    "historicalRatesCount": 2131
+  },
+  {
+    "version": "v1.0.16",
+    "timestamp": "2026-07-17 16:09:14 UTC",
+    "changeDescription": "Ingested historical BOQ file \"Keppel Final BOQ - 30 Dec 2025_8.75Cr.xlsx\" for project \"Keppel Final BOQ   30 Dec 2025 8\" containing 493 items.",
+    "historicalProjectsUsed": 4,
+    "masterItemsCount": 958,
+    "historicalRatesCount": 2131
+  },
+  {
+    "version": "v1.0.15",
+    "timestamp": "2026-07-17 16:09:11 UTC",
+    "changeDescription": "Ingested historical BOQ file \"FS Submission_FINAL_SKF_Phoenix_22.05.2026_R4.xlsx\" for project \"FS Submission FINAL SKF Phoenix 22\" containing 711 items.",
+    "historicalProjectsUsed": 3,
+    "masterItemsCount": 600,
+    "historicalRatesCount": 1638
+  },
+  {
+    "version": "v1.0.14",
+    "timestamp": "2026-07-17 16:09:05 UTC",
+    "changeDescription": "Ingested historical BOQ file \"DHL Chennai Estimated BOQ 31 March 2026_R0.xlsx\" for project \"DHL Chennai Estimated BOQ 31 March 2026 R0\" containing 99 items.",
+    "historicalProjectsUsed": 3,
+    "masterItemsCount": 594,
+    "historicalRatesCount": 927
+  },
+  {
+    "version": "v1.0.13",
+    "timestamp": "2026-07-17 16:06:45 UTC",
+    "changeDescription": "Removed historical project \"Diagnostic Test Project 5\" and cleaned all its rate variants.",
+    "historicalProjectsUsed": 3,
+    "masterItemsCount": 592,
+    "historicalRatesCount": 828
+  },
+  {
+    "version": "v1.0.12",
+    "timestamp": "2026-07-17 16:06:44 UTC",
+    "changeDescription": "Removed historical project \"Diagnostic Test Project 4\" and cleaned all its rate variants.",
+    "historicalProjectsUsed": 3,
+    "masterItemsCount": 592,
+    "historicalRatesCount": 828
+  },
+  {
+    "version": "v1.0.11",
+    "timestamp": "2026-07-17 16:06:44 UTC",
+    "changeDescription": "Removed historical project \"Diagnostic Test Project 3\" and cleaned all its rate variants.",
+    "historicalProjectsUsed": 3,
+    "masterItemsCount": 592,
+    "historicalRatesCount": 828
+  },
+  {
+    "version": "v1.0.10",
+    "timestamp": "2026-07-17 16:06:44 UTC",
+    "changeDescription": "Removed historical project \"Diagnostic Test Project 2\" and cleaned all its rate variants.",
+    "historicalProjectsUsed": 3,
+    "masterItemsCount": 592,
+    "historicalRatesCount": 828
+  },
+  {
+    "version": "v1.0.9",
+    "timestamp": "2026-07-17 16:06:44 UTC",
+    "changeDescription": "Removed historical project \"Diagnostic Test Project 1\" and cleaned all its rate variants.",
+    "historicalProjectsUsed": 3,
+    "masterItemsCount": 592,
+    "historicalRatesCount": 828
+  },
+  {
+    "version": "v1.0.8",
+    "timestamp": "2026-07-17 16:04:57 UTC",
+    "changeDescription": "Ingested historical BOQ file \"diag-test-5.xlsx\" for project \"Diagnostic Test Project 5\" containing 0 items.",
+    "historicalProjectsUsed": 3,
+    "masterItemsCount": 592,
+    "historicalRatesCount": 828
+  },
+  {
+    "version": "v1.0.7",
+    "timestamp": "2026-07-17 16:04:57 UTC",
+    "changeDescription": "Ingested historical BOQ file \"diag-test-4.xlsx\" for project \"Diagnostic Test Project 4\" containing 0 items.",
+    "historicalProjectsUsed": 3,
+    "masterItemsCount": 592,
+    "historicalRatesCount": 828
+  },
+  {
+    "version": "v1.0.6",
+    "timestamp": "2026-07-17 16:04:56 UTC",
+    "changeDescription": "Ingested historical BOQ file \"diag-test-3.xlsx\" for project \"Diagnostic Test Project 3\" containing 0 items.",
+    "historicalProjectsUsed": 3,
+    "masterItemsCount": 592,
+    "historicalRatesCount": 828
+  },
+  {
+    "version": "v1.0.5",
+    "timestamp": "2026-07-17 16:04:56 UTC",
+    "changeDescription": "Ingested historical BOQ file \"diag-test-2.xlsx\" for project \"Diagnostic Test Project 2\" containing 0 items.",
+    "historicalProjectsUsed": 3,
+    "masterItemsCount": 592,
+    "historicalRatesCount": 828
+  },
+  {
+    "version": "v1.0.4",
+    "timestamp": "2026-07-17 16:04:55 UTC",
+    "changeDescription": "Ingested historical BOQ file \"diag-test-1.xlsx\" for project \"Diagnostic Test Project 1\" containing 0 items.",
+    "historicalProjectsUsed": 3,
+    "masterItemsCount": 592,
+    "historicalRatesCount": 828
+  },
+  {
+    "version": "v1.0.3",
+    "timestamp": "2026-07-17 15:54:00 UTC",
+    "changeDescription": "Seeded 18 CPWD standard master catalog specification templates.",
+    "historicalProjectsUsed": 3,
+    "masterItemsCount": 592,
+    "historicalRatesCount": 828
+  },
+  {
+    "version": "v1.0.2",
+    "timestamp": "2026-07-17 15:53:50 UTC",
+    "changeDescription": "Ingested historical BOQ file \"FS Submission_FINAL_SKF_Phoenix_22.05.2026_R4.xlsx\" for project \"FS Submission FINAL SKF Phoenix 22\" containing 711 items.",
+    "historicalProjectsUsed": 2,
+    "masterItemsCount": 574,
+    "historicalRatesCount": 810
+  },
+  {
+    "version": "v1.0.1",
+    "timestamp": "2026-07-17 15:53:47 UTC",
+    "changeDescription": "Ingested historical BOQ file \"DHL Chennai Estimated BOQ 31 March 2026_R0.xlsx\" for project \"DHL Chennai Estimated BOQ 31 March 2026 R0\" containing 99 items.",
+    "historicalProjectsUsed": 1,
+    "masterItemsCount": 73,
+    "historicalRatesCount": 99
+  },
+  {
+    "version": "v1.0.0",
+    "timestamp": "2026-06-01 10:00:00 UTC",
+    "changeDescription": "Initial Standard CPWD Base Catalog and Measurement Rule references established.",
+    "historicalProjectsUsed": 0,
+    "masterItemsCount": 18,
+    "historicalRatesCount": 0
+  }
+]

@@ -1,0 +1,1058 @@
+[
+  {
+    "id": "log_s2dzyf0z5",
+    "timestamp": "2026-07-17 21:48:47 UTC",
+    "user": "Estimator Admin",
+    "action": "Export",
+    "details": "Exported fully priced Excel workbook \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" for project \"Copy of KOHLER PUNE FS 16TH JUNE\" with formatting preserved. Mode: AI Hybrid. Replay: false.",
+    "status": "Success"
+  },
+  {
+    "id": "log_fhwltpvn2",
+    "timestamp": "2026-07-17 21:48:46 UTC",
+    "user": "Estimator Admin",
+    "action": "Export",
+    "details": "High-fidelity rated RFQ \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" successfully exported with formatted rate injection. Preserving original layout and styles.",
+    "status": "Success"
+  },
+  {
+    "id": "log_oglzyta77",
+    "timestamp": "2026-07-17 21:48:00 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of KOHLER PUNE FS 16TH JUNE\" in 156ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_ndehi4rse",
+    "timestamp": "2026-07-17 19:52:00 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of KOHLER PUNE FS 16TH JUNE\" in 891ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_rlo9oklak",
+    "timestamp": "2026-07-17 19:50:31 UTC",
+    "user": "Estimator Admin",
+    "action": "Historical Replay",
+    "details": "Uploaded RFQ \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" analyzed. Historical Replay detected (Matched project: KOHLER PUNE FS 16TH JUNE, Workbook overlap: 88%).",
+    "status": "Success"
+  },
+  {
+    "id": "log_whm9a0atx",
+    "timestamp": "2026-07-17 19:37:31 UTC",
+    "user": "Estimator Admin",
+    "action": "Historical Replay",
+    "details": "Uploaded RFQ \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" analyzed. Historical Replay detected (Matched project: KOHLER PUNE FS 16TH JUNE, Workbook overlap: 88%).",
+    "status": "Success"
+  },
+  {
+    "id": "log_x45sr9gkl",
+    "timestamp": "2026-07-17 18:58:20 UTC",
+    "user": "Estimator Admin",
+    "action": "Historical Replay",
+    "details": "Uploaded RFQ \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" analyzed. Historical Replay detected (Matched project: KOHLER PUNE FS 16TH JUNE, Workbook overlap: 88%).",
+    "status": "Success"
+  },
+  {
+    "id": "log_46oabsu3f",
+    "timestamp": "2026-07-17 18:56:01 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of KOHLER PUNE FS 16TH JUNE\" in 1056ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_ezhmadyfb",
+    "timestamp": "2026-07-17 18:26:40 UTC",
+    "user": "Estimator Admin",
+    "action": "Historical Replay",
+    "details": "Uploaded RFQ \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" analyzed. Historical Replay detected (Matched project: KOHLER PUNE FS 16TH JUNE, Workbook overlap: 88%).",
+    "status": "Success"
+  },
+  {
+    "id": "log_kc38tmxss",
+    "timestamp": "2026-07-17 17:36:00 UTC",
+    "user": "Estimator Admin",
+    "action": "Historical Replay",
+    "details": "Uploaded RFQ \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" analyzed. Historical Replay detected (Matched project: KOHLER PUNE FS 16TH JUNE, Workbook overlap: 88%).",
+    "status": "Success"
+  },
+  {
+    "id": "log_kd8w0vzcq",
+    "timestamp": "2026-07-17 17:30:37 UTC",
+    "user": "Estimator Admin",
+    "action": "Historical Replay",
+    "details": "Uploaded RFQ \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" analyzed. Historical Replay detected (Matched project: KOHLER PUNE FS 16TH JUNE, Workbook overlap: 88%).",
+    "status": "Success"
+  },
+  {
+    "id": "log_rbibxfv4n",
+    "timestamp": "2026-07-17 17:25:27 UTC",
+    "user": "Estimator Admin",
+    "action": "System Administration",
+    "details": "Seeded 18 CPWD standard master catalog specification templates into the active repository. KB Version bumped to v1.0.45.",
+    "status": "Success"
+  },
+  {
+    "id": "log_7r813opi3",
+    "timestamp": "2026-07-17 17:25:27 UTC",
+    "user": "Estimator Admin",
+    "action": "Knowledge Base Merge",
+    "details": "Knowledge Base version bumped to v1.0.45. Reason: Seeded 18 CPWD standard master catalog specification templates.",
+    "status": "Success"
+  },
+  {
+    "id": "log_3za9v2hai",
+    "timestamp": "2026-07-17 17:25:00 UTC",
+    "user": "Estimator Admin",
+    "action": "Historical Ingestion",
+    "details": "Ingested historical BOQ file \"Priced_Nuvama I Hyd I C & I & Long Lead  MEP Tender BOQ I 06.08.25 (5).xlsx\" for project \"Priced Nuvama I Hyd I C & I & Long Lead  MEP Tender BOQ I 06\" containing 375 items under domains: Civil, Metal & Wooden Fire Rated Doors, Glass Partition,skirting & Door, Glass Fire Rated Part. & Doors, Blinds, Raised Flooring Works, Interior, Graphics, Frost Film & Internal, Racks Compactors & Lockers, Toilet Finishes Works, Sf, Approved Make Sf, Chair, Approved Make Chair, Technical Specification Carpet, Carpet, Approved Make Carpet, Approved Makes Lf, White Good, Plants, Make List C & I, Phe Toilet, Make List Phe, Fa, Pa, Fps, Fe, Rodent, Wld, Fire Elv Make List, Acs, Cctv, Ss Make List, Electrical, Makes, Ups Make, Ups Boq, Vrf System, Vrf Lowside. KB Version bumped to v1.0.44.",
+    "status": "Success"
+  },
+  {
+    "id": "log_0nesutc46",
+    "timestamp": "2026-07-17 17:25:00 UTC",
+    "user": "Estimator Admin",
+    "action": "Knowledge Base Merge",
+    "details": "Knowledge Base version bumped to v1.0.44. Reason: Ingested historical BOQ file \"Priced_Nuvama I Hyd I C & I & Long Lead  MEP Tender BOQ I 06.08.25 (5).xlsx\" for project \"Priced Nuvama I Hyd I C & I & Long Lead  MEP Tender BOQ I 06\" containing 375 items.",
+    "status": "Success"
+  },
+  {
+    "id": "log_ffmmw2ncy",
+    "timestamp": "2026-07-17 17:24:55 UTC",
+    "user": "Estimator Admin",
+    "action": "Historical Ingestion",
+    "details": "Ingested historical BOQ file \"Priced_COWRKS, CHENNAI_Overall Price_BOQ_CW_MILLENIA 4A 2F.xlsx\" for project \"Priced COWRKS, CHENNAI Overall Price BOQ CW MILLENIA 4A 2F\" containing 452 items under domains: C&i Boq R0, Door Hardware R0 Dormakaba, Chairs, Carpet, Mats & Rugs R0, Cp & Sanitary Fixtures, Electrical, Wide Glass Partions, Interior, Art & Graphics, Mechanical, Fps, Fas, Pas, Fe, Gss, Wld, Rr. KB Version bumped to v1.0.43.",
+    "status": "Success"
+  },
+  {
+    "id": "log_58rcjvu0a",
+    "timestamp": "2026-07-17 17:24:55 UTC",
+    "user": "Estimator Admin",
+    "action": "Knowledge Base Merge",
+    "details": "Knowledge Base version bumped to v1.0.43. Reason: Ingested historical BOQ file \"Priced_COWRKS, CHENNAI_Overall Price_BOQ_CW_MILLENIA 4A 2F.xlsx\" for project \"Priced COWRKS, CHENNAI Overall Price BOQ CW MILLENIA 4A 2F\" containing 452 items.",
+    "status": "Success"
+  },
+  {
+    "id": "log_iqxrqqy2q",
+    "timestamp": "2026-07-17 17:24:51 UTC",
+    "user": "Estimator Admin",
+    "action": "Historical Ingestion",
+    "details": "Ingested historical BOQ file \"KOHLER_PUNE_FS_16TH JUNE.xlsx\" for project \"KOHLER PUNE FS 16TH JUNE\" containing 533 items under domains: Civil, Interior, Modular Glass Partition & Doors, Graphics And Films, Blinds, Planters, Carpet Flooring, Electrical, Mechanical, Passive Networking, Phe, Flss Works, Make List, Toilet Works. KB Version bumped to v1.0.42.",
+    "status": "Success"
+  },
+  {
+    "id": "log_rucmdq336",
+    "timestamp": "2026-07-17 17:24:51 UTC",
+    "user": "Estimator Admin",
+    "action": "Knowledge Base Merge",
+    "details": "Knowledge Base version bumped to v1.0.42. Reason: Ingested historical BOQ file \"KOHLER_PUNE_FS_16TH JUNE.xlsx\" for project \"KOHLER PUNE FS 16TH JUNE\" containing 533 items.",
+    "status": "Success"
+  },
+  {
+    "id": "log_tbq22ilbx",
+    "timestamp": "2026-07-17 17:24:48 UTC",
+    "user": "Estimator Admin",
+    "action": "Historical Ingestion",
+    "details": "Ingested historical BOQ file \"Keppel Final BOQ - 30 Dec 2025_8.75Cr.xlsx\" for project \"Keppel Final BOQ   30 Dec 2025 8\" containing 493 items under domains: Overall, C&i, Interior, Chairs, Electrical, Mechanical, Dishwash Area, Planters, Makelist, Fa, Pa, Cctv, Multipurpose Hall, Stage 1st Floor, White Goods, Gym Equipments, Gas Connection, Mist Cooling. KB Version bumped to v1.0.41.",
+    "status": "Success"
+  },
+  {
+    "id": "log_rivzd4ve7",
+    "timestamp": "2026-07-17 17:24:48 UTC",
+    "user": "Estimator Admin",
+    "action": "Knowledge Base Merge",
+    "details": "Knowledge Base version bumped to v1.0.41. Reason: Ingested historical BOQ file \"Keppel Final BOQ - 30 Dec 2025_8.75Cr.xlsx\" for project \"Keppel Final BOQ   30 Dec 2025 8\" containing 493 items.",
+    "status": "Success"
+  },
+  {
+    "id": "log_isr1lwq8n",
+    "timestamp": "2026-07-17 17:24:45 UTC",
+    "user": "Estimator Admin",
+    "action": "Historical Ingestion",
+    "details": "Ingested historical BOQ file \"FS Submission_FINAL_SKF_Phoenix_22.05.2026_R4.xlsx\" for project \"FS Submission FINAL SKF Phoenix 22\" containing 711 items under domains: Civil, Interior, Modular Glass Partition & Doors, Graphics And Films, Blinds, Planters, Carpet Flooring, Phe, Electrical, Ups, Mechanical, Passive Networking, Networking Nodes, Fire & Security, Gss, Toilet Works, Make List. KB Version bumped to v1.0.40.",
+    "status": "Success"
+  },
+  {
+    "id": "log_p8hm8fgpj",
+    "timestamp": "2026-07-17 17:24:45 UTC",
+    "user": "Estimator Admin",
+    "action": "Knowledge Base Merge",
+    "details": "Knowledge Base version bumped to v1.0.40. Reason: Ingested historical BOQ file \"FS Submission_FINAL_SKF_Phoenix_22.05.2026_R4.xlsx\" for project \"FS Submission FINAL SKF Phoenix 22\" containing 711 items.",
+    "status": "Success"
+  },
+  {
+    "id": "log_4f6yzysps",
+    "timestamp": "2026-07-17 17:24:40 UTC",
+    "user": "Estimator Admin",
+    "action": "Historical Ingestion",
+    "details": "Ingested historical BOQ file \"DHL Chennai Estimated BOQ 31 March 2026_R0.xlsx\" for project \"DHL Chennai Estimated BOQ 31 March 2026 R0\" containing 99 items under domains: Price Comparison, Interior, Civil, Chairs, Planters, Sanitary Fixtures, Electrical, White Goods. KB Version bumped to v1.0.39.",
+    "status": "Success"
+  },
+  {
+    "id": "log_bmphzjvs2",
+    "timestamp": "2026-07-17 17:24:40 UTC",
+    "user": "Estimator Admin",
+    "action": "Knowledge Base Merge",
+    "details": "Knowledge Base version bumped to v1.0.39. Reason: Ingested historical BOQ file \"DHL Chennai Estimated BOQ 31 March 2026_R0.xlsx\" for project \"DHL Chennai Estimated BOQ 31 March 2026 R0\" containing 99 items.",
+    "status": "Success"
+  },
+  {
+    "id": "log_7j7b9g6xt",
+    "timestamp": "2026-07-17 17:24:13 UTC",
+    "user": "Estimator Admin",
+    "action": "Deletion",
+    "details": "Cleared all 6 historical BOQs and fully reset the Master BOQ Catalog. KB Version bumped to v1.0.38.",
+    "status": "Success"
+  },
+  {
+    "id": "log_kmsrfl71i",
+    "timestamp": "2026-07-17 17:24:13 UTC",
+    "user": "Estimator Admin",
+    "action": "Knowledge Base Merge",
+    "details": "Knowledge Base version bumped to v1.0.38. Reason: Cleared all historical BOQ files and database references.",
+    "status": "Success"
+  },
+  {
+    "id": "log_j8acbvtet",
+    "timestamp": "2026-07-17 17:23:12 UTC",
+    "user": "Estimator Admin",
+    "action": "Historical Replay",
+    "details": "Uploaded RFQ \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" analyzed. Historical Replay detected (Matched project: KOHLER PUNE FS 16TH JUNE, Workbook overlap: 88%).",
+    "status": "Success"
+  },
+  {
+    "id": "log_lxore5llc",
+    "timestamp": "2026-07-17 17:01:37 UTC",
+    "user": "Estimator Admin",
+    "action": "Historical Replay",
+    "details": "Uploaded RFQ \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" analyzed. Historical Replay detected (Matched project: KOHLER PUNE FS 16TH JUNE, Workbook overlap: 88%).",
+    "status": "Success"
+  },
+  {
+    "id": "log_kywjgkwad",
+    "timestamp": "2026-07-17 16:47:37 UTC",
+    "user": "Estimator Admin",
+    "action": "Historical Replay",
+    "details": "Uploaded RFQ \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" analyzed. Historical Replay detected (Matched project: KOHLER PUNE FS 16TH JUNE, Workbook overlap: 88%).",
+    "status": "Success"
+  },
+  {
+    "id": "log_gf9os3zfk",
+    "timestamp": "2026-07-17 16:47:08 UTC",
+    "user": "Estimator Admin",
+    "action": "System Administration",
+    "details": "Seeded 18 CPWD standard master catalog specification templates into the active repository. KB Version bumped to v1.0.37.",
+    "status": "Success"
+  },
+  {
+    "id": "log_6b20xnu30",
+    "timestamp": "2026-07-17 16:47:08 UTC",
+    "user": "Estimator Admin",
+    "action": "Knowledge Base Merge",
+    "details": "Knowledge Base version bumped to v1.0.37. Reason: Seeded 18 CPWD standard master catalog specification templates.",
+    "status": "Success"
+  },
+  {
+    "id": "log_orwkciugn",
+    "timestamp": "2026-07-17 16:46:56 UTC",
+    "user": "Estimator Admin",
+    "action": "Historical Ingestion",
+    "details": "Ingested historical BOQ file \"Priced_Nuvama I Hyd I C & I & Long Lead  MEP Tender BOQ I 06.08.25 (5).xlsx\" for project \"Priced Nuvama I Hyd I C & I & Long Lead  MEP Tender BOQ I 06\" containing 375 items under domains: Civil, Metal & Wooden Fire Rated Doors, Glass Partition,skirting & Door, Glass Fire Rated Part. & Doors, Blinds, Raised Flooring Works, Interior, Graphics, Frost Film & Internal, Racks Compactors & Lockers, Toilet Finishes Works, Sf, Approved Make Sf, Chair, Approved Make Chair, Technical Specification Carpet, Carpet, Approved Make Carpet, Approved Makes Lf, White Good, Plants, Make List C & I, Phe Toilet, Make List Phe, Fa, Pa, Fps, Fe, Rodent, Wld, Fire Elv Make List, Acs, Cctv, Ss Make List, Electrical, Makes, Ups Make, Ups Boq, Vrf System, Vrf Lowside. KB Version bumped to v1.0.36.",
+    "status": "Success"
+  },
+  {
+    "id": "log_vob8ruan3",
+    "timestamp": "2026-07-17 16:46:56 UTC",
+    "user": "Estimator Admin",
+    "action": "Knowledge Base Merge",
+    "details": "Knowledge Base version bumped to v1.0.36. Reason: Ingested historical BOQ file \"Priced_Nuvama I Hyd I C & I & Long Lead  MEP Tender BOQ I 06.08.25 (5).xlsx\" for project \"Priced Nuvama I Hyd I C & I & Long Lead  MEP Tender BOQ I 06\" containing 375 items.",
+    "status": "Success"
+  },
+  {
+    "id": "log_nbdgozdsg",
+    "timestamp": "2026-07-17 16:46:40 UTC",
+    "user": "Estimator Admin",
+    "action": "Historical Ingestion",
+    "details": "Ingested historical BOQ file \"Priced_COWRKS, CHENNAI_Overall Price_BOQ_CW_MILLENIA 4A 2F.xlsx\" for project \"Priced COWRKS, CHENNAI Overall Price BOQ CW MILLENIA 4A 2F\" containing 452 items under domains: C&i Boq R0, Door Hardware R0 Dormakaba, Chairs, Carpet, Mats & Rugs R0, Cp & Sanitary Fixtures, Electrical, Wide Glass Partions, Interior, Art & Graphics, Mechanical, Fps, Fas, Pas, Fe, Gss, Wld, Rr. KB Version bumped to v1.0.35.",
+    "status": "Success"
+  },
+  {
+    "id": "log_o6a433zqk",
+    "timestamp": "2026-07-17 16:46:40 UTC",
+    "user": "Estimator Admin",
+    "action": "Knowledge Base Merge",
+    "details": "Knowledge Base version bumped to v1.0.35. Reason: Ingested historical BOQ file \"Priced_COWRKS, CHENNAI_Overall Price_BOQ_CW_MILLENIA 4A 2F.xlsx\" for project \"Priced COWRKS, CHENNAI Overall Price BOQ CW MILLENIA 4A 2F\" containing 452 items.",
+    "status": "Success"
+  },
+  {
+    "id": "log_awipvd73j",
+    "timestamp": "2026-07-17 16:46:21 UTC",
+    "user": "Estimator Admin",
+    "action": "Historical Ingestion",
+    "details": "Ingested historical BOQ file \"KOHLER_PUNE_FS_16TH JUNE.xlsx\" for project \"KOHLER PUNE FS 16TH JUNE\" containing 533 items under domains: Civil, Interior, Modular Glass Partition & Doors, Graphics And Films, Blinds, Planters, Carpet Flooring, Electrical, Mechanical, Passive Networking, Phe, Flss Works, Make List, Toilet Works. KB Version bumped to v1.0.34.",
+    "status": "Success"
+  },
+  {
+    "id": "log_x9k7d6fi7",
+    "timestamp": "2026-07-17 16:46:21 UTC",
+    "user": "Estimator Admin",
+    "action": "Knowledge Base Merge",
+    "details": "Knowledge Base version bumped to v1.0.34. Reason: Ingested historical BOQ file \"KOHLER_PUNE_FS_16TH JUNE.xlsx\" for project \"KOHLER PUNE FS 16TH JUNE\" containing 533 items.",
+    "status": "Success"
+  },
+  {
+    "id": "log_hir2hh9ke",
+    "timestamp": "2026-07-17 16:46:03 UTC",
+    "user": "Estimator Admin",
+    "action": "Historical Ingestion",
+    "details": "Ingested historical BOQ file \"Keppel Final BOQ - 30 Dec 2025_8.75Cr.xlsx\" for project \"Keppel Final BOQ   30 Dec 2025 8\" containing 493 items under domains: Overall, C&i, Interior, Chairs, Electrical, Mechanical, Dishwash Area, Planters, Makelist, Fa, Pa, Cctv, Multipurpose Hall, Stage 1st Floor, White Goods, Gym Equipments, Gas Connection, Mist Cooling. KB Version bumped to v1.0.33.",
+    "status": "Success"
+  },
+  {
+    "id": "log_u7yx7tmuy",
+    "timestamp": "2026-07-17 16:46:03 UTC",
+    "user": "Estimator Admin",
+    "action": "Knowledge Base Merge",
+    "details": "Knowledge Base version bumped to v1.0.33. Reason: Ingested historical BOQ file \"Keppel Final BOQ - 30 Dec 2025_8.75Cr.xlsx\" for project \"Keppel Final BOQ   30 Dec 2025 8\" containing 493 items.",
+    "status": "Success"
+  },
+  {
+    "id": "log_b8o1n3rjp",
+    "timestamp": "2026-07-17 16:35:13 UTC",
+    "user": "Estimator Admin",
+    "action": "Historical Ingestion",
+    "details": "Ingested historical BOQ file \"FS Submission_FINAL_SKF_Phoenix_22.05.2026_R4.xlsx\" for project \"FS Submission FINAL SKF Phoenix 22\" containing 711 items under domains: Civil, Interior, Modular Glass Partition & Doors, Graphics And Films, Blinds, Planters, Carpet Flooring, Phe, Electrical, Ups, Mechanical, Passive Networking, Networking Nodes, Fire & Security, Gss, Toilet Works, Make List. KB Version bumped to v1.0.32.",
+    "status": "Success"
+  },
+  {
+    "id": "log_2nhxj1fnk",
+    "timestamp": "2026-07-17 16:35:13 UTC",
+    "user": "Estimator Admin",
+    "action": "Knowledge Base Merge",
+    "details": "Knowledge Base version bumped to v1.0.32. Reason: Ingested historical BOQ file \"FS Submission_FINAL_SKF_Phoenix_22.05.2026_R4.xlsx\" for project \"FS Submission FINAL SKF Phoenix 22\" containing 711 items.",
+    "status": "Success"
+  },
+  {
+    "id": "log_1hrjxaymt",
+    "timestamp": "2026-07-17 16:35:10 UTC",
+    "user": "Estimator Admin",
+    "action": "Historical Ingestion",
+    "details": "Ingested historical BOQ file \"DHL Chennai Estimated BOQ 31 March 2026_R0.xlsx\" for project \"DHL Chennai Estimated BOQ 31 March 2026 R0\" containing 99 items under domains: Price Comparison, Interior, Civil, Chairs, Planters, Sanitary Fixtures, Electrical, White Goods. KB Version bumped to v1.0.31.",
+    "status": "Success"
+  },
+  {
+    "id": "log_d0ej7au6n",
+    "timestamp": "2026-07-17 16:35:10 UTC",
+    "user": "Estimator Admin",
+    "action": "Knowledge Base Merge",
+    "details": "Knowledge Base version bumped to v1.0.31. Reason: Ingested historical BOQ file \"DHL Chennai Estimated BOQ 31 March 2026_R0.xlsx\" for project \"DHL Chennai Estimated BOQ 31 March 2026 R0\" containing 99 items.",
+    "status": "Success"
+  },
+  {
+    "id": "log_0ks7cga47",
+    "timestamp": "2026-07-17 16:34:55 UTC",
+    "user": "Estimator Admin",
+    "action": "Deletion",
+    "details": "Cleared all 2 historical BOQs and fully reset the Master BOQ Catalog. KB Version bumped to v1.0.30.",
+    "status": "Success"
+  },
+  {
+    "id": "log_y0yj3i83i",
+    "timestamp": "2026-07-17 16:34:55 UTC",
+    "user": "Estimator Admin",
+    "action": "Knowledge Base Merge",
+    "details": "Knowledge Base version bumped to v1.0.30. Reason: Cleared all historical BOQ files and database references.",
+    "status": "Success"
+  },
+  {
+    "id": "log_4of419lpo",
+    "timestamp": "2026-07-17 16:30:46 UTC",
+    "user": "Estimator Admin",
+    "action": "Historical Replay",
+    "details": "Uploaded RFQ \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" analyzed. Historical Replay detected (Matched project: FS Submission FINAL SKF Phoenix 22, Workbook overlap: 6%).",
+    "status": "Success"
+  },
+  {
+    "id": "log_cx5n1y0z6",
+    "timestamp": "2026-07-17 16:30:18 UTC",
+    "user": "Estimator Admin",
+    "action": "System Administration",
+    "details": "Seeded 18 CPWD standard master catalog specification templates into the active repository. KB Version bumped to v1.0.29.",
+    "status": "Success"
+  },
+  {
+    "id": "log_wnu51wkf5",
+    "timestamp": "2026-07-17 16:30:18 UTC",
+    "user": "Estimator Admin",
+    "action": "Knowledge Base Merge",
+    "details": "Knowledge Base version bumped to v1.0.29. Reason: Seeded 18 CPWD standard master catalog specification templates.",
+    "status": "Success"
+  },
+  {
+    "id": "log_duztx5ame",
+    "timestamp": "2026-07-17 16:29:59 UTC",
+    "user": "Estimator Admin",
+    "action": "Historical Ingestion",
+    "details": "Ingested historical BOQ file \"FS Submission_FINAL_SKF_Phoenix_22.05.2026_R4.xlsx\" for project \"FS Submission FINAL SKF Phoenix 22\" containing 711 items under domains: Civil, Interior, Modular Glass Partition & Doors, Graphics And Films, Blinds, Planters, Carpet Flooring, Phe, Electrical, Ups, Mechanical, Passive Networking, Networking Nodes, Fire & Security, Gss, Toilet Works, Make List. KB Version bumped to v1.0.28.",
+    "status": "Success"
+  },
+  {
+    "id": "log_mmimximdq",
+    "timestamp": "2026-07-17 16:29:59 UTC",
+    "user": "Estimator Admin",
+    "action": "Knowledge Base Merge",
+    "details": "Knowledge Base version bumped to v1.0.28. Reason: Ingested historical BOQ file \"FS Submission_FINAL_SKF_Phoenix_22.05.2026_R4.xlsx\" for project \"FS Submission FINAL SKF Phoenix 22\" containing 711 items.",
+    "status": "Success"
+  },
+  {
+    "id": "log_sqx4gnom6",
+    "timestamp": "2026-07-17 16:29:55 UTC",
+    "user": "Estimator Admin",
+    "action": "Historical Ingestion",
+    "details": "Ingested historical BOQ file \"DHL Chennai Estimated BOQ 31 March 2026_R0.xlsx\" for project \"DHL Chennai Estimated BOQ 31 March 2026 R0\" containing 99 items under domains: Price Comparison, Interior, Civil, Chairs, Planters, Sanitary Fixtures, Electrical, White Goods. KB Version bumped to v1.0.27.",
+    "status": "Success"
+  },
+  {
+    "id": "log_urf08xpr6",
+    "timestamp": "2026-07-17 16:29:55 UTC",
+    "user": "Estimator Admin",
+    "action": "Knowledge Base Merge",
+    "details": "Knowledge Base version bumped to v1.0.27. Reason: Ingested historical BOQ file \"DHL Chennai Estimated BOQ 31 March 2026_R0.xlsx\" for project \"DHL Chennai Estimated BOQ 31 March 2026 R0\" containing 99 items.",
+    "status": "Success"
+  },
+  {
+    "id": "log_njrelegk0",
+    "timestamp": "2026-07-17 16:29:39 UTC",
+    "user": "Estimator Admin",
+    "action": "Deletion",
+    "details": "Cleared all 2 historical BOQs and fully reset the Master BOQ Catalog. KB Version bumped to v1.0.26.",
+    "status": "Success"
+  },
+  {
+    "id": "log_uauv71mbw",
+    "timestamp": "2026-07-17 16:29:39 UTC",
+    "user": "Estimator Admin",
+    "action": "Knowledge Base Merge",
+    "details": "Knowledge Base version bumped to v1.0.26. Reason: Cleared all historical BOQ files and database references.",
+    "status": "Success"
+  },
+  {
+    "id": "log_jwch79z6i",
+    "timestamp": "2026-07-17 16:26:38 UTC",
+    "user": "Estimator Admin",
+    "action": "System Administration",
+    "details": "Seeded 18 CPWD standard master catalog specification templates into the active repository. KB Version bumped to v1.0.25.",
+    "status": "Success"
+  },
+  {
+    "id": "log_ktn9hhcbc",
+    "timestamp": "2026-07-17 16:26:38 UTC",
+    "user": "Estimator Admin",
+    "action": "Knowledge Base Merge",
+    "details": "Knowledge Base version bumped to v1.0.25. Reason: Seeded 18 CPWD standard master catalog specification templates.",
+    "status": "Success"
+  },
+  {
+    "id": "log_mh8x8pxo7",
+    "timestamp": "2026-07-17 16:26:29 UTC",
+    "user": "Estimator Admin",
+    "action": "Historical Ingestion",
+    "details": "Ingested historical BOQ file \"FS Submission_FINAL_SKF_Phoenix_22.05.2026_R4.xlsx\" for project \"FS Submission FINAL SKF Phoenix 22\" containing 711 items under domains: Civil, Interior, Modular Glass Partition & Doors, Graphics And Films, Blinds, Planters, Carpet Flooring, Phe, Electrical, Ups, Mechanical, Passive Networking, Networking Nodes, Fire & Security, Gss, Toilet Works, Make List. KB Version bumped to v1.0.24.",
+    "status": "Success"
+  },
+  {
+    "id": "log_pcbdh1hkq",
+    "timestamp": "2026-07-17 16:26:29 UTC",
+    "user": "Estimator Admin",
+    "action": "Knowledge Base Merge",
+    "details": "Knowledge Base version bumped to v1.0.24. Reason: Ingested historical BOQ file \"FS Submission_FINAL_SKF_Phoenix_22.05.2026_R4.xlsx\" for project \"FS Submission FINAL SKF Phoenix 22\" containing 711 items.",
+    "status": "Success"
+  },
+  {
+    "id": "log_s3q19lca0",
+    "timestamp": "2026-07-17 16:26:25 UTC",
+    "user": "Estimator Admin",
+    "action": "Historical Ingestion",
+    "details": "Ingested historical BOQ file \"DHL Chennai Estimated BOQ 31 March 2026_R0.xlsx\" for project \"DHL Chennai Estimated BOQ 31 March 2026 R0\" containing 99 items under domains: Price Comparison, Interior, Civil, Chairs, Planters, Sanitary Fixtures, Electrical, White Goods. KB Version bumped to v1.0.23.",
+    "status": "Success"
+  },
+  {
+    "id": "log_vmg6knrwt",
+    "timestamp": "2026-07-17 16:26:25 UTC",
+    "user": "Estimator Admin",
+    "action": "Knowledge Base Merge",
+    "details": "Knowledge Base version bumped to v1.0.23. Reason: Ingested historical BOQ file \"DHL Chennai Estimated BOQ 31 March 2026_R0.xlsx\" for project \"DHL Chennai Estimated BOQ 31 March 2026 R0\" containing 99 items.",
+    "status": "Success"
+  },
+  {
+    "id": "log_1yazithzi",
+    "timestamp": "2026-07-17 16:26:04 UTC",
+    "user": "Estimator Admin",
+    "action": "Deletion",
+    "details": "Cleared all 2 historical BOQs and fully reset the Master BOQ Catalog. KB Version bumped to v1.0.22.",
+    "status": "Success"
+  },
+  {
+    "id": "log_27nlxpnr3",
+    "timestamp": "2026-07-17 16:26:04 UTC",
+    "user": "Estimator Admin",
+    "action": "Knowledge Base Merge",
+    "details": "Knowledge Base version bumped to v1.0.22. Reason: Cleared all historical BOQ files and database references.",
+    "status": "Success"
+  },
+  {
+    "id": "log_oh6yd3vye",
+    "timestamp": "2026-07-17 16:11:29 UTC",
+    "user": "Estimator Admin",
+    "action": "Historical Replay",
+    "details": "Uploaded RFQ \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" analyzed. Historical Replay detected (Matched project: FS Submission FINAL SKF Phoenix 22, Workbook overlap: 6%).",
+    "status": "Success"
+  },
+  {
+    "id": "log_8s85r8amd",
+    "timestamp": "2026-07-17 16:11:01 UTC",
+    "user": "Estimator Admin",
+    "action": "System Administration",
+    "details": "Seeded 18 CPWD standard master catalog specification templates into the active repository. KB Version bumped to v1.0.21.",
+    "status": "Success"
+  },
+  {
+    "id": "log_t3cd3wmxm",
+    "timestamp": "2026-07-17 16:11:01 UTC",
+    "user": "Estimator Admin",
+    "action": "Knowledge Base Merge",
+    "details": "Knowledge Base version bumped to v1.0.21. Reason: Seeded 18 CPWD standard master catalog specification templates.",
+    "status": "Success"
+  },
+  {
+    "id": "log_mjn8r2pcx",
+    "timestamp": "2026-07-17 16:10:52 UTC",
+    "user": "Estimator Admin",
+    "action": "Historical Ingestion",
+    "details": "Ingested historical BOQ file \"FS Submission_FINAL_SKF_Phoenix_22.05.2026_R4.xlsx\" for project \"FS Submission FINAL SKF Phoenix 22\" containing 711 items under domains: Civil, Interior, Modular Glass Partition & Doors, Graphics And Films, Blinds, Planters, Carpet Flooring, Phe, Electrical, Ups, Mechanical, Passive Networking, Networking Nodes, Fire & Security, Gss, Toilet Works, Make List. KB Version bumped to v1.0.20.",
+    "status": "Success"
+  },
+  {
+    "id": "log_29muxdjmj",
+    "timestamp": "2026-07-17 16:10:52 UTC",
+    "user": "Estimator Admin",
+    "action": "Knowledge Base Merge",
+    "details": "Knowledge Base version bumped to v1.0.20. Reason: Ingested historical BOQ file \"FS Submission_FINAL_SKF_Phoenix_22.05.2026_R4.xlsx\" for project \"FS Submission FINAL SKF Phoenix 22\" containing 711 items.",
+    "status": "Success"
+  },
+  {
+    "id": "log_x72sxchzc",
+    "timestamp": "2026-07-17 16:10:48 UTC",
+    "user": "Estimator Admin",
+    "action": "Historical Ingestion",
+    "details": "Ingested historical BOQ file \"DHL Chennai Estimated BOQ 31 March 2026_R0.xlsx\" for project \"DHL Chennai Estimated BOQ 31 March 2026 R0\" containing 99 items under domains: Price Comparison, Interior, Civil, Chairs, Planters, Sanitary Fixtures, Electrical, White Goods. KB Version bumped to v1.0.19.",
+    "status": "Success"
+  },
+  {
+    "id": "log_9maqj0txg",
+    "timestamp": "2026-07-17 16:10:48 UTC",
+    "user": "Estimator Admin",
+    "action": "Knowledge Base Merge",
+    "details": "Knowledge Base version bumped to v1.0.19. Reason: Ingested historical BOQ file \"DHL Chennai Estimated BOQ 31 March 2026_R0.xlsx\" for project \"DHL Chennai Estimated BOQ 31 March 2026 R0\" containing 99 items.",
+    "status": "Success"
+  },
+  {
+    "id": "log_m8jn8z4ar",
+    "timestamp": "2026-07-17 16:10:25 UTC",
+    "user": "Estimator Admin",
+    "action": "Deletion",
+    "details": "Cleared all 5 historical BOQs and fully reset the Master BOQ Catalog. KB Version bumped to v1.0.18.",
+    "status": "Success"
+  },
+  {
+    "id": "log_dzi1hd9d7",
+    "timestamp": "2026-07-17 16:10:25 UTC",
+    "user": "Estimator Admin",
+    "action": "Knowledge Base Merge",
+    "details": "Knowledge Base version bumped to v1.0.18. Reason: Cleared all historical BOQ files and database references.",
+    "status": "Success"
+  },
+  {
+    "id": "log_n982ps3y1",
+    "timestamp": "2026-07-17 16:09:26 UTC",
+    "user": "Estimator Admin",
+    "action": "System Administration",
+    "details": "Seeded 0 CPWD standard master catalog specification templates into the active repository. KB Version bumped to v1.0.17.",
+    "status": "Success"
+  },
+  {
+    "id": "log_9y2wmx0ws",
+    "timestamp": "2026-07-17 16:09:26 UTC",
+    "user": "Estimator Admin",
+    "action": "Knowledge Base Merge",
+    "details": "Knowledge Base version bumped to v1.0.17. Reason: Seeded 0 CPWD standard master catalog specification templates.",
+    "status": "Success"
+  },
+  {
+    "id": "log_gwvwx7yzm",
+    "timestamp": "2026-07-17 16:09:14 UTC",
+    "user": "Estimator Admin",
+    "action": "Historical Ingestion",
+    "details": "Ingested historical BOQ file \"Keppel Final BOQ - 30 Dec 2025_8.75Cr.xlsx\" for project \"Keppel Final BOQ   30 Dec 2025 8\" containing 493 items under domains: Overall, C&i, Interior, Chairs, Electrical, Mechanical, Dishwash Area, Planters, Makelist, Fa, Pa, Cctv, Multipurpose Hall, Stage 1st Floor, White Goods, Gym Equipments, Gas Connection, Mist Cooling. KB Version bumped to v1.0.16.",
+    "status": "Success"
+  },
+  {
+    "id": "log_5kqmzg2p1",
+    "timestamp": "2026-07-17 16:09:14 UTC",
+    "user": "Estimator Admin",
+    "action": "Knowledge Base Merge",
+    "details": "Knowledge Base version bumped to v1.0.16. Reason: Ingested historical BOQ file \"Keppel Final BOQ - 30 Dec 2025_8.75Cr.xlsx\" for project \"Keppel Final BOQ   30 Dec 2025 8\" containing 493 items.",
+    "status": "Success"
+  },
+  {
+    "id": "log_68ltf0hbl",
+    "timestamp": "2026-07-17 16:09:11 UTC",
+    "user": "Estimator Admin",
+    "action": "Historical Ingestion",
+    "details": "Ingested historical BOQ file \"FS Submission_FINAL_SKF_Phoenix_22.05.2026_R4.xlsx\" for project \"FS Submission FINAL SKF Phoenix 22\" containing 711 items under domains: Civil, Interior, Modular Glass Partition & Doors, Graphics And Films, Blinds, Planters, Carpet Flooring, Phe, Electrical, Ups, Mechanical, Passive Networking, Networking Nodes, Fire & Security, Gss, Toilet Works, Make List. KB Version bumped to v1.0.15.",
+    "status": "Success"
+  },
+  {
+    "id": "log_eiflwsy6b",
+    "timestamp": "2026-07-17 16:09:11 UTC",
+    "user": "Estimator Admin",
+    "action": "Knowledge Base Merge",
+    "details": "Knowledge Base version bumped to v1.0.15. Reason: Ingested historical BOQ file \"FS Submission_FINAL_SKF_Phoenix_22.05.2026_R4.xlsx\" for project \"FS Submission FINAL SKF Phoenix 22\" containing 711 items.",
+    "status": "Success"
+  },
+  {
+    "id": "log_5bbi05334",
+    "timestamp": "2026-07-17 16:09:05 UTC",
+    "user": "Estimator Admin",
+    "action": "Historical Ingestion",
+    "details": "Ingested historical BOQ file \"DHL Chennai Estimated BOQ 31 March 2026_R0.xlsx\" for project \"DHL Chennai Estimated BOQ 31 March 2026 R0\" containing 99 items under domains: Price Comparison, Interior, Civil, Chairs, Planters, Sanitary Fixtures, Electrical, White Goods. KB Version bumped to v1.0.14.",
+    "status": "Success"
+  },
+  {
+    "id": "log_xsv5lrzvs",
+    "timestamp": "2026-07-17 16:09:05 UTC",
+    "user": "Estimator Admin",
+    "action": "Knowledge Base Merge",
+    "details": "Knowledge Base version bumped to v1.0.14. Reason: Ingested historical BOQ file \"DHL Chennai Estimated BOQ 31 March 2026_R0.xlsx\" for project \"DHL Chennai Estimated BOQ 31 March 2026 R0\" containing 99 items.",
+    "status": "Success"
+  },
+  {
+    "id": "log_bfmjqiimt",
+    "timestamp": "2026-07-17 16:06:45 UTC",
+    "user": "Estimator Admin",
+    "action": "Deletion",
+    "details": "Removed historical project \"Diagnostic Test Project 5\" (ID: hist_vzmwsnizm) and cleaned all contributing rate variations from the Master BOQ Catalog. KB Version bumped to v1.0.13.",
+    "status": "Success"
+  },
+  {
+    "id": "log_pyvtugqnz",
+    "timestamp": "2026-07-17 16:06:45 UTC",
+    "user": "Estimator Admin",
+    "action": "Knowledge Base Merge",
+    "details": "Knowledge Base version bumped to v1.0.13. Reason: Removed historical project \"Diagnostic Test Project 5\" and cleaned all its rate variants.",
+    "status": "Success"
+  },
+  {
+    "id": "log_ns7w2kqas",
+    "timestamp": "2026-07-17 16:06:44 UTC",
+    "user": "Estimator Admin",
+    "action": "Deletion",
+    "details": "Removed historical project \"Diagnostic Test Project 4\" (ID: hist_tryrop7jb) and cleaned all contributing rate variations from the Master BOQ Catalog. KB Version bumped to v1.0.12.",
+    "status": "Success"
+  },
+  {
+    "id": "log_fleiie3f6",
+    "timestamp": "2026-07-17 16:06:44 UTC",
+    "user": "Estimator Admin",
+    "action": "Knowledge Base Merge",
+    "details": "Knowledge Base version bumped to v1.0.12. Reason: Removed historical project \"Diagnostic Test Project 4\" and cleaned all its rate variants.",
+    "status": "Success"
+  },
+  {
+    "id": "log_aagn1qttk",
+    "timestamp": "2026-07-17 16:06:44 UTC",
+    "user": "Estimator Admin",
+    "action": "Deletion",
+    "details": "Removed historical project \"Diagnostic Test Project 3\" (ID: hist_xez87wyr4) and cleaned all contributing rate variations from the Master BOQ Catalog. KB Version bumped to v1.0.11.",
+    "status": "Success"
+  },
+  {
+    "id": "log_blb123ewb",
+    "timestamp": "2026-07-17 16:06:44 UTC",
+    "user": "Estimator Admin",
+    "action": "Knowledge Base Merge",
+    "details": "Knowledge Base version bumped to v1.0.11. Reason: Removed historical project \"Diagnostic Test Project 3\" and cleaned all its rate variants.",
+    "status": "Success"
+  },
+  {
+    "id": "log_p0lkppwpe",
+    "timestamp": "2026-07-17 16:06:44 UTC",
+    "user": "Estimator Admin",
+    "action": "Deletion",
+    "details": "Removed historical project \"Diagnostic Test Project 2\" (ID: hist_7glsiyxo9) and cleaned all contributing rate variations from the Master BOQ Catalog. KB Version bumped to v1.0.10.",
+    "status": "Success"
+  },
+  {
+    "id": "log_q8hpbz5ie",
+    "timestamp": "2026-07-17 16:06:44 UTC",
+    "user": "Estimator Admin",
+    "action": "Knowledge Base Merge",
+    "details": "Knowledge Base version bumped to v1.0.10. Reason: Removed historical project \"Diagnostic Test Project 2\" and cleaned all its rate variants.",
+    "status": "Success"
+  },
+  {
+    "id": "log_dpiteg2am",
+    "timestamp": "2026-07-17 16:06:44 UTC",
+    "user": "Estimator Admin",
+    "action": "Deletion",
+    "details": "Removed historical project \"Diagnostic Test Project 1\" (ID: hist_d41daug0a) and cleaned all contributing rate variations from the Master BOQ Catalog. KB Version bumped to v1.0.9.",
+    "status": "Success"
+  },
+  {
+    "id": "log_fgtog24v3",
+    "timestamp": "2026-07-17 16:06:44 UTC",
+    "user": "Estimator Admin",
+    "action": "Knowledge Base Merge",
+    "details": "Knowledge Base version bumped to v1.0.9. Reason: Removed historical project \"Diagnostic Test Project 1\" and cleaned all its rate variants.",
+    "status": "Success"
+  },
+  {
+    "id": "log_1f6dfascs",
+    "timestamp": "2026-07-17 16:04:57 UTC",
+    "user": "Estimator Admin",
+    "action": "Historical Ingestion",
+    "details": "Ingested historical BOQ file \"diag-test-5.xlsx\" for project \"Diagnostic Test Project 5\" containing 0 items under domains: Civil. KB Version bumped to v1.0.8.",
+    "status": "Success"
+  },
+  {
+    "id": "log_zr7zpla43",
+    "timestamp": "2026-07-17 16:04:57 UTC",
+    "user": "Estimator Admin",
+    "action": "Knowledge Base Merge",
+    "details": "Knowledge Base version bumped to v1.0.8. Reason: Ingested historical BOQ file \"diag-test-5.xlsx\" for project \"Diagnostic Test Project 5\" containing 0 items.",
+    "status": "Success"
+  },
+  {
+    "id": "log_npigmr8du",
+    "timestamp": "2026-07-17 16:04:57 UTC",
+    "user": "Estimator Admin",
+    "action": "Historical Ingestion",
+    "details": "Ingested historical BOQ file \"diag-test-4.xlsx\" for project \"Diagnostic Test Project 4\" containing 0 items under domains: Civil. KB Version bumped to v1.0.7.",
+    "status": "Success"
+  },
+  {
+    "id": "log_ddzjp13if",
+    "timestamp": "2026-07-17 16:04:57 UTC",
+    "user": "Estimator Admin",
+    "action": "Knowledge Base Merge",
+    "details": "Knowledge Base version bumped to v1.0.7. Reason: Ingested historical BOQ file \"diag-test-4.xlsx\" for project \"Diagnostic Test Project 4\" containing 0 items.",
+    "status": "Success"
+  },
+  {
+    "id": "log_956hrbkzm",
+    "timestamp": "2026-07-17 16:04:56 UTC",
+    "user": "Estimator Admin",
+    "action": "Historical Ingestion",
+    "details": "Ingested historical BOQ file \"diag-test-3.xlsx\" for project \"Diagnostic Test Project 3\" containing 0 items under domains: Civil. KB Version bumped to v1.0.6.",
+    "status": "Success"
+  },
+  {
+    "id": "log_9bfl2gy33",
+    "timestamp": "2026-07-17 16:04:56 UTC",
+    "user": "Estimator Admin",
+    "action": "Knowledge Base Merge",
+    "details": "Knowledge Base version bumped to v1.0.6. Reason: Ingested historical BOQ file \"diag-test-3.xlsx\" for project \"Diagnostic Test Project 3\" containing 0 items.",
+    "status": "Success"
+  },
+  {
+    "id": "log_ej5uygfvw",
+    "timestamp": "2026-07-17 16:04:56 UTC",
+    "user": "Estimator Admin",
+    "action": "Historical Ingestion",
+    "details": "Ingested historical BOQ file \"diag-test-2.xlsx\" for project \"Diagnostic Test Project 2\" containing 0 items under domains: Civil. KB Version bumped to v1.0.5.",
+    "status": "Success"
+  },
+  {
+    "id": "log_hwadsbpfd",
+    "timestamp": "2026-07-17 16:04:56 UTC",
+    "user": "Estimator Admin",
+    "action": "Knowledge Base Merge",
+    "details": "Knowledge Base version bumped to v1.0.5. Reason: Ingested historical BOQ file \"diag-test-2.xlsx\" for project \"Diagnostic Test Project 2\" containing 0 items.",
+    "status": "Success"
+  },
+  {
+    "id": "log_9t66uxhkx",
+    "timestamp": "2026-07-17 16:04:55 UTC",
+    "user": "Estimator Admin",
+    "action": "Historical Ingestion",
+    "details": "Ingested historical BOQ file \"diag-test-1.xlsx\" for project \"Diagnostic Test Project 1\" containing 0 items under domains: Civil. KB Version bumped to v1.0.4.",
+    "status": "Success"
+  },
+  {
+    "id": "log_20os93685",
+    "timestamp": "2026-07-17 16:04:55 UTC",
+    "user": "Estimator Admin",
+    "action": "Knowledge Base Merge",
+    "details": "Knowledge Base version bumped to v1.0.4. Reason: Ingested historical BOQ file \"diag-test-1.xlsx\" for project \"Diagnostic Test Project 1\" containing 0 items.",
+    "status": "Success"
+  },
+  {
+    "id": "log_1hj2wk1nz",
+    "timestamp": "2026-07-17 15:54:41 UTC",
+    "user": "Estimator Admin",
+    "action": "Historical Replay",
+    "details": "Uploaded RFQ \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" analyzed. Historical Replay detected (Matched project: FS Submission FINAL SKF Phoenix 22, Workbook overlap: 6%).",
+    "status": "Success"
+  },
+  {
+    "id": "log_9zowlx0s5",
+    "timestamp": "2026-07-17 15:54:00 UTC",
+    "user": "Estimator Admin",
+    "action": "System Administration",
+    "details": "Seeded 18 CPWD standard master catalog specification templates into the active repository. KB Version bumped to v1.0.3.",
+    "status": "Success"
+  },
+  {
+    "id": "log_2ew69gkeq",
+    "timestamp": "2026-07-17 15:54:00 UTC",
+    "user": "Estimator Admin",
+    "action": "Knowledge Base Merge",
+    "details": "Knowledge Base version bumped to v1.0.3. Reason: Seeded 18 CPWD standard master catalog specification templates.",
+    "status": "Success"
+  },
+  {
+    "id": "log_h4cib1w6t",
+    "timestamp": "2026-07-17 15:53:50 UTC",
+    "user": "Estimator Admin",
+    "action": "Historical Ingestion",
+    "details": "Ingested historical BOQ file \"FS Submission_FINAL_SKF_Phoenix_22.05.2026_R4.xlsx\" for project \"FS Submission FINAL SKF Phoenix 22\" containing 711 items under domains: Civil, Interior, Modular Glass Partition & Doors, Graphics And Films, Blinds, Planters, Carpet Flooring, Phe, Electrical, Ups, Mechanical, Passive Networking, Networking Nodes, Fire & Security, Gss, Toilet Works, Make List. KB Version bumped to v1.0.2.",
+    "status": "Success"
+  },
+  {
+    "id": "log_2swoc2mbw",
+    "timestamp": "2026-07-17 15:53:50 UTC",
+    "user": "Estimator Admin",
+    "action": "Knowledge Base Merge",
+    "details": "Knowledge Base version bumped to v1.0.2. Reason: Ingested historical BOQ file \"FS Submission_FINAL_SKF_Phoenix_22.05.2026_R4.xlsx\" for project \"FS Submission FINAL SKF Phoenix 22\" containing 711 items.",
+    "status": "Success"
+  },
+  {
+    "id": "log_hljul3e4y",
+    "timestamp": "2026-07-17 15:53:47 UTC",
+    "user": "Estimator Admin",
+    "action": "Historical Ingestion",
+    "details": "Ingested historical BOQ file \"DHL Chennai Estimated BOQ 31 March 2026_R0.xlsx\" for project \"DHL Chennai Estimated BOQ 31 March 2026 R0\" containing 99 items under domains: Price Comparison, Interior, Civil, Chairs, Planters, Sanitary Fixtures, Electrical, White Goods. KB Version bumped to v1.0.1.",
+    "status": "Success"
+  },
+  {
+    "id": "log_txvk9o6j4",
+    "timestamp": "2026-07-17 15:53:47 UTC",
+    "user": "Estimator Admin",
+    "action": "Knowledge Base Merge",
+    "details": "Knowledge Base version bumped to v1.0.1. Reason: Ingested historical BOQ file \"DHL Chennai Estimated BOQ 31 March 2026_R0.xlsx\" for project \"DHL Chennai Estimated BOQ 31 March 2026 R0\" containing 99 items.",
+    "status": "Success"
+  },
+  {
+    "id": "log_nzt4lb57a",
+    "timestamp": "2026-07-11 23:01:13 UTC",
+    "user": "Estimator Admin",
+    "action": "Export",
+    "details": "High-fidelity rated RFQ \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" successfully exported with formatted rate injection. Preserving original layout and styles.",
+    "status": "Success"
+  },
+  {
+    "id": "log_ijr7jnl6d",
+    "timestamp": "2026-07-11 22:59:21 UTC",
+    "user": "Estimator Admin",
+    "action": "Export",
+    "details": "High-fidelity rated RFQ \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" successfully exported with formatted rate injection. Preserving original layout and styles.",
+    "status": "Success"
+  },
+  {
+    "id": "log_u0s3epbuy",
+    "timestamp": "2026-07-11 22:58:11 UTC",
+    "user": "Estimator Admin",
+    "action": "Historical Replay",
+    "details": "Completed strict deterministic rate replay & verification for RFQ \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" based on matching historical project \"KOHLER PUNE FS 16TH JUNE\" (0 mismatches).",
+    "status": "Success"
+  },
+  {
+    "id": "log_1vv6xpyhc",
+    "timestamp": "2026-07-11 22:57:10 UTC",
+    "user": "Estimator Admin",
+    "action": "Historical Replay",
+    "details": "Completed strict deterministic rate replay & verification for RFQ \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" based on matching historical project \"FS Submission FINAL SKF Phoenix 22\" (0 mismatches).",
+    "status": "Success"
+  },
+  {
+    "id": "log_stouoqoky",
+    "timestamp": "2026-07-11 21:22:53 UTC",
+    "user": "Estimator Admin",
+    "action": "Export",
+    "details": "Exported fully priced Excel workbook \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" for project \"Copy of KOHLER PUNE FS 16TH JUNE\" with formatting preserved. Mode: AI Hybrid. Replay: false.",
+    "status": "Success"
+  },
+  {
+    "id": "log_365yiqkuk",
+    "timestamp": "2026-07-11 21:22:47 UTC",
+    "user": "Estimator Admin",
+    "action": "Export",
+    "details": "High-fidelity rated RFQ \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" successfully exported with formatted rate injection. Preserving original layout and styles.",
+    "status": "Success"
+  },
+  {
+    "id": "log_6ogwco5wg",
+    "timestamp": "2026-07-11 21:21:59 UTC",
+    "user": "Estimator Admin",
+    "action": "Historical Replay",
+    "details": "Completed deterministic rate replay for RFQ \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" based on matching historical project \"FS Submission FINAL SKF Phoenix 22\" (0 tokens consumed, 100% deterministic accuracy).",
+    "status": "Success"
+  },
+  {
+    "id": "log_1pkt96pqp",
+    "timestamp": "2026-07-11 21:20:42 UTC",
+    "user": "Estimator Admin",
+    "action": "Historical Replay",
+    "details": "Uploaded RFQ \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" analyzed. Historical Replay detected (Matched project: FS Submission FINAL SKF Phoenix 22, Workbook overlap: 80%).",
+    "status": "Success"
+  },
+  {
+    "id": "log_ejs8gpng5",
+    "timestamp": "2026-07-11 21:16:59 UTC",
+    "user": "Estimator Admin",
+    "action": "Historical Replay",
+    "details": "Completed deterministic rate replay for RFQ \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" based on matching historical project \"FS Submission FINAL SKF Phoenix 22\" (0 tokens consumed, 100% deterministic accuracy).",
+    "status": "Success"
+  },
+  {
+    "id": "log_6bu9m88of",
+    "timestamp": "2026-07-11 21:06:28 UTC",
+    "user": "Estimator Admin",
+    "action": "Historical Replay",
+    "details": "Completed deterministic rate replay for RFQ \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" based on matching historical project \"FS Submission FINAL SKF Phoenix 22\" (0 tokens consumed, 100% deterministic accuracy).",
+    "status": "Success"
+  },
+  {
+    "id": "log_4wsyg6qc4",
+    "timestamp": "2026-07-11 21:03:34 UTC",
+    "user": "Estimator Admin",
+    "action": "Historical Replay",
+    "details": "Uploaded RFQ \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" analyzed. Historical Replay detected (Matched project: FS Submission FINAL SKF Phoenix 22, Workbook overlap: 80%).",
+    "status": "Success"
+  },
+  {
+    "id": "log_pxcqzvdei",
+    "timestamp": "2026-07-11 21:01:53 UTC",
+    "user": "Estimator Admin",
+    "action": "System Administration",
+    "details": "Seeded 18 CPWD standard master catalog specification templates into the active repository. KB Version bumped to v1.0.7.",
+    "status": "Success"
+  },
+  {
+    "id": "log_6dn9hml0s",
+    "timestamp": "2026-07-11 21:01:53 UTC",
+    "user": "Estimator Admin",
+    "action": "Knowledge Base Merge",
+    "details": "Knowledge Base version bumped to v1.0.7. Reason: Seeded 18 CPWD standard master catalog specification templates.",
+    "status": "Success"
+  },
+  {
+    "id": "log_m4b75wmou",
+    "timestamp": "2026-07-11 21:01:50 UTC",
+    "user": "Estimator Admin",
+    "action": "Historical Ingestion",
+    "details": "Ingested historical BOQ file \"Priced_Nuvama I Hyd I C & I & Long Lead  MEP Tender BOQ I 06.08.25 (5).xlsx\" for project \"Priced Nuvama I Hyd I C & I & Long Lead  MEP Tender BOQ I 06\" containing 375 items under domains: Civil, Metal & Wooden Fire Rated Doors, Glass Partition,skirting & Door, Glass Fire Rated Part. & Doors, Blinds, Raised Flooring Works, Interior, Graphics, Frost Film & Internal, Racks Compactors & Lockers, Toilet Finishes Works, Sf, Approved Make Sf, Chair, Approved Make Chair, Technical Specification Carpet, Carpet, Approved Make Carpet, Approved Makes Lf, White Good, Plants, Make List C & I, Phe Toilet, Make List Phe, Fa, Pa, Fps, Fe, Rodent, Wld, Fire Elv Make List, Acs, Cctv, Ss Make List, Electrical, Makes, Ups Make, Ups Boq, Vrf System, Vrf Lowside. KB Version bumped to v1.0.6.",
+    "status": "Success"
+  },
+  {
+    "id": "log_t6v9mltp",
+    "timestamp": "2026-07-11 21:01:50 UTC",
+    "user": "Estimator Admin",
+    "action": "Knowledge Base Merge",
+    "details": "Knowledge Base version bumped to v1.0.6. Reason: Ingested historical BOQ file \"Priced_Nuvama I Hyd I C & I & Long Lead  MEP Tender BOQ I 06.08.25 (5).xlsx\" for project \"Priced Nuvama I Hyd I C & I & Long Lead  MEP Tender BOQ I 06\" containing 375 items.",
+    "status": "Success"
+  },
+  {
+    "id": "log_g0h9etvic",
+    "timestamp": "2026-07-11 21:01:43 UTC",
+    "user": "Estimator Admin",
+    "action": "Historical Ingestion",
+    "details": "Ingested historical BOQ file \"Priced_COWRKS, CHENNAI_Overall Price_BOQ_CW_MILLENIA 4A 2F.xlsx\" for project \"Priced COWRKS, CHENNAI Overall Price BOQ CW MILLENIA 4A 2F\" containing 452 items under domains: C&i Boq R0, Door Hardware R0 Dormakaba, Chairs, Carpet, Mats & Rugs R0, Cp & Sanitary Fixtures, Electrical, Wide Glass Partions, Interior, Art & Graphics, Mechanical, Fps, Fas, Pas, Fe, Gss, Wld, Rr. KB Version bumped to v1.0.5.",
+    "status": "Success"
+  },
+  {
+    "id": "log_db8lbrr4l",
+    "timestamp": "2026-07-11 21:01:43 UTC",
+    "user": "Estimator Admin",
+    "action": "Knowledge Base Merge",
+    "details": "Knowledge Base version bumped to v1.0.5. Reason: Ingested historical BOQ file \"Priced_COWRKS, CHENNAI_Overall Price_BOQ_CW_MILLENIA 4A 2F.xlsx\" for project \"Priced COWRKS, CHENNAI Overall Price BOQ CW MILLENIA 4A 2F\" containing 452 items.",
+    "status": "Success"
+  },
+  {
+    "id": "log_yroy0gar4",
+    "timestamp": "2026-07-11 21:01:39 UTC",
+    "user": "Estimator Admin",
+    "action": "Historical Ingestion",
+    "details": "Ingested historical BOQ file \"KOHLER_PUNE_FS_16TH JUNE.xlsx\" for project \"KOHLER PUNE FS 16TH JUNE\" containing 533 items under domains: Civil, Interior, Modular Glass Partition & Doors, Graphics And Films, Blinds, Planters, Carpet Flooring, Electrical, Mechanical, Passive Networking, Phe, Flss Works, Make List, Toilet Works. KB Version bumped to v1.0.4.",
+    "status": "Success"
+  },
+  {
+    "id": "log_oe9nmbjzb",
+    "timestamp": "2026-07-11 21:01:39 UTC",
+    "user": "Estimator Admin",
+    "action": "Knowledge Base Merge",
+    "details": "Knowledge Base version bumped to v1.0.4. Reason: Ingested historical BOQ file \"KOHLER_PUNE_FS_16TH JUNE.xlsx\" for project \"KOHLER PUNE FS 16TH JUNE\" containing 533 items.",
+    "status": "Success"
+  },
+  {
+    "id": "log_0xbzdh565",
+    "timestamp": "2026-07-11 21:01:34 UTC",
+    "user": "Estimator Admin",
+    "action": "Historical Ingestion",
+    "details": "Ingested historical BOQ file \"Keppel Final BOQ - 30 Dec 2025_8.75Cr.xlsx\" for project \"Keppel Final BOQ   30 Dec 2025 8\" containing 493 items under domains: Overall, C&i, Interior, Chairs, Electrical, Mechanical, Dishwash Area, Planters, Makelist, Fa, Pa, Cctv, Multipurpose Hall, Stage 1st Floor, White Goods, Gym Equipments, Gas Connection, Mist Cooling. KB Version bumped to v1.0.3.",
+    "status": "Success"
+  },
+  {
+    "id": "log_b86r7nljk",
+    "timestamp": "2026-07-11 21:01:34 UTC",
+    "user": "Estimator Admin",
+    "action": "Knowledge Base Merge",
+    "details": "Knowledge Base version bumped to v1.0.3. Reason: Ingested historical BOQ file \"Keppel Final BOQ - 30 Dec 2025_8.75Cr.xlsx\" for project \"Keppel Final BOQ   30 Dec 2025 8\" containing 493 items.",
+    "status": "Success"
+  },
+  {
+    "id": "log_i0wtinyqv",
+    "timestamp": "2026-07-11 21:01:31 UTC",
+    "user": "Estimator Admin",
+    "action": "Historical Ingestion",
+    "details": "Ingested historical BOQ file \"FS Submission_FINAL_SKF_Phoenix_22.05.2026_R4.xlsx\" for project \"FS Submission FINAL SKF Phoenix 22\" containing 711 items under domains: Civil, Interior, Modular Glass Partition & Doors, Graphics And Films, Blinds, Planters, Carpet Flooring, Phe, Electrical, Ups, Mechanical, Passive Networking, Networking Nodes, Fire & Security, Gss, Toilet Works, Make List. KB Version bumped to v1.0.2.",
+    "status": "Success"
+  },
+  {
+    "id": "log_gi82l68tb",
+    "timestamp": "2026-07-11 21:01:31 UTC",
+    "user": "Estimator Admin",
+    "action": "Knowledge Base Merge",
+    "details": "Knowledge Base version bumped to v1.0.2. Reason: Ingested historical BOQ file \"FS Submission_FINAL_SKF_Phoenix_22.05.2026_R4.xlsx\" for project \"FS Submission FINAL SKF Phoenix 22\" containing 711 items.",
+    "status": "Success"
+  },
+  {
+    "id": "log_xa6sfybp1",
+    "timestamp": "2026-07-11 21:01:23 UTC",
+    "user": "Estimator Admin",
+    "action": "Historical Ingestion",
+    "details": "Ingested historical BOQ file \"DHL Chennai Estimated BOQ 31 March 2026_R0.xlsx\" for project \"DHL Chennai Estimated BOQ 31 March 2026 R0\" containing 99 items under domains: Price Comparison, Interior, Civil, Chairs, Planters, Sanitary Fixtures, Electrical, White Goods. KB Version bumped to v1.0.1.",
+    "status": "Success"
+  },
+  {
+    "id": "log_bm4u05u7q",
+    "timestamp": "2026-07-11 21:01:23 UTC",
+    "user": "Estimator Admin",
+    "action": "Knowledge Base Merge",
+    "details": "Knowledge Base version bumped to v1.0.1. Reason: Ingested historical BOQ file \"DHL Chennai Estimated BOQ 31 March 2026_R0.xlsx\" for project \"DHL Chennai Estimated BOQ 31 March 2026 R0\" containing 99 items.",
+    "status": "Success"
+  }
+]

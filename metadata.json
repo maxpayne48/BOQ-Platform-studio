@@ -1,0 +1,6 @@
+{
+  "name": "AI Commercial Estimation Platform",
+  "description": "AI-powered BOQ Intelligence & Rate Recommendation Platform that automates commercial estimation for construction projects using semantic matching, preamble analysis, and engineering mathematics scaling.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

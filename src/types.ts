@@ -307,6 +307,15 @@ export interface RFQItem {
   overriddenRate?: number;
   isOverridden: boolean;
   matchedMasterId?: string;
+
+  // Installation Rate (additive layer on top of the existing Supply Rate recommendation -
+  // see src/InstallationRateEngine.ts. Never affects recommendedRate/matchedMasterId above.)
+  // Always computed as Recommended Supply x Final Installation % - the domain baseline is the
+  // anchor; historical data can only blend with it (within tolerance) or gets ignored outright.
+  installationRate?: number;
+  installationSource?: "Baseline" | "Blended" | "Historical Ignored";
+  installationPercentage?: number; // the Final Installation % actually used, e.g. 0.15 for 15%
+  installationReferenceCount?: number; // historical occurrences considered (0 if none/ignored)
   confidenceScore: number; // percentage, e.g. 85
   reason: string;
   parentHierarchy: string[]; // e.g. ["Civil Works", "Flooring", "Granite Flooring"]
@@ -462,7 +471,28 @@ export interface WorkbookBlueprint {
     rateCellColumn: number;
     amountCellColumn: number;
     writableRateCells: Record<number, { cellAddress: string; rfqItemId: string }>;
-    
+
+    // Set only when the sheet has a genuinely separate Installation Rate column (distinct from
+    // the Supply/Unit Rate column above) - undefined/-1 means this sheet has just one Rate
+    // column, and installation recommendation logic must be ignored entirely for it.
+    installationRateCellColumn?: number;
+    writableInstallationRateCells?: Record<number, { cellAddress: string; rfqItemId: string }>;
+    supplyColumnConfidence?: "high" | "low";
+    installationColumnConfidence?: "high" | "none";
+    supplyHeaderText?: string;
+    installationHeaderText?: string;
+
+    // Single source of truth for this sheet's Supply/Installation column layout, built once
+    // during header detection and never re-derived - every downstream consumer (recommend,
+    // export, validation, diagnostics) reads from this instead of re-scanning headers.
+    ratePair?: {
+      supplyRateColumn: number;
+      installationRateColumn?: number;
+      supplyAmountColumn?: number;
+      installationAmountColumn?: number;
+      totalColumn?: number;
+    };
+
     // BOQ Deep Understanding Enhancements
     detectedType?: "Cover page" | "Index" | "General Notes" | "Preambles" | "Legends" | "Specifications" | "Measurement Rules" | "BOQ Sheets" | "Abstract" | "Summary" | string;
     confidenceScore?: number;

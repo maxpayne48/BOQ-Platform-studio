@@ -366,6 +366,20 @@ export default function RecommendationsTab({
         console.log("Completed Stage: Frontend response handling");
         console.log("Execution Time: " + (endTimeHandling - startTimeHandling) + "ms");
         console.log("Returned Value: replay verification failed (no modal shown)");
+      } else if (response.status === 422 && data.error === "Installation Rate Validation Failed") {
+        // Same reasoning as the Historical Replay Failed branch above - this payload carries
+        // `violations` (sheetName/rowNum/reason), not a ValidationReport `report.differences`,
+        // so it must never be routed into the structural validation modal.
+        const violationCount = Array.isArray(data.violations) ? data.violations.length : 0;
+        showNotification("error", data.details || `Export blocked: ${violationCount} row(s) have only one of the Supply/Installation Rate pair populated.`);
+        if (Array.isArray(data.violations)) {
+          console.warn("Installation Rate pairing violations:", data.violations);
+        }
+
+        const endTimeHandling = Date.now();
+        console.log("Completed Stage: Frontend response handling");
+        console.log("Execution Time: " + (endTimeHandling - startTimeHandling) + "ms");
+        console.log("Returned Value: installation rate pairing validation failed (no modal shown)");
       } else if (response.status === 422) {
         setValidationReport(data.report);
         setShowValidationModal(true);
@@ -951,7 +965,9 @@ export default function RecommendationsTab({
                   <th className="p-3.5 text-center">Unit</th>
                   <th className="p-3.5 text-center">Qty</th>
                   <th className="p-3.5 text-right">Matched Historical averages</th>
-                  <th className="p-3.5 text-right bg-indigo-50/20 text-indigo-700">Recommended Unit Rate (₹)</th>
+                  <th className="p-3.5 text-right bg-indigo-50/20 text-indigo-700">Supply Rate (₹)</th>
+                  <th className="p-3.5 text-right">Installation Rate (₹)</th>
+                  <th className="p-3.5 text-right bg-slate-50 text-slate-700">Total Installed Rate (₹)</th>
                   <th className="p-3.5 text-center">Confidence</th>
                   <th className="p-3.5 max-w-xs">Pricing Decision Reason</th>
                   <th className="p-3.5 text-right">Pricing Correction</th>
@@ -1044,6 +1060,48 @@ export default function RecommendationsTab({
                             {item.isOverridden && <span className="text-[9px] font-bold text-amber-500 uppercase">Overridden</span>}
                           </div>
                         )}
+                      </td>
+
+                      <td className="p-3.5 text-right font-mono">
+                        {item.installationRate !== undefined ? (
+                          <div className="space-y-0.5">
+                            <p className="font-bold text-sm text-slate-700">
+                              ₹{item.installationRate.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </p>
+                            <div className="flex items-center justify-end gap-1">
+                              <span className={`text-[8px] font-bold uppercase px-1 rounded ${
+                                item.installationSource === "Blended"
+                                  ? "bg-emerald-50 text-emerald-700"
+                                  : item.installationSource === "Historical Ignored"
+                                    ? "bg-amber-50 text-amber-700"
+                                    : "bg-slate-100 text-slate-500"
+                              }`}>
+                                {item.installationSource || "Baseline"}
+                              </span>
+                              <span className="text-[9px] text-slate-400">
+                                {((item.installationPercentage || 0) * 100).toFixed(1)}%
+                              </span>
+                            </div>
+                            {item.installationSource === "Blended" && (
+                              <p className="text-[9px] text-slate-400">
+                                {item.installationReferenceCount} ref. project{item.installationReferenceCount === 1 ? "" : "s"}
+                              </p>
+                            )}
+                            {item.installationSource === "Historical Ignored" && (
+                              <p className="text-[9px] text-amber-600" title="Historical data existed but differed from the domain baseline by more than 8pp, so it was discarded">
+                                historical discarded
+                              </p>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-[10px] text-slate-400" title="This sheet has no dedicated Installation Rate column">No Installation Column</span>
+                        )}
+                      </td>
+
+                      <td className="p-3.5 text-right font-mono bg-slate-50/60">
+                        <p className="font-bold text-sm text-slate-800">
+                          ₹{(finalRate + (item.installationRate || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </p>
                       </td>
 
                       <td className="p-3.5 text-center">

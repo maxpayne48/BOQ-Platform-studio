@@ -4,10 +4,8 @@ import {
   Layers, 
   Database, 
   Briefcase, 
-  LineChart, 
+  LineChart,
   Settings as SettingsIcon,
-  Clock,
-  Wifi,
   Shield,
   LogOut,
   Menu,
@@ -25,6 +23,24 @@ import AdminConsoleTab from "./components/AdminConsoleTab.tsx";
 import LoginPage from "./components/LoginPage.tsx";
 import FlipspacesLogo from "./components/FlipspacesLogo.tsx";
 
+
+function deriveNameFromEmail(email: string): string {
+  const localPart = email.split("@")[0];
+  return localPart
+    .replace(/[._]/g, " ")
+    .split(" ")
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
+function getInitials(name: string): string {
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase())
+    .join("");
+}
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
@@ -73,19 +89,6 @@ export default function App() {
   const [activeRfqId, setActiveRfqId] = useState<string | null>(null);
   const [activeRfqFileName, setActiveRfqFileName] = useState<string>("");
   const [activeRfqFileBuffer, setActiveRfqFileBuffer] = useState<ArrayBuffer | null>(null);
-
-  // UTC clock state
-  const [utcTime, setUtcTime] = useState<string>("");
-
-  useEffect(() => {
-    const updateTime = () => {
-      const now = new Date();
-      setUtcTime(now.toISOString().replace("T", " ").substring(0, 19) + " UTC");
-    };
-    updateTime();
-    const interval = setInterval(updateTime, 1000);
-    return () => clearInterval(interval);
-  }, []);
 
   const handleNavigateToRecommendations = (rfqId: string, fileBuffer: ArrayBuffer | null, fileName: string) => {
     setActiveRfqId(rfqId);
@@ -260,37 +263,26 @@ export default function App() {
           </div>
 
           {/* Top Actions block */}
-          <div className="flex items-center gap-4">
-            
-            {/* UTC clock capsule */}
-            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-[#F3F5F9] border border-slate-100 rounded-full text-[10px] font-mono font-bold text-slate-500">
-              <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-              {utcTime}
-            </div>
-
-            {/* Online Badge */}
-            <span className="hidden sm:inline-flex items-center gap-1.5 text-emerald-600 font-extrabold text-[10px] uppercase bg-emerald-50 border border-emerald-100/50 px-2.5 py-1.5 rounded-full leading-none">
-              <Wifi className="w-3 h-3 text-emerald-500 animate-pulse shrink-0" /> ONLINE
-            </span>
+          <div className="flex items-center justify-end gap-4">
 
             {/* User Profile avatar */}
             {userEmail && (
-              <div className="flex items-center gap-2.5 pl-3 border-l border-slate-100 relative select-none">
+              <div className="flex items-center gap-2.5 relative select-none">
                 <div className="flex flex-col text-right hidden sm:block">
-                  <span className="text-xs font-black text-slate-800 leading-tight block">Anand Shinde</span>
+                  <span className="text-xs font-black text-slate-800 leading-tight block">{deriveNameFromEmail(userEmail)}</span>
                   <span className="text-[9px] font-bold text-slate-400 truncate max-w-[120px] block" title={userEmail}>
                     {userEmail}
                   </span>
                 </div>
-                
+
                 {/* Initial circle */}
                 <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-500 to-yellow-400 text-slate-900 flex items-center justify-center font-extrabold text-sm shadow-3xs relative">
-                  AS
+                  {getInitials(deriveNameFromEmail(userEmail))}
                   <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-white"></span>
                 </div>
 
                 {/* Direct signout */}
-                <button 
+                <button
                   onClick={handleLogout}
                   className="p-2 text-slate-400 hover:text-red-500 transition-colors focus:outline-none"
                   title="Sign out of your session"

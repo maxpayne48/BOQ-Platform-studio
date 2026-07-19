@@ -1,47 +1,29 @@
 import React from "react";
+import logo from "../assets/logo.png"; // Change to logo.svg if using SVG
 
 interface FlipspacesLogoProps {
   className?: string;
   light?: boolean;
 }
 
-export default function FlipspacesLogo({ className = "w-44 h-auto", light = false }: FlipspacesLogoProps) {
+export default function FlipspacesLogo({
+  className = "",
+}: FlipspacesLogoProps) {
   return (
-    <svg 
-      viewBox="0 0 700 100" 
-      className={className} 
-      fill="none" 
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      {/* Upward pointing triangle on the left */}
-      <polygon 
-        points="15,80 50,15 85,80" 
-        stroke="#FFE200" 
-        strokeWidth="8" 
-        strokeLinejoin="miter" 
-        fill="none" 
+    <div className={`flex items-center justify-center ${className}`}>
+      <img
+        src={logo}
+        alt="Company Logo"
+        className="
+          h-14
+          md:h-16
+          lg:h-20
+          w-auto
+          object-contain
+          select-none
+        "
+        draggable={false}
       />
-      {/* Downward pointing triangle in the middle */}
-      <polygon 
-        points="70,15 105,80 140,15" 
-        stroke="#FFE200" 
-        strokeWidth="8" 
-        strokeLinejoin="miter" 
-        fill="none" 
-      />
-      
-      {/* FLIPSPACES text - clean, elegant, normal weight sans-serif */}
-      <text 
-        x="165" 
-        y="70" 
-        fontFamily="'Inter', 'Space Grotesk', system-ui, -apple-system, sans-serif" 
-        fontWeight="400" 
-        fontSize="76" 
-        fill={light ? "white" : "#0f172a"} 
-        letterSpacing="2"
-      >
-        FLIPSPACES
-      </text>
-    </svg>
+    </div>
   );
 }

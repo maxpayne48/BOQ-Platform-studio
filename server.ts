@@ -30,6 +30,7 @@ import {
   DeterministicRowMapping
 } from "./src/types.js";
 import { RecommendationEngineV2 } from "./src/RecommendationEngineV2.js";
+import { InstallationRateEngine } from "./src/InstallationRateEngine.js";
 import { KnowledgeBaseEngine } from "./backend/src/engines/KnowledgeBaseEngine.js";
 import { EngineeringParser } from "./backend/src/engines/EngineeringParser.js";
 import { ProjectSimilarityEngine } from "./backend/src/engines/ProjectSimilarityEngine.js";
@@ -3012,56 +3013,168 @@ function generateWorkbookBlueprint(workbook: ExcelJS.Workbook, rfqId: string, fi
       });
     });
 
-    // Scan for rate and amount columns up to 30 rows for maximum template layout compatibility
-    let rateCellColumn = -1;
-    let amountCellColumn = -1;
-    let quantityCellColumn = -1;
+    // ------------------------------------------------------------------------------------
+    // Generic Supply/Installation column detector.
+    //
+    // Real-world BOQ templates label these columns wildly inconsistently ("Supply Rate",
+    // "Supply - A", bare "SUPPLY", "SUPPLY | INSTALLATION | TOTAL" as one merged header, or a
+    // merged group header with per-column sub-headers on the row underneath). Rather than
+    // matching one fixed header string, this builds a combined text "signature" per column
+    // (concatenating every header-region row's text for that column, and expanding merged
+    // cells - including pipe-delimited compound merges - across every column they span) and
+    // then matches keyword patterns against that signature. Column letters are never
+    // hardcoded; everything is derived from whatever is actually detected.
+    // ------------------------------------------------------------------------------------
+    // Deliberately narrow (Part 1, Step 1: "read the first 5 header rows"). A wider scan was
+    // tried and caused real false positives: BOQ item descriptions routinely contain words like
+    // "installation"/"testing"/"fixing" ("Supply and installation of X...") as normal
+    // engineering language, not as column headers, and a short enough description row would
+    // otherwise get swept into a column's header signature and misclassify the Description
+    // column itself as Supply/Installation/Total.
+    const HEADER_SCAN_ROWS = 5;
 
-    for (let rNum = 1; rNum <= 30; rNum++) {
-      const row = sheet.getRow(rNum);
-      if (row) {
-        row.eachCell({ includeEmpty: false }, (cell, colNum) => {
-          if (cell.value) {
-            let cellVal = cell.value;
-            let strVal = "";
-            if (cellVal && typeof cellVal === "object") {
-              if ("result" in cellVal) {
-                strVal = String((cellVal as any).result || "");
-              } else if ("formula" in cellVal) {
-                strVal = String((cellVal as any).result || "");
-              } else if ("richText" in cellVal && Array.isArray((cellVal as any).richText)) {
-                strVal = (cellVal as any).richText.map((t: any) => t.text || "").join("");
-              } else {
-                strVal = String(cellVal);
-              }
-            } else {
-              strVal = String(cellVal);
-            }
-
-            const val = strVal.toLowerCase().trim();
-            // Ignore long paragraphs or sentences to prevent matching unrelated notes or descriptions
-            if (val.length > 50) return;
-
-            const rateRegex = /\b(rate|price|unit\s*rate|unit\s*price|unit_rate)\b/i;
-            const amountRegex = /\b(amount|total|total\s*amount|total\s*price)\b/i;
-            const qtyRegex = /\b(qty|quantity|quantities)\b/i;
-
-            if (rateRegex.test(val)) {
-              rateCellColumn = colNum;
-            } else if (amountRegex.test(val)) {
-              amountCellColumn = colNum;
-            } else if (qtyRegex.test(val)) {
-              quantityCellColumn = colNum;
-            }
-          }
-        });
+    const getCellText = (cellValue: any): string => {
+      if (!cellValue) return "";
+      if (typeof cellValue === "object") {
+        if ("result" in cellValue) return String((cellValue as any).result || "");
+        if ("formula" in cellValue) return String((cellValue as any).result || "");
+        if ("richText" in cellValue && Array.isArray((cellValue as any).richText)) {
+          return (cellValue as any).richText.map((t: any) => t.text || "").join("");
+        }
+        return String(cellValue);
       }
-      if (rateCellColumn !== -1 && amountCellColumn !== -1) {
-        break;
+      return String(cellValue);
+    };
+
+    // Resolve merge ranges (e.g. "E4:G4") into {top,left,bottom,right} once, for expanding
+    // header text across every column a merge spans.
+    interface MergeRange { top: number; left: number; bottom: number; right: number; }
+    const colLetterToNum = (letters: string): number => {
+      let n = 0;
+      for (const ch of letters) n = n * 26 + (ch.charCodeAt(0) - 64);
+      return n;
+    };
+    const headerMergeRanges: MergeRange[] = mergedCells
+      .map((m) => /^([A-Z]+)(\d+):([A-Z]+)(\d+)$/.exec(m))
+      .filter((match): match is RegExpExecArray => !!match)
+      .map((match) => ({
+        left: colLetterToNum(match[1]),
+        top: parseInt(match[2], 10),
+        right: colLetterToNum(match[3]),
+        bottom: parseInt(match[4], 10)
+      }));
+
+    // Per-column combined header text, accumulated across every scanned header row.
+    const columnHeaderTextMap: Record<number, string[]> = {};
+
+    for (let rNum = 1; rNum <= HEADER_SCAN_ROWS; rNum++) {
+      const row = sheet.getRow(rNum);
+      if (!row) continue;
+
+      row.eachCell({ includeEmpty: false }, (cell, colNum) => {
+        const raw = getCellText(cell.value).trim();
+        if (!raw || raw.length > 80) return; // skip long paragraphs/notes, not real headers
+
+        // Compound pipe-delimited header spanning multiple columns as one merged cell, e.g.
+        // "SUPPLY | INSTALLATION | TOTAL" - split and assign each segment to its own column.
+        if (raw.includes("|")) {
+          const segments = raw.split("|").map((s) => s.trim()).filter(Boolean);
+          const owningRange = headerMergeRanges.find((r) => colNum === r.left && rNum === r.top);
+          const spanWidth = owningRange ? owningRange.right - owningRange.left + 1 : segments.length;
+          if (segments.length >= 2 && spanWidth === segments.length) {
+            segments.forEach((seg, i) => {
+              const col = colNum + i;
+              (columnHeaderTextMap[col] = columnHeaderTextMap[col] || []).push(seg);
+            });
+            return;
+          }
+        }
+
+        // Ordinary merged header (e.g. a group label spanning several columns, or a single
+        // header cell merged for styling) - apply its text to every column it spans.
+        const owningMerge = headerMergeRanges.find((r) => rNum >= r.top && rNum <= r.bottom && colNum >= r.left && colNum <= r.right);
+        if (owningMerge) {
+          for (let c = owningMerge.left; c <= owningMerge.right; c++) {
+            (columnHeaderTextMap[c] = columnHeaderTextMap[c] || []).push(raw);
+          }
+        } else {
+          (columnHeaderTextMap[colNum] = columnHeaderTextMap[colNum] || []).push(raw);
+        }
+      });
+    }
+
+    let rateCellColumn = -1; // Supply Rate column (kept under its original field name for backward compat)
+    let amountCellColumn = -1; // legacy generic Amount column (single-Rate-column sheets)
+    let quantityCellColumn = -1;
+    let installationRateCellColumn = -1;
+    let supplyAmountColumn = -1;
+    let installationAmountColumn = -1;
+    let totalColumn = -1;
+    let supplyHeaderText = "";
+    let installationHeaderText = "";
+    let supplyConfidence: "high" | "low" = "low"; // "high" only once a real Supply keyword hits
+    let installationConfidence: "high" | "none" = "none";
+
+    // Semantic header normalizer (STEP 2): lowercase, then strip everything that isn't a
+    // letter/digit - this removes spaces, underscores, hyphens, slashes, brackets, newlines,
+    // and punctuation in one pass. "Supply - A" -> "supplya"; "Installation (INR)" ->
+    // "installationinr". Because separators disappear, multi-word phrases like "material
+    // supply" or "labour rate" naturally still contain "supply"/"labour" as substrings.
+    const normalizeHeaderText = (raw: string): string => raw.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+    // STEP 3: broad semantic keyword sets. A letter suffix ("a", "b", "x", "xyz") never
+    // matters - matching is substring-based against the normalized text, so "supplya",
+    // "supplyb", "supplyx" all still contain "supply" and classify identically. Words like
+    // "Rate"/"Unit"/"Price"/"Value"/"INR"/"Quoted" are never checked for - they simply
+    // disappear into the substring test without ever being treated as identifying tokens.
+    const supplyKeywords = ["supply", "material", "procurement", "goods", "equipment", "materialcost"];
+    const installKeywords = ["installation", "install", "labour", "labor", "fixing", "erection", "commissioning", "mounting", "testing", "sitc"];
+    const amountQualifierRegex = /\b(amount|value)\b/i;
+    const totalOnlyRegex = /\btotal\b/i;
+    const amountRegex = /\b(amount|total|total\s*amount|total\s*price)\b/i;
+    const qtyRegex = /\b(qty|quantity|quantities)\b/i;
+
+    for (const [colStr, texts] of Object.entries(columnHeaderTextMap)) {
+      const colNum = Number(colStr);
+      const combinedRaw = texts.join(" ").trim();
+      if (!combinedRaw) continue;
+      const normalized = normalizeHeaderText(combinedRaw);
+      if (!normalized) continue;
+
+      const isInstall = installKeywords.some((k) => normalized.includes(k));
+      const isSupply = !isInstall && supplyKeywords.some((k) => normalized.includes(k));
+      const isAmountQualified = amountQualifierRegex.test(combinedRaw);
+
+      if (isInstall && isAmountQualified) {
+        // e.g. "Amount (INR)" group header + "INSTALLATION" sub-header on the row below -
+        // this is the Installation AMOUNT column, not the Installation RATE column.
+        installationAmountColumn = colNum;
+      } else if (isSupply && isAmountQualified) {
+        supplyAmountColumn = colNum;
+      } else if (isInstall) {
+        installationRateCellColumn = colNum;
+        installationConfidence = "high";
+        installationHeaderText = combinedRaw;
+      } else if (isSupply) {
+        rateCellColumn = colNum;
+        supplyConfidence = "high";
+        supplyHeaderText = combinedRaw;
+      } else if (totalOnlyRegex.test(combinedRaw)) {
+        // Checked before the generic amount check: a merged group-header cell can combine
+        // "Amount (INR)" with a "TOTAL" sub-header, so "total" must win even when "amount"
+        // also appears in the same combined text.
+        totalColumn = colNum;
+      } else if (amountRegex.test(combinedRaw.toLowerCase())) {
+        amountCellColumn = colNum;
+      } else if (qtyRegex.test(combinedRaw.toLowerCase())) {
+        quantityCellColumn = colNum;
       }
     }
 
-    // Default column fallback if there is literally no column header matching rate/amount
+    // Default column fallback if there is literally no column header matching rate/amount -
+    // this is what keeps every pre-existing single-"Rate"-column BOQ working exactly as
+    // before (a bare "Rate"/"Unit Rate" header with no Supply/Installation qualifier matches
+    // none of the semantic keyword sets above, so it falls through to here, low confidence).
     if (rateCellColumn === -1) {
       if (quantityCellColumn !== -1) {
         rateCellColumn = quantityCellColumn + 1;
@@ -3072,9 +3185,22 @@ function generateWorkbookBlueprint(workbook: ExcelJS.Workbook, rfqId: string, fi
     if (amountCellColumn === -1) {
       amountCellColumn = rateCellColumn + 1; // place it after rate
     }
+    // Note: installationRateCellColumn/supplyAmountColumn/installationAmountColumn/totalColumn
+    // are intentionally NEVER defaulted - they stay -1 unless a genuinely high-confidence
+    // semantic match was found above. "Never search headers again after parsing" - every
+    // downstream consumer (recommend, export, validation, diagnostics) reads these cached
+    // values from the blueprint's ratePair below rather than re-scanning the sheet.
+
+    const supplyColLetter = getCellAddress(1, rateCellColumn).replace(/\d+$/, "");
+    const installColLetter = installationRateCellColumn !== -1 ? getCellAddress(1, installationRateCellColumn).replace(/\d+$/, "") : "Not Detected";
+    console.log(
+      `[Column Detection] "${sheetName}"\n  Supply Column = ${supplyColLetter} (confidence: ${supplyConfidence})\n  ` +
+        `Installation Column = ${installColLetter} (confidence: ${installationConfidence})`
+    );
 
     // Build writableRateCells mapping for items in this sheet
     const writableRateCells: Record<number, { cellAddress: string; rfqItemId: string }> = {};
+    const writableInstallationRateCells: Record<number, { cellAddress: string; rfqItemId: string }> = {};
     const sheetItems = parsedItems.filter(item => item.sheetName === sheetName);
     sheetItems.forEach(item => {
       const addr = getCellAddress(item.rowNum, rateCellColumn);
@@ -3082,6 +3208,12 @@ function generateWorkbookBlueprint(workbook: ExcelJS.Workbook, rfqId: string, fi
         cellAddress: addr,
         rfqItemId: item.id
       };
+      if (installationRateCellColumn !== -1) {
+        writableInstallationRateCells[item.rowNum] = {
+          cellAddress: getCellAddress(item.rowNum, installationRateCellColumn),
+          rfqItemId: item.id
+        };
+      }
     });
 
     // ----------------------------------------------------
@@ -3166,6 +3298,19 @@ function generateWorkbookBlueprint(workbook: ExcelJS.Workbook, rfqId: string, fi
       rateCellColumn,
       amountCellColumn,
       writableRateCells,
+      installationRateCellColumn: installationRateCellColumn !== -1 ? installationRateCellColumn : undefined,
+      writableInstallationRateCells: installationRateCellColumn !== -1 ? writableInstallationRateCells : undefined,
+      supplyColumnConfidence: supplyConfidence,
+      installationColumnConfidence: installationConfidence,
+      supplyHeaderText: supplyHeaderText || undefined,
+      installationHeaderText: installationHeaderText || undefined,
+      ratePair: {
+        supplyRateColumn: rateCellColumn,
+        installationRateColumn: installationRateCellColumn !== -1 ? installationRateCellColumn : undefined,
+        supplyAmountColumn: supplyAmountColumn !== -1 ? supplyAmountColumn : undefined,
+        installationAmountColumn: installationAmountColumn !== -1 ? installationAmountColumn : undefined,
+        totalColumn: totalColumn !== -1 ? totalColumn : undefined
+      },
 
       // Deep BOQ Metadata
       detectedType: classification.detectedType,
@@ -3188,6 +3333,213 @@ function generateWorkbookBlueprint(workbook: ExcelJS.Workbook, rfqId: string, fi
   blueprint.allExtractedKnowledge!.projectMetadata = projectMetaAggregator;
 
   return blueprint;
+}
+
+interface PairedRateViolation {
+  sheetName: string;
+  rowNum: number;
+  itemId: string;
+  description: string;
+  reason: "No historical match" | "No supply recommendation" | "No installation recommendation" | "Missing historical installation data";
+}
+
+function isFiniteRate(value: number | undefined | null): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0;
+}
+
+/**
+ * Export-time validation: for every item on a sheet that has BOTH a Supply Rate column and a
+ * dedicated Installation Rate column (per the workbook blueprint's column detection), Supply
+ * and Installation must be treated as a pair - either both populated or both empty. Sheets
+ * with only a single Rate column are exempt entirely (nothing to pair).
+ *
+ * Also logs every row processed on a paired-column sheet with the path taken, per the explicit
+ * per-row audit trail requirement - not just the violations.
+ */
+function validatePairedInstallationRates(
+  activeItems: RFQItem[],
+  blueprint: WorkbookBlueprint
+): PairedRateViolation[] {
+  const violations: PairedRateViolation[] = [];
+
+  for (const item of activeItems) {
+    const sheetBlue = blueprint.sheets[item.sheetName];
+    const isPairedSheet = !!sheetBlue?.installationRateCellColumn;
+    if (!isPairedSheet) continue; // Rule 3: single Rate column sheets are exempt entirely
+
+    const supplyOk = isFiniteRate(item.overriddenRate) || isFiniteRate(item.recommendedRate);
+    const installOk = isFiniteRate(item.installationRate);
+
+    if (supplyOk === installOk) {
+      // Both populated, or both genuinely empty - correctly paired either way.
+      if (supplyOk && installOk) {
+        console.log(
+          `[Installation Rate Validation] Row ${item.rowNum} ("${item.sheetName}") OK - ` +
+            `reason=${item.installationSource || "N/A"}${(item.installationReferenceCount || 0) > 0 ? ` (${item.installationReferenceCount} ref. projects)` : ""}`
+        );
+      } else {
+        console.log(`[Installation Rate Validation] Row ${item.rowNum} ("${item.sheetName}") SKIPPED - no recommendation could be made for either column.`);
+      }
+      continue;
+    }
+
+    // Exactly one of the pair is populated - a real violation.
+    let reason: PairedRateViolation["reason"];
+    if (!supplyOk && installOk) {
+      reason = "No supply recommendation";
+    } else if (!item.matchedMasterId) {
+      reason = "No historical match";
+    } else if (item.installationSource === undefined) {
+      reason = "No installation recommendation";
+    } else {
+      reason = "Missing historical installation data";
+    }
+
+    console.warn(
+      `[Installation Rate Validation] Row ${item.rowNum} ("${item.sheetName}") VIOLATION - ${reason} | ` +
+        `supply=${supplyOk ? "populated" : "empty"} | installation=${installOk ? "populated" : "empty"}`
+    );
+
+    violations.push({
+      sheetName: item.sheetName,
+      rowNum: item.rowNum,
+      itemId: item.id,
+      description: item.originalDescription,
+      reason
+    });
+  }
+
+  return violations;
+}
+
+interface InstallationDebugSheetReport {
+  worksheet: string;
+  supplyHeader: string;
+  installationHeader: string;
+  supplyColumn: string;
+  installationColumn: string;
+  headerConfidence: string;
+  matchedItems: number;
+  baselineCount: number;
+  blendedCount: number;
+  historicalIgnoredCount: number;
+  supplyRecommendations: number;
+  installationRecommendations: number;
+  rowsUpdated: number;
+  rowsSkipped: number;
+  validationStatus: "Pass" | "Fail";
+  skippedReasons: Record<string, number>;
+}
+
+function median(values: number[]): number | null {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
+/**
+ * Part 5 debug report: per-worksheet Supply/Installation column detection, how many items
+ * matched historically, what percentage (historical vs fallback) actually got used, and how
+ * many rows were updated vs skipped (with reasons). Called after every recommendation run and
+ * again right before export.
+ */
+function generateInstallationDebugReport(items: RFQItem[], blueprint: WorkbookBlueprint): InstallationDebugSheetReport[] {
+  const violations = validatePairedInstallationRates(items, blueprint);
+  const violationReasonByKey = new Map(violations.map((v) => [`${v.sheetName}#${v.rowNum}`, v.reason]));
+
+  const sheetNames = Array.from(new Set(items.map((i) => i.sheetName)));
+  const reports: InstallationDebugSheetReport[] = sheetNames.map((sheetName) => {
+    const sheetBlue = blueprint.sheets[sheetName];
+    const sheetItems = items.filter((i) => i.sheetName === sheetName);
+    const isPaired = !!sheetBlue?.installationRateCellColumn;
+    const supplyColumn = sheetBlue ? getCellAddress(1, sheetBlue.rateCellColumn).replace(/\d+$/, "") : "N/A";
+    const installationColumn = sheetBlue?.installationRateCellColumn
+      ? getCellAddress(1, sheetBlue.installationRateCellColumn).replace(/\d+$/, "")
+      : "Not Detected";
+    const supplyHeader = sheetBlue?.supplyHeaderText || "(default - no keyword matched)";
+    const installationHeader = sheetBlue?.installationHeaderText || "N/A";
+    const headerConfidence = `Supply: ${sheetBlue?.supplyColumnConfidence || "low"} / Installation: ${sheetBlue?.installationColumnConfidence || "none"}`;
+
+    let matchedItems = 0;
+    let rowsUpdated = 0;
+    let rowsSkipped = 0;
+    let supplyRecommendations = 0;
+    let installationRecommendations = 0;
+    let baselineCount = 0;
+    let blendedCount = 0;
+    let historicalIgnoredCount = 0;
+    const skippedReasons: Record<string, number> = {};
+
+    sheetItems.forEach((item) => {
+      if (item.matchedMasterId) matchedItems++;
+
+      const supplyOk = isFiniteRate(item.overriddenRate) || isFiniteRate(item.recommendedRate);
+      const installOk = isFiniteRate(item.installationRate);
+      if (supplyOk) supplyRecommendations++;
+      if (installOk) installationRecommendations++;
+
+      if (item.installationSource === "Baseline") baselineCount++;
+      else if (item.installationSource === "Blended") blendedCount++;
+      else if (item.installationSource === "Historical Ignored") historicalIgnoredCount++;
+
+      const rowOk = isPaired ? (supplyOk && installOk) : supplyOk;
+      if (rowOk) {
+        rowsUpdated++;
+      } else {
+        rowsSkipped++;
+        const reason = violationReasonByKey.get(`${sheetName}#${item.rowNum}`)
+          || (!item.matchedMasterId ? "No historical match" : "No supply recommendation");
+        skippedReasons[reason] = (skippedReasons[reason] || 0) + 1;
+      }
+    });
+
+    const sheetViolationCount = violations.filter((v) => v.sheetName === sheetName).length;
+
+    return {
+      worksheet: sheetName,
+      supplyHeader,
+      installationHeader,
+      supplyColumn,
+      installationColumn,
+      headerConfidence,
+      matchedItems,
+      baselineCount,
+      blendedCount,
+      historicalIgnoredCount,
+      supplyRecommendations,
+      installationRecommendations,
+      rowsUpdated,
+      rowsSkipped,
+      validationStatus: sheetViolationCount === 0 ? "Pass" : "Fail",
+      skippedReasons
+    };
+  });
+
+  console.log("\n[Installation Rate Debug Report / Engine Diagnostics]");
+  console.table(
+    reports.map((r) => ({
+      Worksheet: r.worksheet,
+      "Supply Header": r.supplyHeader,
+      "Installation Header": r.installationHeader,
+      "Supply Column": r.supplyColumn,
+      "Installation Column": r.installationColumn,
+      "Header Confidence": r.headerConfidence,
+      "Rows Matched": r.matchedItems,
+      "Rows Updated": r.rowsUpdated,
+      "Rows Skipped": r.rowsSkipped,
+      "Baseline/Blended/Ignored": `${r.baselineCount}/${r.blendedCount}/${r.historicalIgnoredCount}`,
+      "Validation": r.validationStatus
+    }))
+  );
+
+  for (const r of reports) {
+    if (r.rowsSkipped > 0) {
+      console.log(`  Skip reasons for "${r.worksheet}":`, r.skippedReasons);
+    }
+  }
+
+  return reports;
 }
 
 // AI Enrichment via Gemini for deep summaries of general notes, preambles, and specifications
@@ -4068,6 +4420,20 @@ app.post("/api/rfqs/:id/recommend", async (req, res) => {
   let lastYieldTime = Date.now();
   const yieldToEventLoop = () => new Promise(resolve => setImmediate(resolve));
 
+  // Installation % diagnostics (Domain / Baseline % / Historical Median % / Final % / Reason),
+  // one entry per item that actually went through the Installation Rate Engine this run.
+  const installationPercentDiagnostics: {
+    rowNum: number;
+    sheetName: string;
+    domain: string;
+    baselinePercent: number;
+    historicalMedianPercent: number | null;
+    finalPercent: number;
+    recommendedSupply: number;
+    recommendedInstallation: number;
+    reason: "Baseline" | "Blended" | "Historical Ignored";
+  }[] = [];
+
   // 2. PROCESS EACH RFQ ITEM
   for (const item of items) {
     // Event loop safety check (Yield control if we've been running continuously for > 80ms)
@@ -4091,6 +4457,86 @@ app.post("/api/rfqs/:id/recommend", async (req, res) => {
 
     item.recommendationTrace = result.trace;
     tRecommendation += (Date.now() - startRec);
+
+    // Additive Installation Rate layer - never reads or modifies anything set above (Final
+    // Recommended Rate / item.recommendedRate remains the Supply Rate only, always). Only runs
+    // at all if this item's own sheet has a genuinely separate, detected Installation Rate
+    // column - if the sheet has just one Rate column, installation logic is skipped entirely
+    // and item.installationRate is left undefined.
+    const sheetHasInstallationColumn = !!activeRfq.workbookBlueprint?.sheets?.[item.sheetName]?.installationRateCellColumn;
+    const supplyIsValid = Number.isFinite(item.recommendedRate) && item.recommendedRate > 0;
+    if (sheetHasInstallationColumn && supplyIsValid) {
+      try {
+        const matchedMasterForInstall = result.matchedMasterId ? masterItemIdIndex[result.matchedMasterId] : undefined;
+        const installSearchText = [
+          matchedMasterForInstall?.subcategory,
+          matchedMasterForInstall?.category,
+          item.originalDescription
+        ].filter(Boolean).join(" ");
+        const installResult = InstallationRateEngine.computeInstallationRate(
+          item.recommendedRate,
+          matchedMasterForInstall,
+          installSearchText
+        );
+        item.installationRate = installResult.installationRate;
+        item.installationSource = installResult.reason;
+        item.installationPercentage = installResult.installationPercentage;
+        item.installationReferenceCount = installResult.installationReferenceCount;
+
+        installationPercentDiagnostics.push({
+          rowNum: item.rowNum,
+          sheetName: item.sheetName,
+          domain: installResult.domainLabel,
+          baselinePercent: installResult.domainBaselinePercentage,
+          historicalMedianPercent: installResult.historicalMedianPercentage,
+          finalPercent: installResult.installationPercentage,
+          recommendedSupply: item.recommendedRate,
+          recommendedInstallation: installResult.installationRate,
+          reason: installResult.reason
+        });
+      } catch (installError) {
+        // Never leave a partial pair: if installation computation fails for any reason, clear
+        // it entirely rather than leaving Supply populated with no Installation counterpart.
+        console.error(`[Installation Rate] Failed for item ${item.id} (non-fatal, cleared to keep pairing consistent):`, installError);
+        item.installationRate = undefined;
+        item.installationSource = undefined;
+        item.installationPercentage = undefined;
+        item.installationReferenceCount = undefined;
+      }
+    } else {
+      // Explicitly clear rather than merely skip, so a sheet that no longer has (or never
+      // had) an Installation Rate column can never carry stale installation data forward from
+      // an earlier run.
+      item.installationRate = undefined;
+      item.installationSource = undefined;
+      item.installationPercentage = undefined;
+      item.installationReferenceCount = undefined;
+    }
+  }
+
+  // Part 5: Installation Rate debug report, generated right after recommendation completes.
+  if (activeRfq.workbookBlueprint) {
+    generateInstallationDebugReport(items, activeRfq.workbookBlueprint);
+  }
+
+  // Installation % diagnostics: Domain / Baseline % / Historical Median % / Final % / Reason,
+  // proving no single historical project's pricing was ever allowed to override the domain
+  // baseline outside the +-8pp tolerance.
+  if (installationPercentDiagnostics.length > 0) {
+    console.log("\n[Installation % Diagnostics]");
+    console.table(
+      installationPercentDiagnostics.map((d) => ({
+        Row: d.rowNum,
+        Sheet: d.sheetName,
+        Domain: d.domain,
+        "Baseline %": `${(d.baselinePercent * 100).toFixed(1)}%`,
+        "Historical Median %": d.historicalMedianPercent !== null ? `${(d.historicalMedianPercent * 100).toFixed(1)}%` : "N/A",
+        "Final %": `${(d.finalPercent * 100).toFixed(1)}%`,
+        "Recommended Supply": d.recommendedSupply.toFixed(2),
+        "Recommended Installation": d.recommendedInstallation.toFixed(2),
+        Reason: d.reason
+      }))
+    );
   }
 
   // 3. SYNCHRONIZE METRICS AND RECORD AUDIT REPORT
@@ -4869,6 +5315,22 @@ app.post("/api/rfqs/:id/export", async (req, res) => {
       writeDb(RFQS_DB_PATH, rfqs);
     }
 
+    generateInstallationDebugReport(activeItems, blueprint);
+
+    // Paired Supply/Installation Rate validation - only applies to sheets with a genuinely
+    // detected, dedicated Installation Rate column. Fails the whole export (not just the
+    // offending rows) if any row on such a sheet has exactly one of the pair populated.
+    const pairedRateViolations = validatePairedInstallationRates(activeItems, blueprint);
+    if (pairedRateViolations.length > 0) {
+      console.error(`Export blocked for RFQ ${rfqId}: ${pairedRateViolations.length} row(s) have only one of the paired Supply/Installation Rate columns populated.`);
+      return res.status(422).json({
+        success: false,
+        error: "Installation Rate Validation Failed",
+        details: `Export blocked: ${pairedRateViolations.length} row(s) have only one of the Supply/Installation Rate pair populated.`,
+        violations: pairedRateViolations
+      });
+    }
+
     // Perform in-place XML cell value injections inside the workbook ZIP package directly
     const zip = await JSZip.loadAsync(originalBuffer);
     const xmlPaths = await getSheetXmlPaths(zip);
@@ -4904,15 +5366,38 @@ app.post("/api/rfqs/:id/export", async (req, res) => {
       sheetItems.forEach(item => {
         const rateToInject = item.overriddenRate || item.recommendedRate;
 
-        // 1. Inject Unit Rate
+        // 1. Inject Unit Rate (Supply Rate only - Installation Rate, if this sheet has a
+        // dedicated Installation Rate column, is injected separately below.)
         const rateCellRef = getCellRef(item.rowNum, sheetBlue.rateCellColumn);
         xml = updateCellInXml(xml, rateCellRef, rateToInject);
 
-        // 2. Inject static Amount value or update cached Amount formula value
-        if (sheetBlue.amountCellColumn !== -1 && sheetBlue.amountCellColumn !== sheetBlue.rateCellColumn) {
-          const amtCellRef = getCellRef(item.rowNum, sheetBlue.amountCellColumn);
+        // 1b. Inject Installation Rate into its own column, only if this sheet actually has a
+        // dedicated Installation Rate column (never combined with the Supply Rate cell above).
+        if (sheetBlue.installationRateCellColumn && sheetBlue.installationRateCellColumn !== -1 && item.installationRate !== undefined) {
+          const installCellRef = getCellRef(item.rowNum, sheetBlue.installationRateCellColumn);
+          xml = updateCellInXml(xml, installCellRef, item.installationRate);
+        }
+
+        // 2. Inject static Amount value into the Supply Amount column. Prefer the explicitly
+        // detected ratePair.supplyAmountColumn; the legacy default-guessed amountCellColumn
+        // ("rate column + 1") is only safe to fall back on when this sheet has no separate
+        // Installation Rate column at all - otherwise that guess could actually BE the
+        // Installation Rate column, and must never be overwritten with a Supply Amount value.
+        const supplyAmountCol = sheetBlue.ratePair?.supplyAmountColumn
+          ?? (!sheetBlue.ratePair?.installationRateColumn ? sheetBlue.amountCellColumn : -1);
+        if (supplyAmountCol !== -1 && supplyAmountCol !== sheetBlue.rateCellColumn) {
+          const amtCellRef = getCellRef(item.rowNum, supplyAmountCol);
           const amtVal = item.quantity * rateToInject;
           xml = updateCellInXml(xml, amtCellRef, amtVal);
+        }
+
+        // 2b. Installation Amount = qty x Installation Rate, mirroring the Supply Amount
+        // injection above exactly - only written if this sheet has its own dedicated
+        // Installation Amount column. The Total column (if any) is never written to: it is
+        // never made to equal Supply + Installation by this code.
+        if (sheetBlue.ratePair?.installationAmountColumn && item.installationRate !== undefined) {
+          const installAmtCellRef = getCellRef(item.rowNum, sheetBlue.ratePair.installationAmountColumn);
+          xml = updateCellInXml(xml, installAmtCellRef, item.quantity * item.installationRate);
         }
       });
 
@@ -4979,6 +5464,10 @@ app.post("/api/rfqs/:id/export", async (req, res) => {
       const originalWb = new ExcelJS.Workbook();
       await originalWb.xlsx.load(originalBuffer);
       validationReport = compareWorkbooks(originalWb, patchedWorkbook, blueprint, activeItems);
+
+      // Supply and Installation are always kept independent - never summed, never written into
+      // a combined cell. This report is purely informational (per-worksheet debug summary).
+      (validationReport as any).installationDebugReport = generateInstallationDebugReport(activeItems, blueprint);
 
       // Replay validation in Debug Mode (uses parsed patchedWorkbook for ground truth)
       if (rfq.replayDetected && rfq.matchedProjectName) {
@@ -5084,6 +5573,18 @@ app.post("/api/rfqs/:id/export", async (req, res) => {
         sheetsValidatedCount: workbook.worksheets.length,
         totalCellsAudited: activeItems.length
       } as any;
+
+      (validationReport as any).installationBreakdown = activeItems.map(item => ({
+        rowNum: item.rowNum,
+        sheetName: item.sheetName,
+        description: item.originalDescription,
+        supplyRate: item.overriddenRate || item.recommendedRate,
+        installationRate: item.installationRate || 0,
+        totalInstalledRate: item.overriddenRate || ((item.recommendedRate || 0) + (item.installationRate || 0)),
+        installationSource: item.installationSource || "Domain Default",
+        installationPercentage: item.installationPercentage || 0,
+        installationReferenceCount: item.installationReferenceCount || 0
+      }));
 
       // In production mode, if replay was detected, generate a lightweight replay validation report 
       // strictly using in-memory mappings without ExcelJS parsing of the output package.

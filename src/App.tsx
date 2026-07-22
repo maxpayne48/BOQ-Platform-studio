@@ -22,6 +22,7 @@ import SettingsTab from "./components/SettingsTab.tsx";
 import AdminConsoleTab from "./components/AdminConsoleTab.tsx";
 import LoginPage from "./components/LoginPage.tsx";
 import FlipspacesLogo from "./components/FlipspacesLogo.tsx";
+import ThemeToggle from "./components/ThemeToggle.tsx";
 
 
 function deriveNameFromEmail(email: string): string {
@@ -130,13 +131,16 @@ export default function App() {
           <FlipspacesLogo className="w-36 h-auto" />
         </div>
 
-        <button 
-          onClick={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
-          className="p-2 text-slate-500 hover:text-slate-800 focus:outline-none"
-          aria-label="Toggle Navigation Sidebar"
-        >
-          {isMobileSidebarOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-        </button>
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          <button
+            onClick={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
+            className="p-2 text-slate-500 hover:text-slate-800 focus:outline-none"
+            aria-label="Toggle Navigation Sidebar"
+          >
+            {isMobileSidebarOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+          </button>
+        </div>
       </header>
 
       {/* LEFT SIDEBAR (Desktop persistent / Mobile drawer) */}
@@ -264,6 +268,8 @@ export default function App() {
 
           {/* Top Actions block */}
           <div className="flex items-center justify-end gap-4">
+
+            <ThemeToggle />
 
             {/* User Profile avatar */}
             {userEmail && (

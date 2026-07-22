@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Sparkles, ArrowRight, ShieldCheck, Mail, AlertTriangle, CheckCircle } from "lucide-react";
 import FlipspacesLogo from "./FlipspacesLogo.tsx";
+import ThemeToggle from "./ThemeToggle.tsx";
 
 interface LoginPageProps {
   onLoginSuccess: (email: string, rememberMe: boolean) => void;
@@ -125,6 +126,11 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
           <div className="flex items-center gap-1.5">
             <FlipspacesLogo className="w-40 md:w-48 h-auto" />
           </div>
+        </div>
+
+        {/* Theme toggle */}
+        <div className="absolute top-8 left-8 md:top-12 md:left-12">
+          <ThemeToggle />
         </div>
 
         {/* Center Container */}

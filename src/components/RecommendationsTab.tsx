@@ -66,6 +66,7 @@ export default function RecommendationsTab({
   // Override rate panel state
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [overrideValue, setOverrideValue] = useState("");
+  const [overrideReason, setOverrideReason] = useState("");
 
   // Validation and export state
   const [validationReport, setValidationReport] = useState<ValidationReport | null>(null);
@@ -77,6 +78,20 @@ export default function RecommendationsTab({
   const [notification, setNotification] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [showBlueprintPanel, setShowBlueprintPanel] = useState(true);
   const [blueprintSubTab, setBlueprintSubTab] = useState<"sheets" | "knowledge">("sheets");
+
+  // "Items Requiring Attention" dashboard state - purely informational, additive on top of the
+  // existing recommendation table. Never affects recommendedRate, export, or Replay Auditor.
+  const [showAttentionPanel, setShowAttentionPanel] = useState(true);
+  const [highlightedItemId, setHighlightedItemId] = useState<string | null>(null);
+
+  const scrollToItemRow = (itemId: string) => {
+    const rowEl = document.getElementById(`item-row-${itemId}`);
+    if (rowEl) {
+      rowEl.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+    setHighlightedItemId(itemId);
+    setTimeout(() => setHighlightedItemId((current) => (current === itemId ? null : current)), 2200);
+  };
 
   useEffect(() => {
     fetchItemsAndCatalog();
@@ -217,6 +232,7 @@ export default function RecommendationsTab({
   const startOverride = (item: RFQItem) => {
     setEditingItemId(item.id);
     setOverrideValue(String(item.overriddenRate || item.recommendedRate || ""));
+    setOverrideReason("");
   };
 
   const saveOverride = (itemId: string) => {
@@ -229,13 +245,14 @@ export default function RecommendationsTab({
     fetch(`/api/rfqs/${rfqId}/override`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ itemId, rate: rateVal })
+      body: JSON.stringify({ itemId, rate: rateVal, reason: overrideReason.trim() || undefined })
     })
       .then((res) => res.json())
       .then((data) => {
         if (data.success) {
           showNotification("success", "Item rate updated and recorded in analytical feedback model.");
           setEditingItemId(null);
+          setOverrideReason("");
           fetchItemsAndCatalog();
           onRefreshMetrics();
         } else {
@@ -438,6 +455,19 @@ export default function RecommendationsTab({
     link.click();
     document.body.removeChild(link);
   };
+
+  // Recommendation Summary: Auto Approved / Needs Review / Manual Pricing - derived purely from
+  // each item's existing status + attention flags, never recomputed independently of them.
+  const recommendationSummary = items.reduce(
+    (acc, item) => {
+      if (item.attentionFlags?.includes("Manual Pricing Required")) acc.manualPricing++;
+      else if (item.status === "Needs Manual Review" || (item.attentionFlags?.length || 0) > 0) acc.needsReview++;
+      else acc.autoApproved++;
+      return acc;
+    },
+    { autoApproved: 0, needsReview: 0, manualPricing: 0 }
+  );
+  const attentionItems = items.filter((item) => (item.attentionFlags?.length || 0) > 0);
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -955,6 +985,80 @@ export default function RecommendationsTab({
             </div>
           )}
 
+          {/* Recommendation Summary + Items Requiring Attention - additive dashboard surface.
+              Reads only from item.status/attentionFlags computed server-side; never mutates the
+              main table, export pipeline, or any recommendation values. */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-5">
+            <div className="p-4 bg-emerald-50/60 border border-emerald-100 rounded-xl flex items-center gap-3">
+              <span className="text-2xl">✅</span>
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">Auto Approved</p>
+                <p className="text-xl font-black text-emerald-800">{recommendationSummary.autoApproved}</p>
+              </div>
+            </div>
+            <div className="p-4 bg-amber-50/60 border border-amber-100 rounded-xl flex items-center gap-3">
+              <span className="text-2xl">🟡</span>
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700">Needs Review</p>
+                <p className="text-xl font-black text-amber-800">{recommendationSummary.needsReview}</p>
+              </div>
+            </div>
+            <div className="p-4 bg-red-50/60 border border-red-100 rounded-xl flex items-center gap-3">
+              <span className="text-2xl">🔴</span>
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-red-700">Manual Pricing</p>
+                <p className="text-xl font-black text-red-800">{recommendationSummary.manualPricing}</p>
+              </div>
+            </div>
+          </div>
+
+          {attentionItems.length > 0 && (
+            <div className="bg-white border border-amber-200 rounded-xl overflow-hidden shadow-3xs mb-5">
+              <div
+                onClick={() => setShowAttentionPanel(!showAttentionPanel)}
+                className="flex items-center justify-between p-4 bg-amber-50/60 border-b border-amber-100 cursor-pointer hover:bg-amber-50 transition-colors"
+              >
+                <div className="flex items-center gap-2.5">
+                  <span className="text-base">⚠️</span>
+                  <div className="space-y-0.5">
+                    <span className="text-xs font-bold text-amber-900 uppercase tracking-wider">Items Requiring Attention</span>
+                    <p className="text-[10px] text-amber-700">
+                      {attentionItems.length} item{attentionItems.length === 1 ? "" : "s"} flagged for review - click to jump to the row below.
+                    </p>
+                  </div>
+                </div>
+                <button className="text-amber-600 hover:text-amber-800 cursor-pointer">
+                  {showAttentionPanel ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </button>
+              </div>
+              {showAttentionPanel && (
+                <div className="max-h-80 overflow-y-auto divide-y divide-amber-50">
+                  {attentionItems.map((item) => (
+                    <div
+                      key={item.id}
+                      onClick={() => scrollToItemRow(item.id)}
+                      className="p-3 flex items-center justify-between gap-3 hover:bg-amber-50/40 cursor-pointer transition-colors"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[11px] font-semibold text-slate-800 truncate">
+                          Row {item.rowNum} - {item.originalDescription}
+                        </p>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {item.attentionFlags?.map((flag) => (
+                            <span key={flag} className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-amber-100 text-amber-800">
+                              {flag}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                      <ChevronRight className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="bg-white border border-slate-100 rounded-xl overflow-hidden shadow-3xs">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
@@ -982,7 +1086,15 @@ export default function RecommendationsTab({
                   const hasAuditFail = itemValidations && Object.values(itemValidations).some((v: any) => v && v.pass === false);
 
                   return (
-                    <tr key={item.id} className={`hover:bg-slate-50/40 transition-colors ${selectedItemId === item.id ? "bg-indigo-50/15" : ""}`}>
+                    <tr
+                      key={item.id}
+                      id={`item-row-${item.id}`}
+                      className={`hover:bg-slate-50/40 transition-colors ${
+                        highlightedItemId === item.id
+                          ? "bg-amber-50 ring-2 ring-inset ring-amber-300"
+                          : selectedItemId === item.id ? "bg-indigo-50/15" : ""
+                      }`}
+                    >
                       <td 
                         onClick={() => setSelectedItemId(item.id)}
                         className="p-3.5 text-center cursor-pointer group hover:bg-slate-50/80"
@@ -1042,22 +1154,43 @@ export default function RecommendationsTab({
 
                       <td className="p-3.5 text-right font-mono bg-indigo-50/10 border-x border-indigo-50/10">
                         {isEditing ? (
-                          <input
-                            type="number"
-                            value={overrideValue}
-                            onChange={(e) => setOverrideValue(e.target.value)}
-                            className="w-20 px-1.5 py-1 text-xs border border-indigo-400 bg-white rounded text-slate-700 font-bold focus:outline-none"
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") saveOverride(item.id);
-                            }}
-                            autoFocus
-                          />
+                          <div className="space-y-1">
+                            <input
+                              type="number"
+                              value={overrideValue}
+                              onChange={(e) => setOverrideValue(e.target.value)}
+                              className="w-20 px-1.5 py-1 text-xs border border-indigo-400 bg-white rounded text-slate-700 font-bold focus:outline-none"
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") saveOverride(item.id);
+                              }}
+                              autoFocus
+                            />
+                            <input
+                              type="text"
+                              value={overrideReason}
+                              onChange={(e) => setOverrideReason(e.target.value)}
+                              placeholder="Reason (optional)"
+                              title="Recorded in the Learning Layer to help future recommendations improve"
+                              className="w-32 px-1.5 py-1 text-[10px] border border-slate-200 bg-white rounded text-slate-500 focus:outline-none focus:border-indigo-400"
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") saveOverride(item.id);
+                              }}
+                            />
+                          </div>
                         ) : (
                           <div className="space-y-0.5">
                             <p className={`font-bold text-sm ${item.isOverridden ? "text-amber-600" : "text-indigo-600"}`}>
                               ₹{finalRate.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </p>
                             {item.isOverridden && <span className="text-[9px] font-bold text-amber-500 uppercase">Overridden</span>}
+                            {!item.isOverridden && item.engineeringAdjustment?.applied && (
+                              <span
+                                className="text-[8px] font-bold uppercase px-1 rounded bg-purple-50 text-purple-700 block w-fit ml-auto"
+                                title={item.engineeringAdjustment.explanation}
+                              >
+                                AI Estimated · {item.engineeringAdjustment.mathematicalModel}
+                              </span>
+                            )}
                           </div>
                         )}
                       </td>

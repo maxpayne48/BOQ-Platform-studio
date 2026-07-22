@@ -1,6 +1,12 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 
+/* Manual, user-toggleable dark mode (Tailwind v4 defaults to media-query-only dark: - this
+   makes `dark:` variants and the .dark override layer below respond to a class on <html>
+   instead, so the toggle button/localStorage/system-preference logic in ThemeContext.tsx can
+   drive it directly). */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Space Grotesk", sans-serif;
@@ -23,4 +29,256 @@
     transform: translateY(0);
   }
 }
+
+/* ============================================================================
+   THEME SYSTEM - Light Mode (default) / Dark Mode
+   ============================================================================
+   Light mode is the existing, unmodified visual appearance (no rules needed).
+   Dark mode is implemented as a single centralized override layer: every
+   hard-coded Tailwind color utility actually used in this codebase is
+   remapped, once, to a dark-mode-appropriate color when an ancestor carries
+   the `.dark` class. No component markup, layout, spacing or typography is
+   touched - only colors. Any future component that reuses these same
+   existing utility classes (bg-white, text-slate-600, bg-emerald-50, etc.)
+   automatically inherits the correct dark-mode color with zero extra work.
+   ============================================================================ */
+
+html {
+  color-scheme: light;
+}
+html.dark {
+  color-scheme: dark;
+}
+
+/* Smooth, instantaneous-feeling theme transitions (no page reload) - scoped to color
+   properties only so layout/animation performance elsewhere is unaffected. */
+*,
+*::before,
+*::after {
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, fill 0.2s ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition: none !important;
+  }
+}
+
+/* Dark-mode scrollbars */
+.dark ::-webkit-scrollbar-track {
+  background: #0a0f1a;
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 8px;
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
+/* ---------------------------------------------------------------------------
+   Auto-generated color overrides. Every bg-/text-/border-/divide-/ring-/
+   from-/via-/to-/placeholder-/decoration- color utility class actually used
+   across every component is remapped here for dark mode. Regenerate by
+   scanning all component files for color utility classes and re-running the
+   mapping script if new color classes are introduced.
+   --------------------------------------------------------------------------- */
+.dark .text-slate-400 { color: #98a5b8 !important; }
+.dark .border-slate-100 { border-color: #243244 !important; }
+.dark .text-slate-800 { color: #e7ecf3 !important; }
+.dark .bg-white { background-color: #111827 !important; }
+.dark .text-slate-500 { color: #8a96a8 !important; }
+.dark .bg-slate-50 { background-color: #1e293b !important; }
+.dark .text-slate-700 { color: #d3dae4 !important; }
+.dark .text-slate-600 { color: #c3ccd9 !important; }
+.dark .text-indigo-600 { color: #a5b4fc !important; }
+.dark .border-slate-200 { border-color: #2c3c50 !important; }
+.dark .text-indigo-500 { color: #a5b4fc !important; }
+.dark .text-white { color: #f8fafc !important; }
+.dark .bg-emerald-50 { background-color: #022c22 !important; }
+.dark .text-emerald-600 { color: #6ee7b7 !important; }
+.dark .bg-indigo-50 { background-color: #1e1b4b !important; }
+.dark .bg-slate-100 { background-color: #243244 !important; }
+.dark .border-indigo-500 { border-color: #4338ca !important; }
+.dark .border-emerald-100 { border-color: #065f46 !important; }
+.dark .bg-red-50 { background-color: #450a0a !important; }
+.dark .border-red-100 { border-color: #991b1b !important; }
+.dark .bg-slate-50\/50 { background-color: #1e293b !important; }
+.dark .text-slate-300 { color: #cbd5e1 !important; }
+.dark .text-red-500 { color: #fca5a5 !important; }
+.dark .text-emerald-500 { color: #6ee7b7 !important; }
+.dark .text-amber-600 { color: #fcd34d !important; }
+.dark .bg-indigo-600 { background-color: #4f46e5 !important; }
+.dark .bg-indigo-500 { background-color: #6366f1 !important; }
+.dark .border-indigo-100 { border-color: #3730a3 !important; }
+.dark .bg-amber-50 { background-color: #451a03 !important; }
+.dark .text-indigo-700 { color: #a5b4fc !important; }
+.dark .text-emerald-800 { color: #6ee7b7 !important; }
+.dark .text-emerald-700 { color: #6ee7b7 !important; }
+.dark .text-slate-200 { color: #e2e8f0 !important; }
+.dark .bg-slate-200 { background-color: #2c3c50 !important; }
+.dark .bg-slate-900 { background-color: #0a0f1a !important; }
+.dark .border-amber-100 { border-color: #92400e !important; }
+.dark .border-indigo-600 { border-color: #4338ca !important; }
+.dark .text-purple-950 { color: #d8b4fe !important; }
+.dark .bg-slate-800 { background-color: #111c2c !important; }
+.dark .border-white { border-color: #111827 !important; }
+.dark .text-amber-500 { color: #fcd34d !important; }
+.dark .text-amber-700 { color: #fcd34d !important; }
+.dark .ring-indigo-500 { --tw-ring-color: #4338ca !important; }
+.dark .text-purple-600 { color: #d8b4fe !important; }
+.dark .bg-emerald-500 { background-color: #10b981 !important; }
+.dark .text-slate-900 { color: #f1f5f9 !important; }
+.dark .bg-rose-50 { background-color: #4c0519 !important; }
+.dark .text-rose-600 { color: #fda4af !important; }
+.dark .text-red-800 { color: #fca5a5 !important; }
+.dark .border-slate-800 { border-color: #111c2c !important; }
+.dark .text-rose-500 { color: #fda4af !important; }
+.dark .text-purple-700 { color: #d8b4fe !important; }
+.dark .text-red-600 { color: #fca5a5 !important; }
+.dark .text-purple-900 { color: #d8b4fe !important; }
+.dark .border-purple-100\/60 { border-color: #6b21a8 !important; }
+.dark .bg-\[\#FFE200\] { background-color: #FFE200 !important; }
+.dark .text-rose-800 { color: #fda4af !important; }
+.dark .bg-purple-50 { background-color: #3b0764 !important; }
+.dark .border-purple-100 { border-color: #6b21a8 !important; }
+.dark .bg-slate-900\/60 { background-color: #0a0f1a !important; }
+.dark .bg-slate-900\/40 { background-color: #0a0f1a !important; }
+.dark .text-black { color: #f8fafc !important; }
+.dark .border-slate-950 { border-color: #05070c !important; }
+.dark .text-slate-950 { color: #f8fafc !important; }
+.dark .text-purple-500 { color: #d8b4fe !important; }
+.dark .border-slate-50 { border-color: #1e293b !important; }
+.dark .divide-slate-50 > * + * { border-color: #1e293b !important; }
+.dark .text-indigo-400 { color: #a5b4fc !important; }
+.dark .text-indigo-800 { color: #a5b4fc !important; }
+.dark .border-slate-300 { border-color: #374b62 !important; }
+.dark .bg-red-600 { background-color: #dc2626 !important; }
+.dark .bg-red-500 { background-color: #ef4444 !important; }
+.dark .bg-slate-50\/20 { background-color: #1e293b !important; }
+.dark .text-purple-800 { color: #d8b4fe !important; }
+.dark .border-indigo-100\/50 { border-color: #3730a3 !important; }
+.dark .border-rose-100 { border-color: #9f1239 !important; }
+.dark .text-red-700 { color: #fca5a5 !important; }
+.dark .bg-slate-950 { background-color: #05070c !important; }
+.dark .border-slate-900 { border-color: #0a0f1a !important; }
+.dark .text-sky-600 { color: #7dd3fc !important; }
+.dark .border-slate-200\/80 { border-color: #2c3c50 !important; }
+.dark .border-indigo-400 { border-color: #4f46e5 !important; }
+.dark .bg-blue-50 { background-color: #172554 !important; }
+.dark .border-purple-200 { border-color: #7e22ce !important; }
+.dark .bg-amber-50\/60 { background-color: #451a03 !important; }
+.dark .text-amber-800 { color: #fcd34d !important; }
+.dark .bg-slate-50\/80 { background-color: #1e293b !important; }
+.dark .bg-\[\#F3F5F9\] { background-color: #0a0e17 !important; }
+.dark .border-slate-100\/80 { border-color: #243244 !important; }
+.dark .bg-black { background-color: #05070c !important; }
+.dark .bg-indigo-50\/50 { background-color: #1e1b4b !important; }
+.dark .text-violet-500 { color: #c4b5fd !important; }
+.dark .bg-amber-500 { background-color: #f59e0b !important; }
+.dark .text-rose-400 { color: #fda4af !important; }
+.dark .text-amber-400 { color: #fcd34d !important; }
+.dark .text-emerald-400 { color: #6ee7b7 !important; }
+.dark .bg-sky-50 { background-color: #082f49 !important; }
+.dark .border-sky-100 { border-color: #075985 !important; }
+.dark .text-blue-600 { color: #93c5fd !important; }
+.dark .border-slate-200\/50 { border-color: #2c3c50 !important; }
+.dark .bg-indigo-100 { background-color: #312e81 !important; }
+.dark .bg-red-100 { background-color: #7f1d1d !important; }
+.dark .bg-slate-50\/70 { background-color: #1e293b !important; }
+.dark .bg-slate-50\/30 { background-color: #1e293b !important; }
+.dark .border-slate-150 { border-color: #28374a !important; }
+.dark .bg-indigo-50\/10 { background-color: #1e1b4b !important; }
+.dark .text-\[\#111111\] { color: #f1f5f9 !important; }
+.dark .text-\[\#666666\] { color: #aab6c7 !important; }
+.dark .border-red-500 { border-color: #b91c1c !important; }
+.dark .border-black { border-color: #05070c !important; }
+.dark .border-slate-400 { border-color: #3f5468 !important; }
+.dark .text-\[\#888888\] { color: #94a3b8 !important; }
+.dark .text-blue-700 { color: #93c5fd !important; }
+.dark .border-amber-200 { border-color: #b45309 !important; }
+.dark .text-rose-700 { color: #fda4af !important; }
+.dark .border-rose-200 { border-color: #be123c !important; }
+.dark .border-emerald-200 { border-color: #047857 !important; }
+.dark .border-indigo-200 { border-color: #4338ca !important; }
+.dark .bg-slate-50\/40 { background-color: #1e293b !important; }
+.dark .bg-purple-50\/50 { background-color: #3b0764 !important; }
+.dark .bg-purple-100 { background-color: #581c87 !important; }
+.dark .text-amber-900 { color: #fcd34d !important; }
+.dark .bg-indigo-50\/20 { background-color: #1e1b4b !important; }
+.dark .bg-emerald-100 { background-color: #064e3b !important; }
+.dark .border-purple-150 { border-color: #6b21a8 !important; }
+.dark .divide-slate-100 > * + * { border-color: #243244 !important; }
+.dark .text-indigo-900 { color: #a5b4fc !important; }
+.dark .from-amber-500 { --tw-gradient-from: #f59e0b !important; }
+.dark .to-yellow-400 { --tw-gradient-to: #facc15 !important; }
+.dark .border-slate-100\/60 { border-color: #243244 !important; }
+.dark .border-slate-100\/50 { border-color: #243244 !important; }
+.dark .text-blue-500 { color: #93c5fd !important; }
+.dark .text-teal-500 { color: #5eead4 !important; }
+.dark .text-green-500 { color: #86efac !important; }
+.dark .text-sky-500 { color: #7dd3fc !important; }
+.dark .text-orange-500 { color: #fdba74 !important; }
+.dark .text-fuchsia-500 { color: #f0abfc !important; }
+.dark .bg-slate-400 { background-color: #3f5468 !important; }
+.dark .border-slate-200\/40 { border-color: #2c3c50 !important; }
+.dark .bg-indigo-50\/60 { background-color: #1e1b4b !important; }
+.dark .text-blue-400 { color: #93c5fd !important; }
+.dark .bg-slate-900\/50 { background-color: #0a0f1a !important; }
+.dark .bg-emerald-600 { background-color: #059669 !important; }
+.dark .bg-sky-600 { background-color: #0284c7 !important; }
+.dark .bg-slate-300 { background-color: #374b62 !important; }
+.dark .border-indigo-700 { border-color: #4338ca !important; }
+.dark .bg-indigo-700 { background-color: #4338ca !important; }
+.dark .bg-rose-600 { background-color: #e11d48 !important; }
+.dark .bg-rose-700 { background-color: #be123c !important; }
+.dark .bg-slate-150 { background-color: #28374a !important; }
+.dark .ring-indigo-50 { --tw-ring-color: #3730a3 !important; }
+.dark .bg-\[\#222222\] { background-color: #0d1420 !important; }
+.dark .bg-\[\#1a1a1a\]\/55 { background-color: #0d1420 !important; }
+.dark .placeholder-\[\#999999\]::placeholder { color: #94a3b8 !important; }
+.dark .bg-red-50\/10 { background-color: #450a0a !important; }
+.dark .border-\[\#E0E0E0\] { border-color: #2c3a52 !important; }
+.dark .border-\[\#CCCCCC\] { border-color: #3a4a63 !important; }
+.dark .bg-\[\#F3D700\] { background-color: #F3D700 !important; }
+.dark .bg-\[\#E5E5E5\] { background-color: #233047 !important; }
+.dark .text-\[\#999999\] { color: #94a3b8 !important; }
+.dark .border-slate-250 { border-color: #314359 !important; }
+.dark .border-slate-700 { border-color: #242e3b !important; }
+.dark .bg-slate-700 { background-color: #242e3b !important; }
+.dark .border-slate-600 { border-color: #334050 !important; }
+.dark .text-slate-100 { color: #f1f5f9 !important; }
+.dark .bg-slate-950\/80 { background-color: #05070c !important; }
+.dark .text-indigo-300 { color: #a5b4fc !important; }
+.dark .border-slate-800\/60 { border-color: #111c2c !important; }
+.dark .bg-slate-100\/60 { background-color: #243244 !important; }
+.dark .border-blue-200 { border-color: #1d4ed8 !important; }
+.dark .bg-yellow-50 { background-color: #422006 !important; }
+.dark .text-yellow-700 { color: #fde047 !important; }
+.dark .border-yellow-200 { border-color: #a16207 !important; }
+.dark .bg-orange-50 { background-color: #431407 !important; }
+.dark .text-orange-700 { color: #fdba74 !important; }
+.dark .border-orange-200 { border-color: #c2410c !important; }
+.dark .bg-teal-50 { background-color: #042f2e !important; }
+.dark .text-teal-700 { color: #5eead4 !important; }
+.dark .border-teal-200 { border-color: #0f766e !important; }
+.dark .bg-emerald-50\/60 { background-color: #022c22 !important; }
+.dark .bg-red-50\/60 { background-color: #450a0a !important; }
+.dark .divide-amber-50 > * + * { border-color: #92400e !important; }
+.dark .bg-amber-50\/40 { background-color: #451a03 !important; }
+.dark .bg-amber-100 { background-color: #78350f !important; }
+.dark .ring-amber-300 { --tw-ring-color: #b45309 !important; }
+.dark .bg-indigo-50\/15 { background-color: #1e1b4b !important; }
+.dark .decoration-indigo-300 { text-decoration-color: #a5b4fc !important; }
+.dark .border-indigo-50\/10 { border-color: #3730a3 !important; }
+.dark .bg-slate-50\/60 { background-color: #1e293b !important; }
+.dark .bg-red-50\/50 { background-color: #450a0a !important; }
+.dark .text-red-400 { color: #fca5a5 !important; }
+.dark .bg-indigo-50\/40 { background-color: #1e1b4b !important; }
+.dark .bg-emerald-50\/50 { background-color: #022c22 !important; }
+.dark .bg-rose-50\/50 { background-color: #4c0519 !important; }
+.dark .divide-purple-100 > * + * { border-color: #6b21a8 !important; }
+.dark .bg-purple-50\/30 { background-color: #3b0764 !important; }
+.dark .bg-rose-100 { background-color: #881337 !important; }
+.dark .bg-indigo-400 { background-color: #818cf8 !important; }
+.dark .bg-purple-500 { background-color: #a855f7 !important; }
 

@@ -42,6 +42,11 @@ export default function UploadRFQTab({ onNavigateToRecommendations, loadTrigger,
   // Status notification alert
   const [notification, setNotification] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
+  // Upload Diagnostics - the detailed per-worksheet parsing log from the Universal BOQ Parser,
+  // shown so a failed/partial upload can be debugged without digging through server logs.
+  const [lastUploadLog, setLastUploadLog] = useState<any | null>(null);
+  const [showUploadLog, setShowUploadLog] = useState(false);
+
   // Keep a local in-memory store of the raw ArrayBuffers of uploaded RFQs
   // This is critical because when exporting, we must load the *original* Excel formatting!
   // Since we operate completely client-side in React, we can store these raw files in a mapping state!
@@ -152,15 +157,25 @@ export default function UploadRFQTab({ onNavigateToRecommendations, loadTrigger,
       });
 
       const data = await response.json();
+      const uploadLog = data.uploadLog || data.rfq?.uploadLog || null;
+      setLastUploadLog(uploadLog);
+      if (uploadLog?.metadataWarning || uploadLog?.warnings?.length > 0) {
+        setShowUploadLog(true);
+      }
 
       if (response.ok && data.success) {
-        showNotification("success", `RFQ Ingested! Parsed ${data.itemsCount} payable estimating line items.`);
-        
+        showNotification(
+          "success",
+          uploadLog?.metadataWarning
+            ? `RFQ Ingested! Parsed ${data.itemsCount} line items. Note: excessive workbook metadata was detected and cleaned - see Upload Diagnostics below.`
+            : `RFQ Ingested! Parsed ${data.itemsCount} payable estimating line items.`
+        );
+
         // Store raw ArrayBuffer matching this RFQ ID for client-side Rate preservation on Export!
         const rfqId = data.rfq.id;
         const updatedBuffers = { ...fileBuffers, [rfqId]: { buffer, name: rfqFile.name } };
         setFileBuffers(updatedBuffers);
-        
+
         // Also save to Session/LocalStorage so it survives individual page tab switches
         // (IndexedDB or State is ideal, session storage holds base64)
         try {
@@ -174,7 +189,7 @@ export default function UploadRFQTab({ onNavigateToRecommendations, loadTrigger,
         setProjectName("");
         setPreambleText("");
         setRfqFile(null);
-        
+
         onRefreshLoadTrigger();
         fetchDrafts();
       } else {
@@ -487,6 +502,76 @@ export default function UploadRFQTab({ onNavigateToRecommendations, loadTrigger,
           </div>
         )}
       </div>
+
+      {/* Upload Diagnostics - detailed per-worksheet parsing log from the Universal BOQ Parser */}
+      {lastUploadLog && (
+        <div className="bg-white border border-slate-100 rounded-xl shadow-xs overflow-hidden">
+          <div
+            onClick={() => setShowUploadLog(!showUploadLog)}
+            className="flex items-center justify-between p-4 bg-slate-50 border-b border-slate-100 cursor-pointer hover:bg-slate-100/60 transition-colors"
+          >
+            <div className="space-y-0.5">
+              <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">Upload Diagnostics</span>
+              <p className="text-[10px] text-slate-500">
+                {lastUploadLog.worksheetsParsed?.length || 0}/{lastUploadLog.worksheetsFound?.length || 0} worksheets parsed &middot;{" "}
+                {lastUploadLog.totalRowsParsed || 0} rows extracted &middot; {lastUploadLog.totalRowsSkipped || 0} rows skipped &middot;{" "}
+                {lastUploadLog.parsingTimeMs || 0}ms
+              </p>
+            </div>
+            <ChevronRight className={`w-4 h-4 text-slate-400 transition-transform ${showUploadLog ? "rotate-90" : ""}`} />
+          </div>
+
+          {showUploadLog && (
+            <div className="p-4 space-y-4 text-xs">
+              {lastUploadLog.errors?.length > 0 && (
+                <div className="space-y-1">
+                  <p className="font-bold text-red-600 uppercase text-[10px] tracking-wider">Errors</p>
+                  {lastUploadLog.errors.map((e: string, idx: number) => (
+                    <p key={idx} className="text-red-700 bg-red-50 border border-red-100 rounded px-2 py-1">{e}</p>
+                  ))}
+                </div>
+              )}
+              {lastUploadLog.warnings?.length > 0 && (
+                <div className="space-y-1">
+                  <p className="font-bold text-amber-600 uppercase text-[10px] tracking-wider">Warnings</p>
+                  {lastUploadLog.warnings.map((w: string, idx: number) => (
+                    <p key={idx} className="text-amber-700 bg-amber-50 border border-amber-100 rounded px-2 py-1">{w}</p>
+                  ))}
+                </div>
+              )}
+              {lastUploadLog.worksheetsSkipped?.length > 0 && (
+                <div className="space-y-1">
+                  <p className="font-bold text-slate-500 uppercase text-[10px] tracking-wider">Worksheets Skipped</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                    {lastUploadLog.worksheetsSkipped.map((s: { sheetName: string; reason: string }, idx: number) => (
+                      <div key={idx} className="bg-slate-50 border border-slate-100 rounded px-2 py-1">
+                        <span className="font-semibold text-slate-700">{s.sheetName}</span>
+                        <span className="text-slate-400"> - {s.reason}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {lastUploadLog.skippedReasonSummary && Object.keys(lastUploadLog.skippedReasonSummary).length > 0 && (
+                <div className="space-y-1">
+                  <p className="font-bold text-slate-500 uppercase text-[10px] tracking-wider">Skipped Row Reasons</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {Object.entries(lastUploadLog.skippedReasonSummary).map(([reason, count]) => (
+                      <span key={reason} className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded-full text-[10px] font-medium">
+                        {reason}: {count as number}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div className="space-y-1">
+                <p className="font-bold text-slate-500 uppercase text-[10px] tracking-wider">Worksheets Found</p>
+                <p className="text-slate-500">{lastUploadLog.worksheetsFound?.join(", ") || "-"}</p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Notifications Drawer */}
       {notification && (

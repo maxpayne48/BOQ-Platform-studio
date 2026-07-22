@@ -254,6 +254,25 @@ export interface RFQ {
   retrievalTimeMs?: number;
   recommendationTimeMs?: number;
 
+  // Universal BOQ Upload Parser diagnostics (src/BOQParserEngine.ts) - additive, informational
+  // only. Never affects recommendation, pricing, or export logic.
+  uploadLog?: {
+    workbookRead: boolean;
+    worksheetsFound: string[];
+    worksheetsParsed: string[];
+    worksheetsSkipped: { sheetName: string; reason: string }[];
+    totalRowsParsed: number;
+    totalRowsSkipped: number;
+    skippedReasonSummary: Record<string, number>;
+    headerDetectionResults: { sheetName: string; headerRows: number[]; columns: { description: number | null; quantity: number | null; unit: number | null; rate: number | null; amount: number | null; itemNo: number | null }[] }[];
+    parsingTimeMs: number;
+    warnings: string[];
+    errors: string[];
+    diagnostics?: { category: "Metadata Warning" | "Parsing Error" | "Workbook Corruption" | "Missing BOQ Data"; sheetName?: string; message: string }[];
+    metadataWarning?: string;
+    definedNamesRemoved?: number;
+  };
+
   // Historical Replay Verification fields
   verifiedReplayRows?: {
     projectId: string;
@@ -316,6 +335,85 @@ export interface RFQItem {
   installationSource?: "Baseline" | "Blended" | "Historical Ignored";
   installationPercentage?: number; // the Final Installation % actually used, e.g. 0.15 for 15%
   installationReferenceCount?: number; // historical occurrences considered (0 if none/ignored)
+
+  // Engineering Adjustment (additive layer on top of the existing "Basic Rate" fallback path -
+  // see src/EngineeringAdjustmentEngine.ts. Only ever runs when no exact historical item exists;
+  // never touches an exact-match "Historical Rate" recommendation.) When applied, recommendedRate
+  // above is overwritten with the engineering-adjusted estimate rather than a flat catalog guess.
+  engineeringAdjustment?: {
+    applied: boolean;
+    mathematicalModel: "Linear Interpolation" | "Linear Extrapolation" | "Area Scaling" | "Historical Regression" | "None";
+    engineeringParameters: { name: string; value: number; unit: string }[];
+    familyKey: string;
+    historicalReferencesUsed: { description: string; dimensionValue: number; rate: number }[];
+    calculatedAdjustment: string;
+    confidence: number;
+    isExtrapolation: boolean;
+    rateVariationPercent: number | null;
+    explanation: string;
+  };
+  // Dashboard "Items Requiring Attention" trigger flags, e.g. "Low Confidence", "AI Estimated",
+  // "New Dimension", "New Specification", "Engineering Review Required", "Manual Pricing Required",
+  // "UOM Conversion", "High Historical Rate Variation", "Limited Historical References".
+  attentionFlags?: string[];
+
+  // Project Calibration & Validation Layer (additive, runs AFTER all of the above - see
+  // src/ProjectCalibrationEngine.ts. Only overwrites recommendedRate for the small subset of
+  // items that are simultaneously high project-cost contribution, high deviation from their own
+  // item-level market rate statistics, and low pricing confidence, and only when the whole
+  // project estimate falls outside the expected historical cost range. Everything else is
+  // reported here purely for validation and never changes recommendedRate.)
+  // Confidence Engine redesign - six independent dimensions replacing a single confidence score.
+  // See src/ProjectCalibrationEngine.ts computeItemConfidenceProfile for definitions. Never
+  // affects business logic, pricing logic, or recommendation logic (item.status) - purely a
+  // richer confidence report for estimator triage.
+  semanticConfidence?: number;
+  specificationConfidence?: number;
+  pricingConfidence?: number;
+  engineeringConfidence?: number;
+  historicalConfidence?: number;
+  overallConfidence?: number;
+  marketRateStatistics?: {
+    min: number;
+    max: number;
+    median: number;
+    weightedMedian: number;
+    weightedMean: number;
+    standardDeviation: number;
+    q1: number;
+    q3: number;
+    iqr: number;
+    referenceCount: number;
+    representativeRate: number;
+    outliersRemoved: number;
+    outlierBreakdown: { reason: string; count: number }[];
+    averageSimilarityScore: number;
+  };
+  calibrationApplied?: boolean;
+  calibrationReason?: string;
+
+  // Historical Retrieval redesign (additive - see src/HistoricalRetrievalEngine.ts). Ranked list
+  // of historical candidates surviving Domain/Item Family/UOM filtering and multi-factor
+  // similarity scoring. Deliberately NOT auto-applied to recommendedRate by this engine itself -
+  // it is handed to the pricing engine (ProjectCalibrationEngine) to weight its market-rate
+  // statistics, and kept here purely for transparency/audit.
+  historicalCandidates?: {
+    masterId: string;
+    standardDescription: string;
+    domain: string;
+    projectName: string;
+    rate: number;
+    overallMatchScore: number;
+    scores: {
+      semantic: number;
+      specification: number;
+      material: number;
+      project: number;
+      dimension: number;
+      engineering: number;
+    };
+  }[];
+
   confidenceScore: number; // percentage, e.g. 85
   reason: string;
   parentHierarchy: string[]; // e.g. ["Civil Works", "Flooring", "Granite Flooring"]
@@ -410,6 +508,27 @@ export interface ExportHistoryItem {
   historicalReplayDetected: boolean;
   validationResult: "Passed" | "Warnings" | "Failed";
   fileName: string;
+}
+
+// Learning Layer - one record per estimator correction (POST /api/rfqs/:id/override). Captured
+// as a permanent, append-only log so the recommendation engine can improve automatically as more
+// projects are added, without ever being told to. See src/LearningEngine.ts.
+export interface LearningEvent {
+  id: string;
+  timestamp: string;
+  rfqId: string;
+  itemId: string;
+  masterId?: string;
+  domain: string;
+  originalRecommendation: number;
+  approvedRate: number;
+  difference: number;       // approvedRate - originalRecommendation
+  differencePercent: number; // difference / originalRecommendation * 100
+  projectType: string;
+  itemDescription: string;
+  specification?: string;
+  material?: string;
+  reason?: string;
 }
 
 export interface AuditLogItem {

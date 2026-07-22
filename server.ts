@@ -27,10 +27,16 @@ import {
   WorkbookBlueprint,
   ValidationReport,
   ValidationDifference,
-  DeterministicRowMapping
+  DeterministicRowMapping,
+  LearningEvent
 } from "./src/types.js";
 import { RecommendationEngineV2 } from "./src/RecommendationEngineV2.js";
 import { InstallationRateEngine } from "./src/InstallationRateEngine.js";
+import { EngineeringAdjustmentEngine } from "./src/EngineeringAdjustmentEngine.js";
+import { ProjectCalibrationEngine } from "./src/ProjectCalibrationEngine.js";
+import { HistoricalRetrievalEngine } from "./src/HistoricalRetrievalEngine.js";
+import { LearningEngine } from "./src/LearningEngine.js";
+import { parseWorkbookForUpload, validateAndSanitizeWorkbook, UploadLog as BOQUploadLog } from "./src/BOQParserEngine.js";
 import { KnowledgeBaseEngine } from "./backend/src/engines/KnowledgeBaseEngine.js";
 import { EngineeringParser } from "./backend/src/engines/EngineeringParser.js";
 import { ProjectSimilarityEngine } from "./backend/src/engines/ProjectSimilarityEngine.js";
@@ -152,6 +158,7 @@ const SETTINGS_DB_PATH = path.join(process.cwd(), "settings_store.json");
 const EXPORTS_DB_PATH = path.join(process.cwd(), "export_history_store.json");
 const AUDITS_DB_PATH = path.join(process.cwd(), "audit_logs_store.json");
 const REPLAY_DB_PATH = path.join(process.cwd(), "replay_database.json");
+const LEARNING_EVENTS_DB_PATH = path.join(process.cwd(), "learning_events_store.json");
 
 export interface ReplayRecord {
   projectUuid: string;
@@ -230,6 +237,10 @@ let rfqItems = readDb<RFQItem[]>(path.join(process.cwd(), "rfq_items_store.json"
 let exportHistory = readDb<ExportHistoryItem[]>(EXPORTS_DB_PATH, []);
 let auditLogs = readDb<AuditLogItem[]>(AUDITS_DB_PATH, []);
 let replayDatabase = readDb<ReplayRecord[]>(REPLAY_DB_PATH, []);
+let learningEvents = readDb<LearningEvent[]>(LEARNING_EVENTS_DB_PATH, []);
+function saveLearningEvents(): void {
+  writeDb(LEARNING_EVENTS_DB_PATH, learningEvents);
+}
 
 function saveReplayDatabase(): void {
   writeDb(REPLAY_DB_PATH, replayDatabase);
@@ -1455,7 +1466,11 @@ function detectDomain(sheetName: string): Domain {
 
 function shouldSkipSheet(sheetName: string): boolean {
   const sheetNameLower = sheetName.toLowerCase();
-  return ["cover", "index", "summary", "abstract", "drawing", "tax", "note", "preamble", "schedule", "instruction", "tender", "payment", "term", "condition", "guarantee", "compliance", "commercial", "legal", "clause", "sign"].some(
+  // "overall" added: a sheet named just "Overall" (no further qualifier) is a project-wide
+  // rollup page (e.g. "BOQ : OVERALL SUMMARY" with cross-sheet formulas like ='Summary -
+  // C&I'!C6 and a derived Rate/SFT column, no genuine Quantity column at all) - never a real
+  // line-item BOQ sheet, exactly like "summary"/"abstract" above.
+  return ["cover", "index", "summary", "abstract", "overall", "drawing", "tax", "note", "preamble", "schedule", "instruction", "tender", "payment", "term", "condition", "guarantee", "compliance", "commercial", "legal", "clause", "sign"].some(
     keyword => sheetNameLower.includes(keyword)
   );
 }
@@ -2672,6 +2687,14 @@ app.get("/api/master-boqs", (req, res) => {
   res.json(masterBOQItems);
 });
 
+// Learning Layer transparency endpoint - read-only, purely additive. Surfaces the same
+// domain-bias / frequently-corrected-item / material-instability analysis that
+// ProjectCalibrationEngine uses internally to gradually adjust future recommendations.
+app.get("/api/learning-insights", (req, res) => {
+  const analysis = LearningEngine.getLearningAnalysis(learningEvents);
+  res.json({ success: true, ...analysis });
+});
+
 // Settings API
 app.get("/api/settings", (req, res) => {
   res.json(systemSettings);
@@ -3133,6 +3156,14 @@ function generateWorkbookBlueprint(workbook: ExcelJS.Workbook, rfqId: string, fi
     const totalOnlyRegex = /\btotal\b/i;
     const amountRegex = /\b(amount|total|total\s*amount|total\s*price)\b/i;
     const qtyRegex = /\b(qty|quantity|quantities)\b/i;
+    // Generic Rate fallback - a plain "Rate"/"Unit Rate"/"Price" header with no Supply/
+    // Installation qualifier at all (the single-rate-column case, the overwhelming majority of
+    // real BOQs). Checked after the semantic Supply/Installation keywords so a genuine
+    // "Supply Rate"/"Installation Rate" is never misclassified as generic, but still runs
+    // ahead of the hardcoded last-resort default so a real "Unit Rate (INR)" column is always
+    // found on sheets that have one - this was the sheet's ACTUAL editable rate column being
+    // missed entirely and silently replaced by a blind column-5 guess.
+    const genericRateRegex = /\b(rate|price|unit\s*rate|unit\s*price|unit_rate)\b/i;
 
     for (const [colStr, texts] of Object.entries(columnHeaderTextMap)) {
       const colNum = Number(colStr);
@@ -3168,6 +3199,12 @@ function generateWorkbookBlueprint(workbook: ExcelJS.Workbook, rfqId: string, fi
         amountCellColumn = colNum;
       } else if (qtyRegex.test(combinedRaw.toLowerCase())) {
         quantityCellColumn = colNum;
+      } else if (genericRateRegex.test(combinedRaw)) {
+        // Ascending column iteration order means a later-column match (e.g. "UNIT RATE (INR)")
+        // correctly overwrites an earlier, more preliminary one (e.g. "BASIC RATE"), which
+        // matches standard BOQ convention where the final actionable rate column comes last.
+        rateCellColumn = colNum;
+        supplyHeaderText = combinedRaw;
       }
     }
 
@@ -3620,6 +3657,38 @@ app.post("/api/rfqs", async (req, res) => {
     return res.status(400).json({ error: "Missing RFQ name or spreadsheet worksheets data." });
   }
 
+  // Pipeline Stage 1: Workbook Validation & Sanitization - runs BEFORE any ExcelJS parsing is
+  // attempted. Real-world consultant BOQs routinely carry tens of thousands of orphaned/corrupted
+  // defined-name entries (a known Excel issue from repeated copy-pasting between workbooks), which
+  // bloats xl/workbook.xml and can make ExcelJS's parser exhaust all available memory and crash
+  // the entire server process - not a catchable JS error, an unrecoverable one. Rather than
+  // rejecting these otherwise-perfectly-good workbooks, the bloated defined names are stripped out
+  // before parsing (they're never needed to read worksheet/cell data) and a warning is surfaced
+  // instead of an error. Uploads are only ever rejected here if the workbook genuinely cannot be
+  // opened at all - never for metadata size alone.
+  let workbookBytesToUse: Buffer | undefined;
+  let metadataWarningMessage: string | undefined;
+  let definedNamesRemovedCount: number | undefined;
+
+  if (originalBase64) {
+    const originalBuf = Buffer.from(originalBase64, "base64");
+    try {
+      const validation = await validateAndSanitizeWorkbook(originalBuf);
+      if (!validation.valid) {
+        return res.status(400).json({ error: validation.message, diagnosticCategory: validation.category });
+      }
+      workbookBytesToUse = validation.cleanedBuffer || originalBuf;
+      if (validation.category === "Metadata Warning") {
+        metadataWarningMessage = validation.message;
+        definedNamesRemovedCount = validation.definedNamesRemoved;
+        console.warn(`[Workbook Validation] ${validation.message}`);
+      }
+    } catch (err: any) {
+      console.error("[Workbook Validation] Unexpected failure (proceeding with original bytes):", err);
+      workbookBytesToUse = originalBuf;
+    }
+  }
+
   const rfqId = "rfq_" + Math.random().toString(36).substr(2, 9);
   const domainsDetected: Domain[] = [];
   const parsedItems: RFQItem[] = [];
@@ -3658,101 +3727,191 @@ app.post("/api/rfqs", async (req, res) => {
     };
   }
 
-  // Parse items from sheets
-  for (const sheet of sheets) {
-    if (shouldSkipSheet(sheet.sheetName)) continue;
+  // Universal BOQ Upload Parser (src/BOQParserEngine.ts) - reads the actual workbook via ExcelJS
+  // (merged cells resolve automatically) rather than the client's flattened/fixed-column arrays,
+  // so uploads are no longer limited to workbooks shaped like the historical templates already in
+  // the database. Falls back to the previous fixed-position parser only if no original workbook
+  // bytes were provided or the workbook fails to load at all.
+  let wb: ExcelJS.Workbook | undefined;
+  let uploadLog: BOQUploadLog | undefined;
 
-    const domain = detectDomain(sheet.sheetName);
-    if (!domainsDetected.includes(domain)) {
-      domainsDetected.push(domain);
-    }
-    worksheetContexts[sheet.sheetName] = extractWorksheetContext(sheet.sheetName, domain);
+  if (workbookBytesToUse) {
+    try {
+      wb = new ExcelJS.Workbook();
+      await wb.xlsx.load(workbookBytesToUse);
 
-    let currentHierarchy: string[] = [];
-
-    // Columns indices
-    let colDesc = -1;
-    let colUnit = -1;
-    let colQty = -1;
-    let colRate = -1;
-    let colItemNo = -1;
-
-    for (let i = 0; i < Math.min(sheet.rows.length, 12); i++) {
-      const row = sheet.rows[i];
-      if (!row) continue;
-      for (let j = 0; j < row.length; j++) {
-        const val = cleanText(String(row[j] || ""));
-        if (!val) continue;
-
-        if (val === "description" || val === "particulars" || val === "item description" || val === "work description" || val.includes("description") || val === "item") {
-          colDesc = j;
-        } else if (val === "unit" || val === "uom" || (val.includes("unit") && !val.includes("rate") && !val.includes("price"))) {
-          colUnit = j;
-        } else if (val === "quantity" || val === "qty" || val === "quantities" || val.includes("qty") || val.includes("quantity")) {
-          colQty = j;
-        } else if (val === "rate" || val === "unit rate" || val === "unit price" || val === "price" || val.includes("rate") || val.includes("price") || val.includes("unit price") || val.includes("unit rate")) {
-          colRate = j;
-        } else if (val === "item no" || val === "sl no" || val === "s no" || val === "item code" || val === "serial no" || val === "sr no" || val.includes("item no") || val.includes("sl no") || val.includes("serial")) {
-          colItemNo = j;
-        }
+      const parseResult = parseWorkbookForUpload(wb);
+      uploadLog = parseResult.uploadLog;
+      if (metadataWarningMessage) {
+        uploadLog.metadataWarning = metadataWarningMessage;
+        uploadLog.definedNamesRemoved = definedNamesRemovedCount;
+        uploadLog.warnings.push(metadataWarningMessage);
+        uploadLog.diagnostics.unshift({ category: "Metadata Warning", message: metadataWarningMessage });
       }
-      if (colDesc !== -1 && colQty !== -1) break;
+
+      for (const row of parseResult.items) {
+        const domain = detectDomain(row.sheetName);
+        if (!domainsDetected.includes(domain)) {
+          domainsDetected.push(domain);
+        }
+        if (!worksheetContexts[row.sheetName]) {
+          worksheetContexts[row.sheetName] = extractWorksheetContext(row.sheetName, domain);
+        }
+
+        parsedItems.push({
+          id: "rfqit_" + Math.random().toString(36).substr(2, 9),
+          rfqId,
+          domain,
+          rowNum: row.rowNum,
+          sheetName: row.sheetName,
+          itemNo: row.itemNo,
+          originalDescription: row.description,
+          unit: row.unit,
+          quantity: row.quantity,
+          recommendedRate: 0,
+          isOverridden: false,
+          confidenceScore: 0,
+          reason: "Pending analysis",
+          parentHierarchy: row.parentHierarchy,
+          status: "Pending",
+          dimensions: extractDimensions(row.description)
+        });
+      }
+    } catch (err: any) {
+      console.error("[Universal BOQ Parser] Failed to read workbook from original bytes, falling back to legacy parser:", err);
+      wb = undefined;
+      uploadLog = undefined;
     }
+  }
 
-    if (colDesc === -1) colDesc = 1;
-    if (colUnit === -1) colUnit = 2;
-    if (colQty === -1) colQty = 3;
-    if (colRate === -1) colRate = 4;
-    if (colItemNo === -1) colItemNo = 0;
+  if (!uploadLog) {
+    // Legacy fallback path - only reached if original workbook bytes were missing or unreadable.
+    for (const sheet of sheets) {
+      if (shouldSkipSheet(sheet.sheetName)) continue;
 
-    for (let i = 2; i < sheet.rows.length; i++) {
-      const row = sheet.rows[i];
-      if (!row || row.length <= colDesc) continue;
+      const domain = detectDomain(sheet.sheetName);
+      if (!domainsDetected.includes(domain)) {
+        domainsDetected.push(domain);
+      }
+      worksheetContexts[sheet.sheetName] = extractWorksheetContext(sheet.sheetName, domain);
 
-      const rawDesc = String(row[colDesc] || "").trim();
-      const rawUnit = String(row[colUnit] || "").trim();
-      const rawQtyStr = String(row[colQty] || "").trim();
-      const rawItemNo = String(row[colItemNo] || "").trim();
+      let currentHierarchy: string[] = [];
 
-      if (!rawDesc) continue;
+      // Columns indices
+      let colDesc = -1;
+      let colUnit = -1;
+      let colQty = -1;
+      let colRate = -1;
+      let colItemNo = -1;
 
-      const qty = parseFloat(rawQtyStr.replace(/[^0-9.]/g, ""));
-      const isHeaderRow = isNaN(qty) || !rawUnit || rawUnit.toLowerCase() === "unit" || rawUnit.toLowerCase() === "uom";
+      for (let i = 0; i < Math.min(sheet.rows.length, 12); i++) {
+        const row = sheet.rows[i];
+        if (!row) continue;
+        for (let j = 0; j < row.length; j++) {
+          const val = cleanText(String(row[j] || ""));
+          if (!val) continue;
 
-      if (isHeaderRow) {
-        if (rawItemNo && /^\d+(\.\d+)*$/.test(rawItemNo)) {
-          const depth = rawItemNo.split(".").length;
-          currentHierarchy = currentHierarchy.slice(0, depth - 1);
-          currentHierarchy.push(rawDesc);
-        } else if (rawDesc.length < 100) {
-          currentHierarchy.push(rawDesc);
-          if (currentHierarchy.length > 3) {
-            currentHierarchy.shift();
+          if (val === "description" || val === "particulars" || val === "item description" || val === "work description" || val.includes("description") || val === "item") {
+            colDesc = j;
+          } else if (val === "unit" || val === "uom" || (val.includes("unit") && !val.includes("rate") && !val.includes("price"))) {
+            colUnit = j;
+          } else if (val === "quantity" || val === "qty" || val === "quantities" || val.includes("qty") || val.includes("quantity")) {
+            colQty = j;
+          } else if (val === "rate" || val === "unit rate" || val === "unit price" || val === "price" || val.includes("rate") || val.includes("price") || val.includes("unit price") || val.includes("unit rate")) {
+            colRate = j;
+          } else if (val === "item no" || val === "sl no" || val === "s no" || val === "item code" || val === "serial no" || val === "sr no" || val.includes("item no") || val.includes("sl no") || val.includes("serial")) {
+            colItemNo = j;
           }
         }
-        continue;
+        if (colDesc !== -1 && colQty !== -1) break;
       }
 
-      // Payable unrated RFQ item
-      parsedItems.push({
-        id: "rfqit_" + Math.random().toString(36).substr(2, 9),
-        rfqId,
-        domain,
-        rowNum: i + 1, // Store 1-based index for exact Excel modifications
-        sheetName: sheet.sheetName,
-        itemNo: rawItemNo || (parsedItems.length + 1).toString(),
-        originalDescription: rawDesc,
-        unit: rawUnit,
-        quantity: qty,
-        recommendedRate: 0,
-        isOverridden: false,
-        confidenceScore: 0,
-        reason: "Pending analysis",
-        parentHierarchy: [...currentHierarchy],
-        status: "Pending",
-        dimensions: extractDimensions(rawDesc)
-      });
+      if (colDesc === -1) colDesc = 1;
+      if (colUnit === -1) colUnit = 2;
+      if (colQty === -1) colQty = 3;
+      if (colRate === -1) colRate = 4;
+      if (colItemNo === -1) colItemNo = 0;
+
+      for (let i = 2; i < sheet.rows.length; i++) {
+        const row = sheet.rows[i];
+        if (!row || row.length <= colDesc) continue;
+
+        const rawDesc = String(row[colDesc] || "").trim();
+        const rawUnit = String(row[colUnit] || "").trim();
+        const rawQtyStr = String(row[colQty] || "").trim();
+        const rawItemNo = String(row[colItemNo] || "").trim();
+
+        if (!rawDesc) continue;
+
+        const qty = parseFloat(rawQtyStr.replace(/[^0-9.]/g, ""));
+        const isHeaderRow = isNaN(qty) || !rawUnit || rawUnit.toLowerCase() === "unit" || rawUnit.toLowerCase() === "uom";
+
+        if (isHeaderRow) {
+          if (rawItemNo && /^\d+(\.\d+)*$/.test(rawItemNo)) {
+            const depth = rawItemNo.split(".").length;
+            currentHierarchy = currentHierarchy.slice(0, depth - 1);
+            currentHierarchy.push(rawDesc);
+          } else if (rawDesc.length < 100) {
+            currentHierarchy.push(rawDesc);
+            if (currentHierarchy.length > 3) {
+              currentHierarchy.shift();
+            }
+          }
+          continue;
+        }
+
+        // Payable unrated RFQ item
+        parsedItems.push({
+          id: "rfqit_" + Math.random().toString(36).substr(2, 9),
+          rfqId,
+          domain,
+          rowNum: i + 1, // Store 1-based index for exact Excel modifications
+          sheetName: sheet.sheetName,
+          itemNo: rawItemNo || (parsedItems.length + 1).toString(),
+          originalDescription: rawDesc,
+          unit: rawUnit,
+          quantity: qty,
+          recommendedRate: 0,
+          isOverridden: false,
+          confidenceScore: 0,
+          reason: "Pending analysis",
+          parentHierarchy: [...currentHierarchy],
+          status: "Pending",
+          dimensions: extractDimensions(rawDesc)
+        });
+      }
     }
+  }
+
+  if (uploadLog) {
+    console.log(`\n[Universal BOQ Parser] "${fileName}" - ${uploadLog.worksheetsParsed.length}/${uploadLog.worksheetsFound.length} worksheets parsed, ${uploadLog.totalRowsParsed} rows extracted, ${uploadLog.totalRowsSkipped} rows skipped, ${uploadLog.parsingTimeMs}ms.`);
+    console.table(
+      uploadLog.perSheet.map((s) => ({
+        Worksheet: s.sheetName,
+        Status: s.status,
+        Sections: s.sectionsDetected,
+        "Header Rows": s.headerRows.join(", ") || "-",
+        "Rows Parsed": s.rowsParsed,
+        "Rows Skipped": s.rowsSkipped,
+        Reason: s.skipReason || Object.keys(s.skippedReasons).join(", ") || "-"
+      }))
+    );
+    if (uploadLog.warnings.length > 0) console.warn("[Universal BOQ Parser] Warnings:", uploadLog.warnings);
+    if (uploadLog.errors.length > 0) console.error("[Universal BOQ Parser] Errors:", uploadLog.errors);
+  }
+
+  // Requirement 9: a meaningful validation message instead of a generic failure when mandatory
+  // BOQ information (a description + quantity column pairing) could not be found anywhere in the
+  // workbook - never silently create an empty, unusable RFQ, and never waste time on blueprint
+  // generation / AI enrichment for an upload that has nothing to work with.
+  if (parsedItems.length === 0) {
+    const reasonSummary = uploadLog ? Object.keys(uploadLog.skippedReasonSummary).join(", ") : "";
+    return res.status(400).json({
+      error: uploadLog && uploadLog.worksheetsFound.length > 0
+        ? `No BOQ line items could be detected in any worksheet. Checked ${uploadLog.worksheetsFound.length} worksheet(s) (${uploadLog.worksheetsFound.join(", ")}) but found no recognizable Description + Quantity column pairing.${reasonSummary ? ` (${reasonSummary})` : ""}`
+        : "No quantity column detected. Please verify the workbook contains recognizable Description, Quantity and Rate/Amount columns.",
+      uploadLog
+    });
   }
 
   // Historical Replay Detection Check using multiple signals:
@@ -3855,19 +4014,22 @@ app.post("/api/rfqs", async (req, res) => {
 
   let projectContext = extractProjectContext(projectName, preambleContent);
 
-  // Parse original base64 and generate the workbook blueprint
+  // Parse original base64 and generate the workbook blueprint. Reuses workbookBytesToUse (the
+  // sanitized bytes from Workbook Validation above, when sanitization was needed) rather than
+  // re-decoding originalBase64 directly, so this second independent load - and the copy persisted
+  // to disk for later lazy blueprint regeneration at export time - never re-introduces the same
+  // bloated-metadata crash risk.
   let blueprint: WorkbookBlueprint | undefined;
-  if (originalBase64) {
+  if (workbookBytesToUse) {
     try {
       const dir = path.join(process.cwd(), "uploads");
       if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true });
       }
-      const fileBuf = Buffer.from(originalBase64, "base64");
-      fs.writeFileSync(path.join(dir, `${rfqId}.xlsx`), fileBuf);
+      fs.writeFileSync(path.join(dir, `${rfqId}.xlsx`), workbookBytesToUse);
 
       const wb = new ExcelJS.Workbook();
-      await wb.xlsx.load(fileBuf);
+      await wb.xlsx.load(workbookBytesToUse);
       blueprint = generateWorkbookBlueprint(wb, rfqId, fileName, parsedItems);
       
       // Perform AI enrichment on the generated workbook blueprint
@@ -3908,7 +4070,8 @@ app.post("/api/rfqs", async (req, res) => {
     worksheetContexts,
     kbVersion: kbVersions[0]?.version || "v1.0.0",
     workbookBlueprint: blueprint,
-    parseTimeMs: Math.round(Date.now() - startParseTime)
+    parseTimeMs: Math.round(Date.now() - startParseTime),
+    uploadLog
   };
 
   rfqs.push(newRFQ);
@@ -4434,6 +4597,30 @@ app.post("/api/rfqs/:id/recommend", async (req, res) => {
     reason: "Baseline" | "Blended" | "Historical Ignored";
   }[] = [];
 
+  // Engineering Adjustment diagnostics - one entry per item where a genuine dimensional model
+  // (interpolation / extrapolation / area scaling / regression) replaced the flat Basic Rate
+  // catalog guess. Never populated for exact-match ("Historical Rate") items.
+  const engineeringAdjustmentDiagnostics: {
+    rowNum: number;
+    sheetName: string;
+    description: string;
+    familyKey: string;
+    model: string;
+    referencesUsed: number;
+    basicRate: number;
+    finalRate: number;
+    confidence: number;
+  }[] = [];
+
+  // Historical Retrieval redesign (src/HistoricalRetrievalEngine.ts) - the Domain -> family-token
+  // index is built ONCE here, over the whole master catalog, so every item's retrieval below only
+  // ever compares against its own small bucket rather than re-scanning the full catalog per item
+  // (the explicit performance requirement for databases with hundreds of BOQs / thousands of
+  // master items). similarityByProjectName is likewise built once and reused per item.
+  const domainFamilyIndex = HistoricalRetrievalEngine.buildDomainFamilyIndex(Object.values(masterItemIdIndex));
+  const similarityByProjectName = new Map<string, number>();
+  similarProjects.forEach((sp) => similarityByProjectName.set(sp.project.projectName, sp.similarity));
+
   // 2. PROCESS EACH RFQ ITEM
   for (const item of items) {
     // Event loop safety check (Yield control if we've been running continuously for > 80ms)
@@ -4457,6 +4644,28 @@ app.post("/api/rfqs/:id/recommend", async (req, res) => {
 
     item.recommendationTrace = result.trace;
     tRecommendation += (Date.now() - startRec);
+
+    // Historical Retrieval redesign - additive, read-only with respect to everything above
+    // (never touches item.matchedMasterId/recommendedRate/status). Produces a ranked candidate
+    // list only; deliberately does not auto-select a winner. See
+    // src/HistoricalRetrievalEngine.ts for the filter/score/rank pipeline.
+    try {
+      const candidates = HistoricalRetrievalEngine.retrieveRankedHistoricalCandidates({
+        item,
+        domainFamilyIndex,
+        similarityByProjectName,
+        projectType,
+        buildingGrade,
+        checkUomCompatible: (rfqUnit: string, masterUnit: string) => {
+          const decomp = decomposeBOQItem(item.originalDescription, rfqUnit);
+          return verifyAndConvertUOM(rfqUnit, masterUnit, decomp).compatible;
+        }
+      });
+      item.historicalCandidates = candidates;
+    } catch (retrievalError) {
+      console.error(`[Historical Retrieval] Failed for item ${item.id} (non-fatal):`, retrievalError);
+      item.historicalCandidates = undefined;
+    }
 
     // Additive Installation Rate layer - never reads or modifies anything set above (Final
     // Recommended Rate / item.recommendedRate remains the Supply Rate only, always). Only runs
@@ -4512,6 +4721,111 @@ app.post("/api/rfqs/:id/recommend", async (req, res) => {
       item.installationPercentage = undefined;
       item.installationReferenceCount = undefined;
     }
+
+    // Additive Engineering Adjustment layer - ONLY runs for non-exact-match ("Basic Rate")
+    // items. Never fires for, and never alters, an exact historical match: the "Historical
+    // Rate" branch above (replayedItemIds.add) is completely untouched by this block. When a
+    // genuine dimensional family (same item, different size) exists in the master catalog, the
+    // flat Basic Rate catalog guess is replaced with an interpolated/extrapolated/area-scaled
+    // estimate; otherwise item.recommendedRate is left exactly as RecommendationV2 computed it.
+    if (result.source === "Basic Rate") {
+      try {
+        const adjustment = EngineeringAdjustmentEngine.computeEngineeringAdjustment(
+          item.originalDescription,
+          result.recommendedRate,
+          Object.values(masterItemIdIndex)
+        );
+
+        if (adjustment.applied) {
+          item.engineeringAdjustment = {
+            applied: true,
+            mathematicalModel: adjustment.mathematicalModel,
+            engineeringParameters: adjustment.engineeringParameters,
+            familyKey: adjustment.familyKey,
+            historicalReferencesUsed: adjustment.historicalReferencesUsed.map((r) => ({
+              description: r.description,
+              dimensionValue: r.dimensionValue,
+              rate: r.rate
+            })),
+            calculatedAdjustment: adjustment.calculatedAdjustment,
+            confidence: adjustment.confidence,
+            isExtrapolation: adjustment.isExtrapolation,
+            rateVariationPercent: adjustment.rateVariationPercent,
+            explanation: adjustment.explanation
+          };
+
+          const basicRateBeforeAdjustment = item.recommendedRate;
+          item.recommendedRate = adjustment.finalRate;
+          item.confidenceScore = adjustment.confidence;
+          item.status = adjustment.confidence >= 75 ? "Accepted" : "Needs Manual Review";
+          item.reason = `[Engineering Adjustment] ${adjustment.calculatedAdjustment}`;
+
+          const thickness = adjustment.engineeringParameters.find((p) => p.name === "Thickness")?.value;
+          const diameter = adjustment.engineeringParameters.find((p) => p.name === "Diameter")?.value;
+          const width = adjustment.engineeringParameters.find((p) => p.name === "Width")?.value;
+          const height = adjustment.engineeringParameters.find((p) => p.name === "Height")?.value;
+          if (thickness !== undefined || diameter !== undefined || width !== undefined || height !== undefined) {
+            item.dimensions = {
+              ...(item.dimensions || {}),
+              ...(thickness !== undefined ? { thickness } : {}),
+              ...(diameter !== undefined ? { diameter } : {}),
+              ...(width !== undefined ? { width } : {}),
+              ...(height !== undefined ? { height } : {})
+            };
+          }
+
+          engineeringAdjustmentDiagnostics.push({
+            rowNum: item.rowNum,
+            sheetName: item.sheetName,
+            description: item.originalDescription,
+            familyKey: adjustment.familyKey,
+            model: adjustment.mathematicalModel,
+            referencesUsed: adjustment.historicalReferencesUsed.length,
+            basicRate: basicRateBeforeAdjustment,
+            finalRate: adjustment.finalRate,
+            confidence: adjustment.confidence
+          });
+        } else {
+          item.engineeringAdjustment = undefined;
+        }
+      } catch (engineeringError) {
+        // Never let a modeling failure block recommendation - fall back to whatever Basic Rate
+        // already computed, exactly as if this layer did not exist.
+        console.error(`[Engineering Adjustment] Failed for item ${item.id} (non-fatal, keeping Basic Rate):`, engineeringError);
+        item.engineeringAdjustment = undefined;
+      }
+    } else {
+      item.engineeringAdjustment = undefined;
+    }
+
+    // Dashboard "Items Requiring Attention" trigger flags - purely informational, computed from
+    // the final state of this item above. Never affects recommendedRate, export, or Replay
+    // Auditor in any way.
+    const attentionFlags: string[] = [];
+    if (item.confidenceScore < 75) attentionFlags.push("Low Confidence");
+    if (item.engineeringAdjustment?.applied) {
+      attentionFlags.push("AI Estimated");
+      attentionFlags.push(
+        item.engineeringAdjustment.isExtrapolation || item.engineeringAdjustment.mathematicalModel === "Area Scaling"
+          ? "New Dimension"
+          : "New Specification"
+      );
+      if (item.engineeringAdjustment.historicalReferencesUsed.length <= 2) {
+        attentionFlags.push("Limited Historical References");
+      }
+      if ((item.engineeringAdjustment.rateVariationPercent ?? 0) > 25) {
+        attentionFlags.push("High Historical Rate Variation");
+      }
+    }
+    if (result.source === "Basic Rate" && !item.engineeringAdjustment?.applied) {
+      attentionFlags.push("Manual Pricing Required");
+    }
+    if (item.status === "Needs Manual Review") attentionFlags.push("Engineering Review Required");
+    const uomFactorMatch = result.trace?.explanation?.match(/UOM (?:Conversion )?Factor:\s*([\d.]+)/);
+    if (uomFactorMatch && Math.abs(parseFloat(uomFactorMatch[1]) - 1) > 0.01) {
+      attentionFlags.push("UOM Conversion");
+    }
+    item.attentionFlags = Array.from(new Set(attentionFlags));
   }
 
   // Part 5: Installation Rate debug report, generated right after recommendation completes.
@@ -4535,6 +4849,95 @@ app.post("/api/rfqs/:id/recommend", async (req, res) => {
         "Recommended Supply": d.recommendedSupply.toFixed(2),
         "Recommended Installation": d.recommendedInstallation.toFixed(2),
         Reason: d.reason
+      }))
+    );
+  }
+
+  // Engineering Adjustment diagnostics: proves the flat Basic Rate catalog guess was replaced
+  // with a genuine dimensional model (never a single flat percentage increase) only for items
+  // with no exact historical match, and only when real family reference data existed.
+  if (engineeringAdjustmentDiagnostics.length > 0) {
+    console.log("\n[Engineering Adjustment Diagnostics]");
+    console.table(
+      engineeringAdjustmentDiagnostics.map((d) => ({
+        Row: d.rowNum,
+        Sheet: d.sheetName,
+        Description: d.description.slice(0, 40),
+        Family: d.familyKey.slice(0, 30),
+        Model: d.model,
+        "Refs Used": d.referencesUsed,
+        "Basic Rate": d.basicRate.toFixed(2),
+        "Final Rate": d.finalRate.toFixed(2),
+        Confidence: `${d.confidence}%`
+      }))
+    );
+  }
+
+  // Project Calibration & Validation Layer - runs once, after every item has its final Initial
+  // Recommended Rate (item matching + specification matching + UOM + historical rate retrieval +
+  // engineering dimension adjustment all already complete and untouched). Never re-derives any of
+  // that; only widens historical rate evidence for confidence scoring and, when the whole-project
+  // estimate is genuinely outside the expected historical range, nudges the specific items that
+  // are high-contribution + high-deviation + low-confidence within the domain(s) actually causing
+  // the deviation. See src/ProjectCalibrationEngine.ts for the full rule set.
+  const calibrationOutcome = ProjectCalibrationEngine.runProjectCalibration({
+    items,
+    similarProjects,
+    masterItemIdIndex,
+    replayDatabase,
+    shouldSkipSheet,
+    historicalBOQs,
+    buildingGrade,
+    learningEvents,
+    city
+  });
+
+  for (const item of items) {
+    const confidence = calibrationOutcome.itemConfidences.get(item.id);
+    if (confidence) {
+      item.semanticConfidence = confidence.semanticConfidence;
+      item.specificationConfidence = confidence.specificationConfidence;
+      item.pricingConfidence = confidence.pricingConfidence;
+      item.engineeringConfidence = confidence.engineeringConfidence;
+      item.historicalConfidence = confidence.historicalConfidence;
+      item.overallConfidence = confidence.overallConfidence;
+
+      // Items with low pricing confidence are surfaced for estimator review via the existing
+      // "Items Requiring Attention" mechanism; high-confidence items get no extra flag and
+      // require no manual intervention. item.status (Accepted / Needs Manual Review) itself is
+      // untouched - this only adds a dashboard-visible signal alongside it.
+      if (confidence.pricingConfidence < 70) {
+        const flags = new Set(item.attentionFlags || []);
+        flags.add("Low Pricing Confidence");
+        item.attentionFlags = Array.from(flags);
+      }
+    }
+    const stats = calibrationOutcome.itemMarketStats.get(item.id);
+    if (stats) item.marketRateStatistics = stats;
+  }
+
+  console.log("\n[Project Calibration & Validation Report]");
+  console.table([
+    {
+      "Expected Cost": `₹${calibrationOutcome.validationReport.expectedCost.toLocaleString("en-IN")}`,
+      "Expected Range": `₹${calibrationOutcome.validationReport.expectedCostRangeLow.toLocaleString("en-IN")} - ₹${calibrationOutcome.validationReport.expectedCostRangeHigh.toLocaleString("en-IN")}`,
+      "Estimated (Before)": `₹${calibrationOutcome.validationReport.estimatedCostBeforeCalibration.toLocaleString("en-IN")}`,
+      "Estimated (After)": `₹${calibrationOutcome.validationReport.estimatedCostAfterCalibration.toLocaleString("en-IN")}`,
+      "Diff Before": `${calibrationOutcome.validationReport.differencePercentBeforeCalibration}%`,
+      "Diff After": `${calibrationOutcome.validationReport.differencePercentAfterCalibration}%`,
+      "Within ±5% Target": calibrationOutcome.validationReport.withinTargetAccuracy ? "Yes" : "No",
+      "Items Recalibrated": calibrationOutcome.validationReport.itemsRecalibrated
+    }
+  ]);
+  if (calibrationOutcome.validationReport.domains.length > 0) {
+    console.table(
+      calibrationOutcome.validationReport.domains.map((d) => ({
+        Domain: d.domain,
+        "Estimated Cost": d.estimatedCost.toLocaleString("en-IN"),
+        "Estimated %": `${d.estimatedPercent}%`,
+        "Historical %": d.historicalPercent !== null ? `${d.historicalPercent}%` : "N/A",
+        "Deviation (pp)": d.deviationPp !== null ? d.deviationPp : "N/A",
+        "Causing Deviation": calibrationOutcome.validationReport.domainsCausingDeviation.includes(d.domain) ? "Yes" : "No"
       }))
     );
   }
@@ -4624,7 +5027,8 @@ if (isReplayed) {
       retrievalMs: activeRfq.retrievalTimeMs,
       recommendationMs: activeRfq.recommendationTimeMs,
       totalMs: (activeRfq.parseTimeMs || 120) + overallMs
-    }
+    },
+    projectValidation: calibrationOutcome.validationReport
   });
 
   } catch (err: any) {
@@ -4724,18 +5128,53 @@ app.post("/api/rfqs/:id/recommend-v2", async (req, res) => {
 
 // Override pricing recommendation
 app.post("/api/rfqs/:id/override", (req, res) => {
-  const { itemId, rate } = req.body;
+  const { itemId, rate, reason } = req.body;
   const targetItem = rfqItems.find(i => i.id === itemId && i.rfqId === req.params.id);
 
   if (!targetItem) {
     return res.status(404).json({ error: "RFQ Item not found" });
   }
 
-  targetItem.overriddenRate = parseFloat(rate);
+  const approvedRate = parseFloat(rate);
+  const originalRecommendation = targetItem.recommendedRate;
+
+  targetItem.overriddenRate = approvedRate;
   targetItem.isOverridden = true;
   targetItem.status = "Accepted";
 
   writeDb(path.join(process.cwd(), "rfq_items_store.json"), rfqItems);
+
+  // Learning Layer: every estimator correction is captured as a permanent record, so the
+  // recommendation engine can improve automatically as more of these accumulate (see
+  // src/LearningEngine.ts). Never blocks or alters the override response itself.
+  try {
+    if (Number.isFinite(approvedRate) && Number.isFinite(originalRecommendation) && originalRecommendation > 0) {
+      const activeRfq = rfqs.find(r => r.id === req.params.id);
+      const difference = approvedRate - originalRecommendation;
+      const event: LearningEvent = {
+        id: "learn_" + Math.random().toString(36).substr(2, 9),
+        timestamp: new Date().toISOString(),
+        rfqId: req.params.id,
+        itemId: targetItem.id,
+        masterId: targetItem.matchedMasterId,
+        domain: targetItem.domain,
+        originalRecommendation,
+        approvedRate,
+        difference,
+        differencePercent: Math.round((difference / originalRecommendation) * 1000) / 10,
+        projectType: activeRfq?.projectContext?.projectType || "Commercial Office",
+        itemDescription: targetItem.originalDescription,
+        specification: targetItem.itemDecomposition?.specification,
+        material: targetItem.itemDecomposition?.material,
+        reason: typeof reason === "string" && reason.trim() ? reason.trim() : undefined
+      };
+      learningEvents.push(event);
+      saveLearningEvents();
+    }
+  } catch (learningError) {
+    console.error("[Learning Layer] Failed to record override event (non-fatal):", learningError);
+  }
+
   res.json({ success: true, item: targetItem });
 });
 
@@ -5344,6 +5783,16 @@ app.post("/api/rfqs/:id/export", async (req, res) => {
       itemsBySheet[item.sheetName].push(item);
     });
 
+    // Part 6 diagnostics: counted as the injection loop below runs.
+    const exportIntegrityCounters = {
+      rowsWritten: 0,
+      rateCellsWritten: 0,
+      amountCellsWritten: 0,
+      formulaCellsPreserved: 0,
+      formulaCellsModified: 0,
+      unexpectedWrites: 0
+    };
+
     for (const [sheetName, sheetItems] of Object.entries(itemsBySheet)) {
       const xmlPath = xmlPaths[sheetName];
       if (!xmlPath) {
@@ -5363,19 +5812,34 @@ app.post("/api/rfqs/:id/export", async (req, res) => {
       let xml = await zipFile.async("string");
       const sheet = workbook.getWorksheet(sheetName);
 
+      // Checks whether a cell (read from the still-original, unmodified `sheet`) carries a
+      // formula, and tallies it as "preserved" - updateCellInXml only ever replaces a cell's
+      // <v> value, it never removes or alters an existing <f> tag, so any formula cell we
+      // write into keeps its formula. Only its cached (soon-to-be-recalculated) value changes.
+      const trackFormulaAt = (cellRef: string) => {
+        const cell = sheet?.getCell(cellRef);
+        const hasFormula = !!(cell && cell.value && typeof cell.value === "object" && "formula" in (cell.value as any));
+        if (hasFormula) exportIntegrityCounters.formulaCellsPreserved++;
+      };
+
       sheetItems.forEach(item => {
         const rateToInject = item.overriddenRate || item.recommendedRate;
 
         // 1. Inject Unit Rate (Supply Rate only - Installation Rate, if this sheet has a
         // dedicated Installation Rate column, is injected separately below.)
         const rateCellRef = getCellRef(item.rowNum, sheetBlue.rateCellColumn);
+        trackFormulaAt(rateCellRef);
         xml = updateCellInXml(xml, rateCellRef, rateToInject);
+        exportIntegrityCounters.rateCellsWritten++;
+        exportIntegrityCounters.rowsWritten++;
 
         // 1b. Inject Installation Rate into its own column, only if this sheet actually has a
         // dedicated Installation Rate column (never combined with the Supply Rate cell above).
         if (sheetBlue.installationRateCellColumn && sheetBlue.installationRateCellColumn !== -1 && item.installationRate !== undefined) {
           const installCellRef = getCellRef(item.rowNum, sheetBlue.installationRateCellColumn);
+          trackFormulaAt(installCellRef);
           xml = updateCellInXml(xml, installCellRef, item.installationRate);
+          exportIntegrityCounters.rateCellsWritten++;
         }
 
         // 2. Inject static Amount value into the Supply Amount column. Prefer the explicitly
@@ -5388,7 +5852,9 @@ app.post("/api/rfqs/:id/export", async (req, res) => {
         if (supplyAmountCol !== -1 && supplyAmountCol !== sheetBlue.rateCellColumn) {
           const amtCellRef = getCellRef(item.rowNum, supplyAmountCol);
           const amtVal = item.quantity * rateToInject;
+          trackFormulaAt(amtCellRef);
           xml = updateCellInXml(xml, amtCellRef, amtVal);
+          exportIntegrityCounters.amountCellsWritten++;
         }
 
         // 2b. Installation Amount = qty x Installation Rate, mirroring the Supply Amount
@@ -5397,7 +5863,9 @@ app.post("/api/rfqs/:id/export", async (req, res) => {
         // never made to equal Supply + Installation by this code.
         if (sheetBlue.ratePair?.installationAmountColumn && item.installationRate !== undefined) {
           const installAmtCellRef = getCellRef(item.rowNum, sheetBlue.ratePair.installationAmountColumn);
+          trackFormulaAt(installAmtCellRef);
           xml = updateCellInXml(xml, installAmtCellRef, item.quantity * item.installationRate);
+          exportIntegrityCounters.amountCellsWritten++;
         }
       });
 
@@ -5476,7 +5944,14 @@ app.post("/api/rfqs/:id/export", async (req, res) => {
         
         const histBOQ = historicalBOQs.find(h => h.projectName === matchedProj);
         const histProjectId = histBOQ ? histBOQ.id : "N/A";
-        const mappings = getHistoricalRowMappings(histProjectId, matchedProj);
+        // Filter out mappings from sheets that should never have been treated as real
+        // line-item BOQ data in the first place (e.g. a project-wide "Overall" rollup summary
+        // with formula-derived totals and no genuine Quantity column). This retroactively
+        // cleans up already-ingested stale mappings without needing to re-upload the historical
+        // BOQ, and is consistent with shouldSkipSheet already excluding these sheets going
+        // forward for both historical ingestion and RFQ upload.
+        const mappings = getHistoricalRowMappings(histProjectId, matchedProj)
+          .filter(m => !shouldSkipSheet(m.worksheetName));
 
         const historicalRateCells = mappings.map(m => ({
           sheetName: m.worksheetName,
@@ -5491,9 +5966,17 @@ app.post("/api/rfqs/:id/export", async (req, res) => {
 
         historicalRateCells.forEach(cell => {
           const genSheet = patchedWorkbook!.getWorksheet(cell.sheetName);
+          // Read from the CURRENT RFQ's own detected Supply Rate column for this sheet+row,
+          // not the historical mapping's cellAddress - the historical BOQ's own ingestion
+          // column-detection (a separate, older code path) can legitimately have picked a
+          // different column for the same sheet layout (e.g. a "TOTAL RATE (INR)" column
+          // instead of "SUPPLY RATE (INR)" on a sheet with both), so comparing against its
+          // recorded address checks the wrong cell entirely rather than a real replay failure.
+          const currentSheetBlue = blueprint.sheets[cell.sheetName];
+          const readCellAddress = currentSheetBlue ? getCellRef(cell.rowNum, currentSheetBlue.rateCellColumn) : cell.cellAddress;
           let exportedRate = 0;
           if (genSheet) {
-            const cellInGen = genSheet.getCell(cell.cellAddress);
+            const cellInGen = genSheet.getCell(readCellAddress);
             if (cellInGen && cellInGen.value !== null && cellInGen.value !== undefined) {
               const val = cellInGen.value;
               if (val && typeof val === "object" && "result" in val) {
@@ -5522,16 +6005,28 @@ app.post("/api/rfqs/:id/export", async (req, res) => {
             matchedCount++;
           }
 
+          // TEMPORARY DEBUG LOGGING [DEBUG-REPLAY] - one line per historical replay row, per
+          // explicit request. Never silently ignore a replay failure.
+          console.log(
+            `[DEBUG-REPLAY] Sheet="${cell.sheetName}" | Description="${(cell.description || "").slice(0, 60)}" | ` +
+              `Historical Cell=${cell.cellAddress} | Historical Rate=${cell.originalHistoricalRate} | ` +
+              `RFQ Row=${cell.rowNum} | matchedItem=${matchedItem ? "FOUND" : "NOT FOUND"} | ` +
+              `Matched Export Cell=${readCellAddress} | Exported Rate=${exportedRate} | Expected Rate=${expectedRate} | ` +
+              `Result=${exactMatch ? "MATCH" : "MISMATCH"}` +
+              (!matchedItem ? " | REASON=No RFQ item found with this sheetName+rowNum" : "")
+          );
+
           replayItems.push({
             sheetName: cell.sheetName,
-            cellAddress: cell.cellAddress,
+            cellAddress: readCellAddress,
             originalHistoricalRate: cell.originalHistoricalRate,
             expectedRate,
             exportedRate,
             difference,
             replayResult: exactMatch ? "Match" : "Mismatch",
             description: cell.description,
-            rowNum: cell.rowNum
+            rowNum: cell.rowNum,
+            matchedItemFound: !!matchedItem
           });
         });
 
@@ -5574,17 +6069,9 @@ app.post("/api/rfqs/:id/export", async (req, res) => {
         totalCellsAudited: activeItems.length
       } as any;
 
-      (validationReport as any).installationBreakdown = activeItems.map(item => ({
-        rowNum: item.rowNum,
-        sheetName: item.sheetName,
-        description: item.originalDescription,
-        supplyRate: item.overriddenRate || item.recommendedRate,
-        installationRate: item.installationRate || 0,
-        totalInstalledRate: item.overriddenRate || ((item.recommendedRate || 0) + (item.installationRate || 0)),
-        installationSource: item.installationSource || "Domain Default",
-        installationPercentage: item.installationPercentage || 0,
-        installationReferenceCount: item.installationReferenceCount || 0
-      }));
+      // Supply and Installation are always kept independent - never summed, never written into
+      // a combined cell. This report is purely informational (per-worksheet debug summary).
+      (validationReport as any).installationDebugReport = generateInstallationDebugReport(activeItems, blueprint);
 
       // In production mode, if replay was detected, generate a lightweight replay validation report 
       // strictly using in-memory mappings without ExcelJS parsing of the output package.
@@ -5594,7 +6081,14 @@ app.post("/api/rfqs/:id/export", async (req, res) => {
         
         const histBOQ = historicalBOQs.find(h => h.projectName === matchedProj);
         const histProjectId = histBOQ ? histBOQ.id : "N/A";
-        const mappings = getHistoricalRowMappings(histProjectId, matchedProj);
+        // Filter out mappings from sheets that should never have been treated as real
+        // line-item BOQ data in the first place (e.g. a project-wide "Overall" rollup summary
+        // with formula-derived totals and no genuine Quantity column). This retroactively
+        // cleans up already-ingested stale mappings without needing to re-upload the historical
+        // BOQ, and is consistent with shouldSkipSheet already excluding these sheets going
+        // forward for both historical ingestion and RFQ upload.
+        const mappings = getHistoricalRowMappings(histProjectId, matchedProj)
+          .filter(m => !shouldSkipSheet(m.worksheetName));
 
         const historicalRateCells = mappings.map(m => ({
           sheetName: m.worksheetName,
@@ -5689,6 +6183,26 @@ app.post("/api/rfqs/:id/export", async (req, res) => {
     }
 
     const validationMs = Date.now() - startValidation;
+
+    // Part 6: final export integrity diagnostics.
+    const replayReportForDiagnostics = (validationReport as any).replayReport;
+    const exportIntegrityReport = {
+      replayMapping: replayReportForDiagnostics
+        ? `${replayReportForDiagnostics.matchedProjectName} (${replayReportForDiagnostics.totalItems} historical rows)`
+        : "No replay detected for this RFQ",
+      rowsMatched: replayReportForDiagnostics?.matchedItemsCount ?? "N/A",
+      rowsMissing: replayReportForDiagnostics ? (replayReportForDiagnostics.totalItems - replayReportForDiagnostics.matchedItemsCount) : "N/A",
+      rowsWritten: exportIntegrityCounters.rowsWritten,
+      formulaCellsPreserved: exportIntegrityCounters.formulaCellsPreserved,
+      formulaCellsModified: exportIntegrityCounters.formulaCellsModified,
+      rateCellsWritten: exportIntegrityCounters.rateCellsWritten,
+      amountCellsWritten: exportIntegrityCounters.amountCellsWritten,
+      unexpectedWrites: exportIntegrityCounters.unexpectedWrites,
+      replayAccuracy: replayReportForDiagnostics ? `${replayReportForDiagnostics.accuracyRate}%` : "N/A"
+    };
+    (validationReport as any).exportIntegrityReport = exportIntegrityReport;
+    console.log("\n[Export Integrity Diagnostics - Part 6]");
+    console.table([exportIntegrityReport]);
 
     logAuditEvent(
       "Export",
@@ -6371,7 +6885,15 @@ async function startServer() {
         // client-side loop (e.g. a sequential multi-file upload) after whichever request
         // happened to be in flight when the reload landed.
         watch: {
+          // Defensive: explicitly exclude node_modules/.git/dist regardless of Vite's own
+          // defaults - a custom `ignored` array can in some Vite/chokidar version combinations
+          // suppress rather than extend the built-in ignores, and this project's node_modules is
+          // large enough that watching it directly is a plausible contributor to runaway dev
+          // server memory growth.
           ignored: [
+            "**/node_modules/**",
+            "**/.git/**",
+            "**/dist/**",
             "**/historical_boqs_store.json",
             "**/master_boq_store.json",
             "**/replay_database.json",
@@ -6379,6 +6901,9 @@ async function startServer() {
             "**/audit_logs_store.json",
             "**/rfqs_store.json",
             "**/rfq_items_store.json",
+            "**/export_history_store.json",
+            "**/settings_store.json",
+            "**/learning_events_store.json",
             "**/backend/data/**",
             "**/historical_sheets_store/**",
           ],

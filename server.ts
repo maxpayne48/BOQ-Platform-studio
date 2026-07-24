@@ -849,7 +849,81 @@ function getCachedDomainAverage(domain: string): number {
   return domainAverage;
 }
 
+// Audit 0002 fix 2 - ingestion-time data-quality gate. A historical rate that is an
+// order of magnitude off from the MEDIAN of its own master item's sibling rates (e.g.
+// Rs.0.165 recorded for a tile item whose siblings price at Rs.2,646-4,000) is corrupted
+// data, not commercial evidence. Median/MAD is used deliberately instead of min/max -
+// min/max is exactly what a corrupted outlier distorts. Quarantined entries are moved to
+// m.quarantinedRates (visible, auditable, logged) and removed from historicalRates and
+// every parallel array, so no downstream evidence pool can ever select them.
+const QUARANTINE_RATIO = 10;          // order-of-magnitude band around the sibling median
+const QUARANTINE_ROBUST_Z = 6;        // MAD-based distance; guards against quarantining
+                                      // points in legitimately wide (high-MAD) rate spreads
+const QUARANTINE_MIN_SIBLINGS = 3;    // with <3 rates there is no basis to say which is bad
+
+function quarantineImplausibleMasterRates(m: MasterBOQItem): void {
+  // Always leave the vetted marker ([] when nothing was quarantined) - its absence is
+  // what triggers the one-time vetting pass in initializeMasterDatabaseAndIndex for
+  // masters persisted before this gate existed.
+  m.quarantinedRates = m.quarantinedRates || [];
+  const rates = m.historicalRates || [];
+  if (rates.length < QUARANTINE_MIN_SIBLINGS) return;
+
+  const sorted = [...rates].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  const median = sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+  if (!(median > 0)) return;
+
+  const absDevs = rates.map((r) => Math.abs(r - median)).sort((a, b) => a - b);
+  const madMid = Math.floor(absDevs.length / 2);
+  const mad = absDevs.length % 2 !== 0 ? absDevs[madMid] : (absDevs[madMid - 1] + absDevs[madMid]) / 2;
+
+  const badIndexes: number[] = [];
+  for (let i = 0; i < rates.length; i++) {
+    const r = rates[i];
+    const ratio = r / median;
+    const orderOfMagnitudeOff = ratio > QUARANTINE_RATIO || ratio < 1 / QUARANTINE_RATIO;
+    if (!orderOfMagnitudeOff) continue;
+    // If the item's rates legitimately spread widely, MAD is large and the robust
+    // z-score stays small - only quarantine when the point is far outside even the
+    // item's own observed dispersion. MAD of 0 means every sibling agrees exactly,
+    // so the ratio test alone is conclusive.
+    const robustZ = mad > 0 ? Math.abs(r - median) / (1.4826 * mad) : Infinity;
+    if (robustZ >= QUARANTINE_ROBUST_Z) badIndexes.push(i);
+  }
+  if (badIndexes.length === 0) return;
+
+  const bad = new Set(badIndexes);
+  m.quarantinedRates = m.quarantinedRates || [];
+  for (const i of badIndexes) {
+    const entry = {
+      rate: rates[i],
+      projectName: (m.projects || [])[i] || "Unknown Project",
+      reason: `Order-of-magnitude outlier: Rs.${rates[i]} vs sibling median Rs.${Math.round(median * 100) / 100} for "${m.standardDescription.slice(0, 60)}"`
+    };
+    m.quarantinedRates.push(entry);
+    console.warn(`[Rate Quarantine] ${m.id}: ${entry.reason} (project: ${entry.projectName})`);
+  }
+
+  const keep = <T>(arr: T[] | undefined): T[] | undefined =>
+    arr ? arr.filter((_, i) => !bad.has(i)) : arr;
+  // Every parallel occurrence array must stay index-aligned with historicalRates.
+  m.historicalRates = keep(m.historicalRates) as number[];
+  m.projects = keep(m.projects) as string[];
+  m.companies = keep(m.companies) as string[];
+  m.historicalDescriptions = keep(m.historicalDescriptions) as string[];
+  m.historicalSpecifications = keep(m.historicalSpecifications) as string[];
+  m.historicalGeneralNotes = keep(m.historicalGeneralNotes) as string[];
+  m.historicalWorksheets = keep(m.historicalWorksheets);
+  m.historicalRows = keep(m.historicalRows);
+  m.historicalCells = keep(m.historicalCells);
+}
+
 function precomputeMasterItemFields(m: MasterBOQItem): MasterBOQItem {
+  // Data-quality gate first, so min/max/median/average and every precomputed field
+  // below are derived from the vetted rates only.
+  quarantineImplausibleMasterRates(m);
+
   if (!m.historicalRates || m.historicalRates.length === 0) {
     m.minRate = m.minRate || 0;
     m.maxRate = m.maxRate || 0;
@@ -1085,8 +1159,12 @@ function initializeMasterDatabaseAndIndex(modifiedIds?: Set<string>) {
                             !m.historicalProjects || 
                             !m.projectType || 
                             !m.city || 
-                            !m.buildingType || 
-                            !m.embeddingVector;
+                            !m.buildingType ||
+                            !m.embeddingVector ||
+                            // Audit 0002 fix 2: masters persisted before the ingestion
+                            // rate-quarantine gate existed have never been vetted - the
+                            // marker's absence triggers the one-time vetting pass.
+                            m.quarantinedRates === undefined;
 
     if (modifiedIds) {
       if (modifiedIds.has(m.id) || isMissingFields) {

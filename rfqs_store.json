@@ -32536,7 +32536,7 @@
           "rowNumber": 707,
           "originalDescription": "First aid kit",
           "masterItemId": "mstr_e42e3qh0z",
-          "recommendedRate": 4380,
+          "recommendedRate": 4390,
           "approvalStatus": "Needs Review",
           "reasonCode": "LOW_CONFIDENCE_AND_VALIDATION_FAILED"
         },
@@ -33094,7 +33094,7 @@
           "rowNumber": 124,
           "originalDescription": "40mm dia.",
           "masterItemId": "mstr_a4wt1gfxh",
-          "recommendedRate": 3046,
+          "recommendedRate": 1689.5,
           "approvalStatus": "Needs Review",
           "reasonCode": "LOW_CONFIDENCE_AND_VALIDATION_FAILED"
         },
@@ -33391,7 +33391,7 @@
           "rowNumber": 195,
           "originalDescription": "250 mm dia",
           "masterItemId": "mstr_8o353jhyz",
-          "recommendedRate": 83,
+          "recommendedRate": 66,
           "approvalStatus": "Needs Review",
           "reasonCode": "LOW_CONFIDENCE_AND_VALIDATION_FAILED"
         },
@@ -33454,7 +33454,7 @@
           "rowNumber": 205,
           "originalDescription": "250 mm dia",
           "masterItemId": "mstr_8o353jhyz",
-          "recommendedRate": 83,
+          "recommendedRate": 66,
           "approvalStatus": "Needs Review",
           "reasonCode": "LOW_CONFIDENCE_AND_VALIDATION_FAILED"
         },
@@ -33679,7 +33679,7 @@
           "rowNumber": 259,
           "originalDescription": "250 mm Dia",
           "masterItemId": "mstr_8o353jhyz",
-          "recommendedRate": 83,
+          "recommendedRate": 66,
           "approvalStatus": "Needs Review",
           "reasonCode": "LOW_CONFIDENCE_AND_VALIDATION_FAILED"
         },
@@ -35845,7 +35845,7 @@
         }
       ]
     },
-    "retrievalTimeMs": 3,
-    "recommendationTimeMs": 39
+    "retrievalTimeMs": 4,
+    "recommendationTimeMs": 30
   }
 ]

@@ -141,6 +141,13 @@ export interface MasterBOQItem {
   historicalWorksheets?: string[];
   historicalRows?: number[];
   historicalCells?: string[];
+
+  // Data-quality quarantine (Audit 0002 fix 2): historical rates rejected at
+  // precompute time as order-of-magnitude outliers against this master item's own
+  // sibling rates (median/MAD test). Kept here - never silently dropped - so the
+  // corruption is visible/auditable, but excluded from historicalRates and every
+  // downstream evidence pool.
+  quarantinedRates?: { rate: number; projectName: string; reason: string }[];
   
   // Precomputed features for performance
   precomputedActivity?: string;

@@ -4152,13 +4152,49 @@ app.post("/api/rfqs/:id/recommend", async (req, res) => {
   const items = rfqItems.filter(i => i.rfqId === rfqId);
   const preambleText = activeRfq.preamblePasted || activeRfq.preambleExtracted?.rawText || "";
 
-  // Extract parameters from request body, with robust fallbacks from projectContext
+  // Audit 0002 fix 3: before any placeholder default is applied, check whether this RFQ
+  // is a re-upload of a project already sitting in the historical database (normalized
+  // name/file match - strips "copy of", workbook extensions, punctuation). Previously a
+  // profile-less recommend request silently compared the RFQ against fabricated inputs
+  // (₹1.5 Cr / 50,000 sq ft / Delhi NCR / Commercial Office), which is why Stage-1
+  // project similarity read 41% for a literally identical project. This is an
+  // input-completeness fix ONLY: the identified record's REAL cost/size/city/type fill
+  // whatever the request did not provide, and Stage-1 ranking plus every downstream
+  // pricing stage then run exactly the same code - no rate bypass, no special-cased
+  // exact-match branch (consistent with the standing no-replay-mode principle).
+  const normalizeProjectIdentity = (name: string): string => String(name || "")
+    .toLowerCase()
+    .replace(/\.(xlsx|xls|csv)$/i, "")
+    .replace(/\bcopy of\b/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+  const rfqIdentity = normalizeProjectIdentity(activeRfq.projectName) || normalizeProjectIdentity(activeRfq.fileName);
+  const knownHistoricalTwin = rfqIdentity.length > 0
+    ? historicalBOQs.find(h => normalizeProjectIdentity(h.projectName) === rfqIdentity) ||
+      historicalBOQs.find(h => normalizeProjectIdentity(h.fileName) === rfqIdentity)
+    : undefined;
+  if (knownHistoricalTwin) {
+    console.log(
+      `[Project Identity] RFQ "${activeRfq.projectName}" matches historical project ` +
+      `"${knownHistoricalTwin.projectName}" (${knownHistoricalTwin.id}) - using its real profile for any ` +
+      `parameter not supplied in the request (no pricing shortcut; Stage-1 similarity runs unchanged).`
+    );
+  }
+  const twinCost = knownHistoricalTwin ? getHistoricalProjectCost(knownHistoricalTwin.id) : 0;
+  const twinSize = knownHistoricalTwin?.projectSize ? parseSizeString(knownHistoricalTwin.projectSize) : 0;
+  const twinCity = knownHistoricalTwin?.location ? knownHistoricalTwin.location.split(",")[0].trim() : "";
+
+  // Parameter precedence: explicit request body > identified historical twin's real
+  // profile > the RFQ's own projectContext > placeholder default. The twin outranks
+  // projectContext deliberately - projectContext is overwritten with whatever profile a
+  // previous run used, so after one defaulted run it holds exactly the fabricated values
+  // this fix exists to avoid.
   const reqCost = req.body.projectCost;
   const reqSize = req.body.projectSize;
-  const projectCost = typeof reqCost === "number" ? reqCost : (reqCost ? parseFloat(reqCost) : 15000000); // 1.5 Cr default fallback
-  const projectSize = typeof reqSize === "number" ? reqSize : (reqSize ? parseFloat(reqSize) : (activeRfq.projectContext?.projectSize ? parseSizeString(activeRfq.projectContext.projectSize) : 50000));
-  const projectType = req.body.projectType || activeRfq.projectContext?.projectType || "Commercial Office";
-  const city = req.body.city || (activeRfq.projectContext?.location ? activeRfq.projectContext.location.split(",")[0].trim() : "Delhi NCR");
+  const projectCost = typeof reqCost === "number" ? reqCost : (reqCost ? parseFloat(reqCost) : (twinCost > 0 ? twinCost : 15000000)); // 1.5 Cr default fallback
+  const projectSize = typeof reqSize === "number" ? reqSize : (reqSize ? parseFloat(reqSize) : (twinSize > 0 ? twinSize : (activeRfq.projectContext?.projectSize ? parseSizeString(activeRfq.projectContext.projectSize) : 50000)));
+  const projectType = req.body.projectType || knownHistoricalTwin?.projectType || activeRfq.projectContext?.projectType || "Commercial Office";
+  const city = req.body.city || twinCity || (activeRfq.projectContext?.location ? activeRfq.projectContext.location.split(",")[0].trim() : "Delhi NCR");
   const buildingGrade = req.body.buildingGrade || activeRfq.projectContext?.buildingType || "Grade A";
 
   // Store this in Project Profile / context to show throughout recommendations

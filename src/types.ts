@@ -540,6 +540,14 @@ export interface RFQItem {
     historicalProjectCost?: number;
     historicalProjectType?: string;
     rateSource?: string;
+    /**
+     * The baseline stage's original explanation, preserved verbatim the first time a
+     * later pricing stage overwrites the rate (Audit 0002 fix 4). `explanation` above is
+     * reconciled by CommercialDecisionEngine.finalizeItemDecision to describe the stage
+     * that actually produced the final rate; this field keeps the baseline lineage
+     * visible without the trace ever contradicting the final decision.
+     */
+    baselineExplanation?: string;
   };
 }
 

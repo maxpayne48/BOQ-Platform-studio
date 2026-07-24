@@ -65,15 +65,7 @@ export class CommercialDecisionEngine {
     const rejectedEvidenceCount =
       (item.rejectedHistoricalCandidates?.length ?? 0) + (stats?.rejectedEvidence?.length ?? 0);
 
-    const rateProvenance = item.isOverridden
-      ? "Estimator Override"
-      : item.calibrationApplied
-        ? "Self-Validation / Calibration"
-        : item.matchTier
-          ? `Progressive Match (${item.matchTier})`
-          : item.engineeringAdjustment?.applied
-            ? `Engineering Adjustment (${item.engineeringAdjustment.mathematicalModel})`
-            : item.recommendationTrace?.rateSource || "Recommendation Baseline";
+    const rateProvenance = CommercialDecisionEngine.deriveRateProvenance(item);
 
     // Prefer the 6-facet overall confidence when the calibration layer produced
     // one; the pipeline confidenceScore is the fallback for items that never
@@ -159,12 +151,66 @@ export class CommercialDecisionEngine {
     return build("Needs Review", reasonCode, `Estimator review required - ${parts.join("; ")}.`, failedValidations);
   }
 
+  /** Which pipeline stage is responsible for the item's FINAL rate. */
+  static deriveRateProvenance(item: RFQItem): string {
+    return item.isOverridden
+      ? "Estimator Override"
+      : item.calibrationApplied
+        ? "Self-Validation / Calibration"
+        : item.matchTier
+          ? `Progressive Match (${item.matchTier})`
+          : item.engineeringAdjustment?.applied
+            ? `Engineering Adjustment (${item.engineeringAdjustment.mathematicalModel})`
+            : item.recommendationTrace?.rateSource || "Recommendation Baseline";
+  }
+
+  /**
+   * Audit 0002 fix 4: the recommendation trace is written once by the baseline stage and
+   * was never updated when a later stage (engineering adjustment, progressive matching,
+   * calibration, self-validation, estimator override) overwrote the rate - so the trace
+   * could tell a fabricated provenance story ("₹3,500 historical rate used directly")
+   * for an item whose real final rate was something else entirely. Same single-writer-
+   * at-the-end pattern as the approval decision: this engine reconciles the trace
+   * exactly once, here, and no pricing stage edits it mid-flight. The baseline stage's
+   * original explanation is preserved verbatim in `baselineExplanation` (set once,
+   * idempotent) so lineage stays visible without contradiction.
+   */
+  private static reconcileRecommendationTrace(item: RFQItem): void {
+    const trace = item.recommendationTrace;
+    if (!trace) return;
+
+    const finalRate = item.isOverridden && item.overriddenRate ? item.overriddenRate : item.recommendedRate;
+    if (trace.baselineExplanation === undefined) {
+      trace.baselineExplanation = trace.explanation || "";
+    }
+
+    const rateUnchangedSinceBaseline = Math.abs(finalRate - trace.recommendedUnitRate) < 0.005 &&
+      trace.explanation === trace.baselineExplanation;
+    if (rateUnchangedSinceBaseline) return;
+
+    // The stage narratives below are the stages' OWN recorded reasoning - this engine
+    // only assembles them, it never invents pricing rationale.
+    const stageNarrative = item.isOverridden
+      ? `Estimator override: rate manually set to ₹${finalRate.toFixed(2)}${trace.baselineExplanation ? "" : "."}`
+      : item.calibrationApplied && item.calibrationReason
+        ? item.calibrationReason
+        : item.matchTier || item.engineeringAdjustment?.applied
+          ? item.reason
+          : item.reason;
+
+    trace.recommendedUnitRate = Math.round(finalRate * 100) / 100;
+    trace.explanation =
+      `[${CommercialDecisionEngine.deriveRateProvenance(item)}] ${stageNarrative}` +
+      (trace.baselineExplanation ? ` | Baseline stage: ${trace.baselineExplanation}` : "");
+  }
+
   /**
    * Assemble and attach the immutable decision to the item. The two legitimate
    * call sites are the end of the recommendation pipeline and the estimator
    * override route.
    */
   static finalizeItemDecision(item: RFQItem): CommercialDecision {
+    CommercialDecisionEngine.reconcileRecommendationTrace(item);
     const decision = CommercialDecisionEngine.deriveApprovalDecision(item);
     item.decision = decision;
     item.approvalStatus = decision.approvalStatus;

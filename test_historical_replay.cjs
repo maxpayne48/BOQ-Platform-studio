@@ -1,250 +1,131 @@
-const fs = require('fs');
-const path = require('path');
-const ExcelJS = require('exceljs');
-const JSZip = require('jszip');
+// Self-replay regression harness (Audit 0002).
+//
+// Measures how faithfully the recommendation engine reproduces a historical BOQ's own
+// commercial rates when that BOQ is re-uploaded as an unrated RFQ. There is no replay
+// mode in the engine - this is purely a validation metric: for every RFQ item that has
+// an exact ground-truth counterpart in the historical project's row mappings, compare
+// the engine's recommended rate against the original historical unit rate and count
+// deviations > 5%.
+//
+// Usage:  node test_historical_replay.cjs [rfqId] [historicalProjectName]
+// Defaults: the first RFQ in rfqs_store.json, matched against the historical project
+// whose normalized name matches the RFQ's (strips "copy of", punctuation, whitespace).
 
-// Import databases
-const rfqsStore = require('./rfqs_store.json');
-const rfqItemsStore = require('./rfq_items_store.json');
-const masterBOQItems = require('./master_boq_store.json');
-const historicalBOQs = require('./historical_boqs_store.json');
+const fs = require("fs");
+const path = require("path");
 
-const rfqId = 'rfq_3bvg0xfx4';
-const rfq = rfqsStore.find(r => r.id === rfqId);
-const items = rfqItemsStore.filter(i => i.rfqId === rfqId);
+const rfqsStore = require("./rfqs_store.json");
+const rfqItemsStore = require("./rfq_items_store.json");
+const historicalBOQs = require("./historical_boqs_store.json");
 
-// Get historical mappings
-const matchedProj = rfq.matchedProjectName;
-const histBOQ = historicalBOQs.find(h => h.projectName === matchedProj);
-const histProjectId = histBOQ ? histBOQ.id : "N/A";
+const DEVIATION_THRESHOLD_PERCENT = 5;
 
-console.log('RFQ:', rfq.projectName);
-console.log('Matched Project:', matchedProj);
-console.log('Historical Project ID:', histProjectId);
-
-// Reconstruct getHistoricalRowMappings fallback logic
-function getHistoricalRowMappings(projectId, projectName) {
-  const mappingsPath = path.join(process.cwd(), "historical_sheets_store", `mappings_${projectId}.json`);
-  if (fs.existsSync(mappingsPath)) {
-    return JSON.parse(fs.readFileSync(mappingsPath, "utf-8"));
-  }
-
-  // Fallback: Reconstruct dynamically
-  const projectItems = masterBOQItems.filter(m => m.projects && m.projects.includes(projectName));
-  const mappings = [];
-  
-  for (const m of projectItems) {
-    const idx = m.projects.indexOf(projectName);
-    if (idx !== -1) {
-      const sheetName = m.historicalWorksheets?.[idx];
-      const rowNum = m.historicalRows?.[idx];
-      const rate = m.historicalRates?.[idx];
-      const cell = m.historicalCells?.[idx] || "N/A";
-      const desc = m.historicalDescriptions?.[idx] || m.standardDescription;
-      
-      if (sheetName && rowNum) {
-        mappings.push({
-          worksheetName: sheetName,
-          rowNumber: rowNum,
-          unitRateCellAddress: cell,
-          amountCellAddress: cell.replace('G', 'H').replace('E', 'F'), // approximate
-          originalUnitRate: rate,
-          originalItemDescription: desc,
-          masterItemId: m.id
-        });
-      }
-    }
-  }
-  return mappings;
+function normalizeProjectName(name) {
+  return String(name || "")
+    .toLowerCase()
+    .replace(/\.(xlsx|xls|csv)$/i, "")
+    .replace(/\bcopy of\b/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
 }
 
-const mappings = getHistoricalRowMappings(histProjectId, matchedProj);
-console.log('Mappings count:', mappings.length);
+const rfqId = process.argv[2] || (rfqsStore[0] && rfqsStore[0].id);
+const rfq = rfqsStore.find((r) => r.id === rfqId);
+if (!rfq) {
+  console.error(`RFQ "${rfqId}" not found in rfqs_store.json`);
+  process.exit(1);
+}
 
-async function runTest() {
-  const filePath = path.join(process.cwd(), 'uploads', `${rfqId}.xlsx`);
-  const originalBuffer = fs.readFileSync(filePath);
+const wantedHistName = process.argv[3];
+const rfqNorm = normalizeProjectName(rfq.projectName || rfq.fileName);
+const histBOQ = wantedHistName
+  ? historicalBOQs.find((h) => h.projectName === wantedHistName)
+  : historicalBOQs.find((h) => normalizeProjectName(h.projectName) === rfqNorm);
+if (!histBOQ) {
+  console.error(`No historical project matches RFQ "${rfq.projectName}" (normalized: "${rfqNorm}")`);
+  process.exit(1);
+}
 
-  const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(originalBuffer);
+const mappingsPath = path.join(process.cwd(), "historical_sheets_store", `mappings_${histBOQ.id}.json`);
+if (!fs.existsSync(mappingsPath)) {
+  console.error(`Ground-truth mappings file missing: ${mappingsPath}`);
+  process.exit(1);
+}
+const mappings = JSON.parse(fs.readFileSync(mappingsPath, "utf-8"));
 
-  const blueprint = rfq.workbookBlueprint;
-  const activeItems = items.filter(i => i.status === 'Accepted' || i.status === 'Needs Manual Review');
+const items = rfqItemsStore.filter((i) => i.rfqId === rfqId);
 
-  // Load patched/exported workbook
-  // Let's call the server export or build the export buffer ourselves using server's logic
-  const zip = await JSZip.loadAsync(originalBuffer);
-  const workbookXmlFile = zip.file("xl/workbook.xml");
-  const workbookRelsXmlFile = zip.file("xl/_rels/workbook.xml.rels");
-  const workbookXml = await workbookXmlFile.async("string");
-  const workbookRelsXml = await workbookRelsXmlFile.async("string");
+console.log(`RFQ: ${rfq.projectName} (${rfqId}) - ${items.length} items`);
+console.log(`Historical ground truth: ${histBOQ.projectName} (${histBOQ.id}) - ${mappings.length} mapped rows`);
 
-  const rels = {};
-  const relRegex = /<Relationship\s+[^>]*?Id="([^"]+)"\s+[^>]*?Target="([^"]+)"/ig;
-  let relMatch;
-  while ((relMatch = relRegex.exec(workbookRelsXml)) !== null) {
-    rels[relMatch[1]] = relMatch[2];
+// Ground-truth join: primary key (worksheetName, rowNumber) - the RFQ is a byte-copy of
+// the same workbook, so sheet+row is exact. Fallback: exact normalized description match
+// (only when unambiguous - a description appearing exactly once in the mappings).
+const bySheetRow = new Map();
+for (const m of mappings) {
+  bySheetRow.set(`${m.worksheetName} ${m.rowNumber}`, m);
+}
+const descCount = new Map();
+const byDesc = new Map();
+for (const m of mappings) {
+  const d = String(m.originalItemDescription || "").trim().toLowerCase();
+  descCount.set(d, (descCount.get(d) || 0) + 1);
+  byDesc.set(d, m);
+}
+
+let matched = 0;
+let within5 = 0;
+const deviations = [];
+let unmatched = 0;
+
+for (const item of items) {
+  let m = bySheetRow.get(`${item.sheetName} ${item.rowNum}`);
+  if (!m) {
+    const d = String(item.originalDescription || "").trim().toLowerCase();
+    if (descCount.get(d) === 1) m = byDesc.get(d);
+  }
+  if (!m || !Number.isFinite(m.originalUnitRate) || m.originalUnitRate <= 0) {
+    unmatched++;
+    continue;
   }
 
-  const xmlPaths = {};
-  const sheetRegex = /<sheet\s+[^>]*?name="([^"]+)"\s+[^>]*?r:id="([^"]+)"/ig;
-  let sheetMatch;
-  while ((sheetMatch = sheetRegex.exec(workbookXml)) !== null) {
-    const sName = decodeXmlEntities(sheetMatch[1]);
-    const rId = sheetMatch[2];
-    const target = rels[rId];
-    if (target) {
-      xmlPaths[sName] = target.startsWith("/") ? target.slice(1) : `xl/${target}`;
-    }
-  }
-
-  function decodeXmlEntities(str) {
-    return str
-      .replace(/&amp;/g, "&")
-      .replace(/&lt;/g, "<")
-      .replace(/&gt;/g, ">")
-      .replace(/&quot;/g, '"')
-      .replace(/&apos;/g, "'");
-  }
-
-  function getCellRef(row, col) {
-    let colName = "";
-    let temp = col;
-    while (temp > 0) {
-      let rem = (temp - 1) % 26;
-      colName = String.fromCharCode(65 + rem) + colName;
-      temp = Math.floor((temp - 1) / 26);
-    }
-    return `${colName}${row}`;
-  }
-
-  function updateCellInXml(xml, cellRef, newValue) {
-    const escapedCellRef = cellRef.replace(/[-\/\\^$*+?.()|[\]{}]/g, "\\$&");
-    const selfClosingRegex = new RegExp("<c\\s+([^>]*?\\br=['\"]" + escapedCellRef + "['\"][^>]*?)\\/\\>", "i");
-    const selfMatch = xml.match(selfClosingRegex);
-    if (selfMatch) {
-      const fullMatchStr = selfMatch[0];
-      const attrs = selfMatch[1];
-      const cleanAttrs = attrs.replace(/\bt=['"](?:s|str)['"]\s*/g, "").trim();
-      const replacement = `<c ${cleanAttrs}><v>${newValue}</v></c>`;
-      return xml.replace(fullMatchStr, replacement);
-    }
-    const fullCellRegex = new RegExp("<c\\s+([^>]*?\\br=['\"]" + escapedCellRef + "['\"][^>]*?)>((?:(?!<c\\b).)*?)<\\/c>", "is");
-    const fullMatch = xml.match(fullCellRegex);
-    if (fullMatch) {
-      const fullMatchStr = fullMatch[0];
-      const attrs = fullMatch[1];
-      let innerContent = fullMatch[2];
-      const cleanAttrs = attrs.replace(/\bt=['"](?:s|str)['"]\s*/g, "").trim();
-      const newOpenTag = `<c ${cleanAttrs}>`;
-      if (/<v\b[^>]*>.*?<\/v>/i.test(innerContent)) {
-        innerContent = innerContent.replace(/<v\b[^>]*>.*?<\/v>/i, `<v>${newValue}</v>`);
-      } else {
-        innerContent = innerContent + `<v>${newValue}</v>`;
-      }
-      const replacement = `${newOpenTag}${innerContent}</c>`;
-      return xml.replace(fullMatchStr, replacement);
-    }
-    return xml;
-  }
-
-  const itemsBySheet = {};
-  activeItems.forEach(item => {
-    if (!itemsBySheet[item.sheetName]) {
-      itemsBySheet[item.sheetName] = [];
-    }
-    itemsBySheet[item.sheetName].push(item);
-  });
-
-  for (const [sheetName, sheetItems] of Object.entries(itemsBySheet)) {
-    const xmlPath = xmlPaths[sheetName];
-    if (!xmlPath) continue;
-    const sheetBlue = blueprint.sheets[sheetName];
-    if (!sheetBlue) continue;
-    const zipFile = zip.file(xmlPath);
-    if (!zipFile) continue;
-
-    let xml = await zipFile.async("string");
-    sheetItems.forEach(item => {
-      const rateToInject = item.overriddenRate || item.recommendedRate;
-      const rateCellRef = getCellRef(item.rowNum, sheetBlue.rateCellColumn);
-      xml = updateCellInXml(xml, rateCellRef, rateToInject);
-
-      if (sheetBlue.amountCellColumn !== -1 && sheetBlue.amountCellColumn !== sheetBlue.rateCellColumn) {
-        const amtCellRef = getCellRef(item.rowNum, sheetBlue.amountCellColumn);
-        const amtVal = item.quantity * rateToInject;
-        xml = updateCellInXml(xml, amtCellRef, amtVal);
-      }
+  matched++;
+  const recommended = item.overriddenRate || item.recommendedRate || 0;
+  const deviationPercent = (Math.abs(recommended - m.originalUnitRate) / m.originalUnitRate) * 100;
+  if (deviationPercent <= DEVIATION_THRESHOLD_PERCENT) {
+    within5++;
+  } else {
+    deviations.push({
+      sheet: item.sheetName,
+      row: item.rowNum,
+      description: String(item.originalDescription).slice(0, 60),
+      historicalRate: m.originalUnitRate,
+      recommendedRate: recommended,
+      deviationPercent: Math.round(deviationPercent * 10) / 10,
+      approvalStatus: item.approvalStatus,
+      provenance: (item.decision && item.decision.rateProvenance) || "n/a"
     });
-    zip.file(xmlPath, xml);
   }
-
-  const outputBuffer = await zip.generateAsync({ type: "nodebuffer" });
-
-  const patchedWorkbook = new ExcelJS.Workbook();
-  await patchedWorkbook.xlsx.load(outputBuffer);
-
-  // Let's compare patched rate and amount cells against historical baseline
-  console.log('\n--- Comparing Patched Rates and Amounts against Historical Baseline Mappings ---');
-  let matchedCount = 0;
-  let totalCompared = 0;
-  const replayItems = [];
-
-  mappings.forEach(cell => {
-    const genSheet = patchedWorkbook.getWorksheet(cell.worksheetName);
-    let exportedRate = 0;
-    let exportedAmount = 0;
-    let cellFound = false;
-
-    if (genSheet) {
-      const cellInGen = genSheet.getCell(cell.unitRateCellAddress);
-      if (cellInGen && cellInGen.value !== null && cellInGen.value !== undefined) {
-        cellFound = true;
-        const val = cellInGen.value;
-        if (val && typeof val === "object" && "result" in val) {
-          exportedRate = Number(val.result || 0);
-        } else if (val && typeof val === "object" && "formula" in val) {
-          exportedRate = Number(val.result || 0);
-        } else {
-          exportedRate = Number(val || 0);
-        }
-      }
-
-      // Read amount
-      const amtCellInGen = genSheet.getCell(cell.amountCellAddress || cell.unitRateCellAddress.replace('G', 'H'));
-      if (amtCellInGen && amtCellInGen.value !== null && amtCellInGen.value !== undefined) {
-        const val = amtCellInGen.value;
-        if (val && typeof val === "object" && "result" in val) {
-          exportedAmount = Number(val.result || 0);
-        } else if (val && typeof val === "object" && "formula" in val) {
-          exportedAmount = Number(val.result || 0);
-        } else {
-          exportedAmount = Number(val || 0);
-        }
-      }
-    }
-
-    const originalRate = cell.originalUnitRate;
-    const difference = exportedRate - originalRate;
-    const exactMatch = Math.abs(difference) < 0.01;
-
-    totalCompared++;
-    if (exactMatch) {
-      matchedCount++;
-    } else {
-      replayItems.push({
-        worksheetName: cell.worksheetName,
-        cellAddress: cell.unitRateCellAddress,
-        originalValue: originalRate,
-        exportedValue: exportedRate,
-        reason: `Unit Rate difference. Baseline has ₹${originalRate}, Export has ₹${exportedRate}`
-      });
-    }
-  });
-
-  console.log(`Replay Accuracy: ${matchedCount} / ${totalCompared} (${(matchedCount/totalCompared*100).toFixed(2)}%)`);
-  console.log(`Mismatching cells count: ${replayItems.length}`);
-  console.log(`Mismatch details:`, replayItems.slice(0, 10));
 }
 
-runTest().catch(console.error);
+deviations.sort((a, b) => b.deviationPercent - a.deviationPercent);
+
+console.log(`\nMatched to ground truth: ${matched} (unmatched/no-rate: ${unmatched})`);
+console.log(`Within +-${DEVIATION_THRESHOLD_PERCENT}%: ${within5} (${((within5 / matched) * 100).toFixed(1)}%)`);
+console.log(`DEVIATING > ${DEVIATION_THRESHOLD_PERCENT}%: ${deviations.length} (${((deviations.length / matched) * 100).toFixed(1)}%)`);
+
+const catastrophic = deviations.filter((d) => d.deviationPercent > 90);
+console.log(`  of which catastrophic (>90% off): ${catastrophic.length}`);
+
+console.log(`\nWorst 15 deviations:`);
+for (const d of deviations.slice(0, 15)) {
+  console.log(
+    `  [${d.sheet} r${d.row}] "${d.description}" hist=Rs.${d.historicalRate} rec=Rs.${d.recommendedRate} ` +
+      `(${d.deviationPercent}% off) [${d.approvalStatus}] via ${d.provenance}`
+  );
+}
+
+// Provenance breakdown of deviating items - which pipeline stage produced the bad rates.
+const byProv = {};
+for (const d of deviations) byProv[d.provenance] = (byProv[d.provenance] || 0) + 1;
+console.log(`\nDeviating items by rate provenance:`, byProv);

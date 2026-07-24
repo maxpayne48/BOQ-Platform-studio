@@ -179,3 +179,17 @@ To avoid over-flagging: the five `recommendedRate` writers are *sequential*, not
 This distinction is the basis for the refactor plan in the companion ADR: **do not collapse the five pricing stages into one function** (they represent real, distinct engineering steps — baseline, engineering adjustment, progressive relaxation, market calibration, self-validation — and collapsing them would violate the "never rewrite working matching/adjustment modules" constraint from prior sessions). **Do** collapse the *interpretation* of the final state (approval/validation/bucketing/badges/auditor labels/export gates) into one shared decision object computed once, at the end of the pricing chain, and consumed everywhere else read-only.
 
 See `docs/adr/0001-single-source-of-truth-commercial-decision.md` for the refactor plan and Architecture Decision Record.
+
+---
+
+## 8. Post-Implementation Status (2026-07-24, same day)
+
+The refactor described in ADR-0001 has been **implemented**. This audit remains as the record of the pre-refactor state; its file:line citations describe the code as it was and no longer resolve. Current state:
+
+- Conflicts §5.1-5.5 are structurally impossible now: approval is derived once per item by `src/CommercialDecisionEngine.ts` into a frozen `RFQItem.decision` / `RFQItem.approvalStatus`, and the dashboard, table badge, drawer badge, auditor report, export filter, and every accuracy metric are read-only consumers of it.
+- §5.6 (duplicate `RecommendationEngineV2`) resolved by deleting `backend/` entirely, along with the `/recommend-v2` route and upload hooks.
+- §5.7 (dead-but-armed replay export gate) deleted, along with the whole persisted replay-era field family (a load-time store migration strips legacy data).
+- §2's threshold literals are centralized in `src/decisionConstants.ts`; §2's four-to-six accuracy formulas are one helper (`computeApprovalMetrics`); the fabricated `regressionSummary` now runs the real suite.
+- Additional fabrications found during implementation and removed: the drawer's "Multi-Percentile Historical Rate Analysis" and its calculation log were rendered entirely from client-side invented numbers (`RFQItem.rateStats`/`uomTrace` were never populated by any backend code), plus fake validation/decomposition/worksheet-context fallbacks.
+
+See the ADR's "Implementation Notes" for the full delta list and the post-cutover approval distribution on the Kohler benchmark.

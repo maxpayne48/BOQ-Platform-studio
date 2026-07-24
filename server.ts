@@ -38,51 +38,19 @@ import { HistoricalRetrievalEngine } from "./src/HistoricalRetrievalEngine.js";
 import { ProgressiveMatchingEngine } from "./src/ProgressiveMatchingEngine.js";
 import { LearningEngine } from "./src/LearningEngine.js";
 import { parseWorkbookForUpload, validateAndSanitizeWorkbook, UploadLog as BOQUploadLog } from "./src/BOQParserEngine.js";
-import { KnowledgeBaseEngine } from "./backend/src/engines/KnowledgeBaseEngine.js";
-import { EngineeringParser } from "./backend/src/engines/EngineeringParser.js";
-import { ProjectSimilarityEngine } from "./backend/src/engines/ProjectSimilarityEngine.js";
-import { HistoricalRateEngine } from "./backend/src/engines/HistoricalRateEngine.js";
-import { BasicRateEngine } from "./backend/src/engines/BasicRateEngine.js";
-import { UOMEngine } from "./backend/src/engines/UOMEngine.js";
-import { ConfidenceEngine } from "./backend/src/engines/ConfidenceEngine.js";
-// Aliased to avoid colliding with the legacy `RecommendationEngineV2` (src/RecommendationEngineV2.js,
-// V1) already imported above - that file and this import are two entirely different classes
-// that happen to share a name; V1 remains completely untouched.
-import { RecommendationEngineV2 as RecommendationEngineV2New } from "./backend/src/engines/RecommendationEngineV2.js";
-import { RecommendationLogger } from "./backend/src/engines/RecommendationLogger.js";
+import { CommercialDecisionEngine } from "./src/CommercialDecisionEngine.js";
+import {
+  CONFIDENCE_APPROVAL_THRESHOLD,
+  VALIDATION_MIN_SUBSCORE,
+  RATE_PLAUSIBILITY_LOW_MULTIPLIER,
+  RATE_PLAUSIBILITY_HIGH_MULTIPLIER,
+  SELF_VALIDATION_MAX_DEVIATION_PERCENT,
+  LOW_PRICING_CONFIDENCE_FLAG_THRESHOLD,
+  SELF_VALIDATION_MIN_PRICING_CONFIDENCE
+} from "./src/decisionConstants.js";
 
 // Load environment variables
 dotenv.config();
-
-// New backend architecture (Phase 2): KnowledgeBaseEngine V2.
-// Connected only to the Historical BOQ upload route below. No other route reads from or
-// writes to it, and no existing logic in this file has been changed to make room for it.
-const knowledgeBaseEngineV2 = new KnowledgeBaseEngine();
-
-// New backend architecture (Phase 2): EngineeringParser.
-// Connected only to the Historical BOQ upload and RFQ upload routes below (see each
-// route for its own deferred, read-only pass). Pure/stateless - no store of its own.
-const engineeringParser = new EngineeringParser();
-
-// New backend architecture (Phase 2): remaining orchestration engines, wired together and
-// connected only to the new POST /api/rfqs/:id/recommend-v2 endpoint below. The legacy
-// POST /api/rfqs/:id/recommend endpoint (V1) is entirely untouched and keeps using the
-// original `RecommendationEngineV2` (src/RecommendationEngineV2.js) imported above.
-const projectSimilarityEngineV2 = new ProjectSimilarityEngine(knowledgeBaseEngineV2);
-const historicalRateEngineV2 = new HistoricalRateEngine(knowledgeBaseEngineV2);
-const basicRateEngineV2 = new BasicRateEngine(knowledgeBaseEngineV2);
-const uomEngineV2 = new UOMEngine();
-const confidenceEngineV2 = new ConfidenceEngine();
-
-const recommendationEngineV2Instance = new RecommendationEngineV2New(
-  engineeringParser,
-  projectSimilarityEngineV2,
-  historicalRateEngineV2,
-  basicRateEngineV2,
-  uomEngineV2,
-  confidenceEngineV2
-);
-const recommendationLoggerV2 = new RecommendationLogger();
 
 // ==========================================
 // ENTERPRISE EXCELJS SHARED FORMULA PATCH
@@ -234,7 +202,25 @@ function writeDb<T>(filePath: string, data: T): void {
 let historicalBOQs = readDb<HistoricalBOQ[]>(HISTORICAL_DB_PATH, []);
 let masterBOQItems = readDb<MasterBOQItem[]>(MASTER_DB_PATH, []);
 let rfqs = readDb<RFQ[]>(RFQS_DB_PATH, []);
+// ADR-0001 store migration: strip retired replay-era fields persisted by earlier versions
+// (nothing reads them anymore; the next save would otherwise carry them forward verbatim).
+rfqs.forEach((rfq) => {
+  const legacy = rfq as any;
+  delete legacy.replayDetected;
+  delete legacy.matchedProjectName;
+  delete legacy.workbookMatchPercent;
+  delete legacy.worksheetMatchPercent;
+  delete legacy.itemMatchPercent;
+  delete legacy.replayAuditorReport;
+  delete legacy.verifiedReplayRows;
+  delete legacy.verificationMismatches;
+  if (legacy.status === "Replay") legacy.status = "Rated";
+});
 let rfqItems = readDb<RFQItem[]>(path.join(process.cwd(), "rfq_items_store.json"), []);
+// ADR-0001 vocabulary migration: items persisted before the Commercial Decision Engine
+// carried a legacy `status` ("Accepted"/"Needs Manual Review"/"Pending"). Translate once
+// at load; the next recommendation run replaces the translation with a real decision.
+rfqItems.forEach((item) => CommercialDecisionEngine.migrateLegacyItem(item as any));
 let exportHistory = readDb<ExportHistoryItem[]>(EXPORTS_DB_PATH, []);
 let auditLogs = readDb<AuditLogItem[]>(AUDITS_DB_PATH, []);
 let replayDatabase = readDb<ReplayRecord[]>(REPLAY_DB_PATH, []);
@@ -2501,53 +2487,6 @@ app.post("/api/historical-boqs", (req, res) => {
     `Ingested historical BOQ file "${fileName}" for project "${projectName}" containing ${addedCount} items under domains: ${domainsDetected.join(", ")}. KB Version bumped to ${activeVer}.`
   );
 
-  // New backend architecture (Phase 2): forward this same upload to KnowledgeBaseEngine V2.
-  // Fire-and-forget by design so it can never delay or alter the response below, which is
-  // still built entirely from the existing (unmodified) ingestion logic above.
-  knowledgeBaseEngineV2
-    .ingestHistoricalBOQ({ projectName, contractorName, fileName, sheets })
-    .then((kbResult) => {
-      console.log("[KnowledgeBaseEngine V2] Ingestion validation summary:", kbResult.validation);
-    })
-    .catch((error) => {
-      console.error("[KnowledgeBaseEngine V2] Historical BOQ ingestion hook failed (non-fatal):", error);
-    });
-
-  // New backend architecture (Phase 2): EngineeringParser.
-  // Deferred via setImmediate so it runs strictly after the response below has already
-  // been sent, never adding latency to it. Reads rowMappings, which the existing
-  // (unmodified) ingestion logic above already fully populated - no new parsing of the
-  // raw sheets is introduced here, only reuse of what already exists.
-  setImmediate(() => {
-    try {
-      let parsedCount = 0;
-      let confidenceTotal = 0;
-      let missingAttributeItems = 0;
-      for (const mapping of rowMappings) {
-        const engItem = engineeringParser.parse({
-          originalDescription: mapping.originalItemDescription,
-          worksheetName: mapping.worksheetName,
-          uom: mapping.uom,
-          quantity: mapping.originalQuantity,
-          rate: mapping.originalUnitRate,
-          amount: mapping.originalAmount
-        });
-        parsedCount++;
-        confidenceTotal += engItem.validation.confidence;
-        if (engItem.validation.missingAttributes.length > 0) missingAttributeItems++;
-      }
-      if (parsedCount > 0) {
-        console.log(
-          `[EngineeringParser] Historical upload "${fileName}": parsed ${parsedCount} items, ` +
-            `avg parsing confidence ${(confidenceTotal / parsedCount).toFixed(1)}, ` +
-            `${missingAttributeItems} with missing attributes.`
-        );
-      }
-    } catch (error) {
-      console.error("[EngineeringParser] Historical upload parsing hook failed (non-fatal):", error);
-    }
-  });
-
   res.json({ success: true, addedCount, domains: domainsDetected, project: newHist });
 });
 
@@ -2755,7 +2694,7 @@ app.get("/api/rfqs", (req, res) => {
   // Combine RFQ draft meta with active rate counts
   const result = rfqs.map(rfq => {
     const items = rfqItems.filter(i => i.rfqId === rfq.id);
-    const ratedCount = items.filter(i => i.status === "Accepted" || i.status === "Needs Manual Review").length;
+    const ratedCount = items.filter(i => i.approvalStatus && i.approvalStatus !== "Pending").length;
     return {
       ...rfq,
       itemCount: items.length,
@@ -3809,7 +3748,7 @@ app.post("/api/rfqs", async (req, res) => {
           confidenceScore: 0,
           reason: "Pending analysis",
           parentHierarchy: row.parentHierarchy,
-          status: "Pending",
+          approvalStatus: "Pending",
           dimensions: extractDimensions(row.description)
         });
       }
@@ -3912,7 +3851,7 @@ app.post("/api/rfqs", async (req, res) => {
           confidenceScore: 0,
           reason: "Pending analysis",
           parentHierarchy: [...currentHierarchy],
-          status: "Pending",
+          approvalStatus: "Pending",
           dimensions: extractDimensions(rawDesc)
         });
       }
@@ -4021,40 +3960,9 @@ app.post("/api/rfqs", async (req, res) => {
 
   // Write audit log entry
   logAuditEvent(
-    "Historical Replay",
+    "RFQ Upload",
     `Uploaded RFQ "${fileName}" analyzed and parsed successfully (${parsedItems.length} item(s)); workspace prepared as a Draft estimation.`
   );
-
-  // New backend architecture (Phase 2): EngineeringParser.
-  // Deferred via setImmediate so it runs strictly after the response below has already
-  // been sent, never adding latency to it. Reads parsedItems, which the existing
-  // (unmodified) ingestion logic above already fully populated - no new parsing of the
-  // raw sheets is introduced here, only reuse of what already exists.
-  setImmediate(() => {
-    try {
-      let confidenceTotal = 0;
-      let missingAttributeItems = 0;
-      for (const rfqItem of parsedItems) {
-        const engItem = engineeringParser.parse({
-          originalDescription: rfqItem.originalDescription,
-          worksheetName: rfqItem.sheetName,
-          uom: rfqItem.unit,
-          quantity: rfqItem.quantity
-        });
-        confidenceTotal += engItem.validation.confidence;
-        if (engItem.validation.missingAttributes.length > 0) missingAttributeItems++;
-      }
-      if (parsedItems.length > 0) {
-        console.log(
-          `[EngineeringParser] RFQ upload "${fileName}": parsed ${parsedItems.length} items, ` +
-            `avg parsing confidence ${(confidenceTotal / parsedItems.length).toFixed(1)}, ` +
-            `${missingAttributeItems} with missing attributes.`
-        );
-      }
-    } catch (error) {
-      console.error("[EngineeringParser] RFQ upload parsing hook failed (non-fatal):", error);
-    }
-  });
 
   res.json({ success: true, rfq: newRFQ, itemsCount: parsedItems.length });
 });
@@ -4088,200 +3996,6 @@ app.post("/api/rfqs/clear-all", (req, res) => {
   res.json({ success: true, clearedCount: initialCount });
 });
 
-// Helper to retrieve historical sheets (loads from disk or reconstructs dynamically)
-function getHistoricalProjectSheets(projectId: string, projectName: string): { sheetName: string; rows: any[][] }[] {
-  const filePath = path.join(process.cwd(), "historical_sheets_store", `${projectId}.json`);
-  if (fs.existsSync(filePath)) {
-    try {
-      return JSON.parse(fs.readFileSync(filePath, "utf-8"));
-    } catch (e) {
-      console.error(`Error reading historical sheets for ${projectId}:`, e);
-    }
-  }
-
-  // Fallback: Dynamically reconstruct sheets from masterBOQItems
-  console.log(`Fallback: Reconstructing sheets for project "${projectName}" from masterBOQItems`);
-  const projectItems = masterBOQItems.filter(m => m.projects && m.projects.includes(projectName));
-  
-  // Group by worksheet name
-  const sheetsMap: Record<string, { rowNum: number; desc: string; unit: string; rate: number; cell: string }[]> = {};
-  for (const m of projectItems) {
-    const idx = m.projects.indexOf(projectName);
-    if (idx !== -1) {
-      const sheetName = m.historicalWorksheets?.[idx];
-      const rowNum = m.historicalRows?.[idx];
-      const rate = m.historicalRates?.[idx];
-      const cell = m.historicalCells?.[idx] || "N/A";
-      const desc = m.historicalDescriptions?.[idx] || m.standardDescription;
-      const unit = m.standardUnit;
-
-      if (sheetName && rowNum) {
-        if (!sheetsMap[sheetName]) sheetsMap[sheetName] = [];
-        sheetsMap[sheetName].push({ rowNum, desc, unit, rate, cell });
-      }
-    }
-  }
-
-  const sheets: { sheetName: string; rows: any[][] }[] = [];
-  for (const [sheetName, itemsList] of Object.entries(sheetsMap)) {
-    const maxRow = Math.max(...itemsList.map(it => it.rowNum), 40);
-    const rows: any[][] = Array.from({ length: maxRow + 5 }, () => []);
-
-    rows[0] = ["Item No", "Description", "UOM", "Quantity", "Rate", "Amount"];
-    rows[1] = ["Header", "Dummy Header Row", "UOM", "Qty", "Rate", "Amount"];
-
-    for (const item of itemsList) {
-      const rIdx = item.rowNum - 1;
-      let colRate = 4; // default col E
-      const cellMatch = item.cell.match(/^([A-Z]+)(\d+)$/);
-      if (cellMatch) {
-        const colLetters = cellMatch[1];
-        let col = 0;
-        for (let i = 0; i < colLetters.length; i++) {
-          col = col * 26 + (colLetters.charCodeAt(i) - 64);
-        }
-        colRate = col - 1;
-      }
-
-      const row = rows[rIdx] || [];
-      row[0] = "1";
-      row[1] = item.desc;
-      row[2] = item.unit;
-      row[3] = 1; // Default qty matching
-      row[colRate] = item.rate;
-      rows[rIdx] = row;
-    }
-    sheets.push({ sheetName, rows });
-  }
-
-  return sheets;
-}
-
-function getHistoricalRowMappings(projectId: string, projectName: string): DeterministicRowMapping[] {
-  const mappingsPath = path.join(process.cwd(), "historical_sheets_store", `mappings_${projectId}.json`);
-  if (fs.existsSync(mappingsPath)) {
-    try {
-      return JSON.parse(fs.readFileSync(mappingsPath, "utf-8"));
-    } catch (e) {
-      console.error(`Error reading historical row mappings for ${projectId}:`, e);
-    }
-  }
-
-  // Fallback: Dynamically reconstruct row mappings from stored raw sheets and masterBOQItems
-  console.log(`Reconstructing deterministic row mappings dynamically for project "${projectName}"`);
-  const sheets = getHistoricalProjectSheets(projectId, projectName);
-  const rowMappings: DeterministicRowMapping[] = [];
-
-  for (let sheetIdx = 0; sheetIdx < sheets.length; sheetIdx++) {
-    const sheet = sheets[sheetIdx];
-    if (shouldSkipSheet(sheet.sheetName)) continue;
-
-    // Detect columns
-    let colDesc = -1;
-    let colUnit = -1;
-    let colQty = -1;
-    let colRate = -1;
-    let colItemNo = -1;
-    let colAmount = -1;
-
-    for (let i = 0; i < Math.min(sheet.rows.length, 12); i++) {
-      const row = sheet.rows[i];
-      if (!row) continue;
-      for (let j = 0; j < row.length; j++) {
-        const val = cleanText(String(row[j] || ""));
-        if (!val) continue;
-
-        if (val === "description" || val === "particulars" || val === "item description" || val === "work description" || val.includes("description") || val === "item") {
-          colDesc = j;
-        } else if (val === "unit" || val === "uom" || (val.includes("unit") && !val.includes("rate") && !val.includes("price"))) {
-          colUnit = j;
-        } else if (val === "quantity" || val === "qty" || val === "quantities" || val.includes("qty") || val.includes("quantity")) {
-          colQty = j;
-        } else if (val === "rate" || val === "unit rate" || val === "unit price" || val === "price" || val.includes("rate") || val.includes("price") || val.includes("unit price") || val.includes("unit rate")) {
-          colRate = j;
-        } else if (val === "item no" || val === "sl no" || val === "s no" || val === "item code" || val === "serial no" || val === "sr no" || val.includes("item no") || val.includes("sl no") || val.includes("serial")) {
-          colItemNo = j;
-        } else if (val === "amount" || val === "total" || val === "total amount" || val === "amt" || val.includes("amount")) {
-          colAmount = j;
-        }
-      }
-      if (colDesc !== -1 && colRate !== -1) break;
-    }
-
-    if (colDesc === -1) colDesc = 1;
-    if (colUnit === -1) colUnit = 2;
-    if (colQty === -1) colQty = 3;
-    if (colRate === -1) colRate = 4;
-    if (colItemNo === -1) colItemNo = 0;
-    if (colAmount === -1) colAmount = colRate + 1;
-
-    for (let i = 2; i < sheet.rows.length; i++) {
-      const row = sheet.rows[i];
-      if (!row || row.length <= colDesc) continue;
-
-      const rawDesc = String(row[colDesc] || "").trim();
-      const rawUnit = String(row[colUnit] || "").trim();
-      const rawQtyStr = String(row[colQty] || "").trim();
-      const rawRateStr = String(row[colRate] || "").trim();
-
-      if (!rawDesc) continue;
-
-      const qty = parseFloat(rawQtyStr.replace(/[^0-9.]/g, ""));
-      const rate = parseFloat(rawRateStr.replace(/[^0-9.]/g, ""));
-
-      const isHeaderRow = isNaN(qty) || isNaN(rate) || !rawUnit || rawUnit.toLowerCase() === "unit";
-      if (isHeaderRow) continue;
-
-      // Find standard item
-      const mItem = masterBOQItems.find(m => 
-        m.projects && m.projects.includes(projectName) &&
-        m.historicalWorksheets?.some((ws, idx) => 
-          ws.toLowerCase() === sheet.sheetName.toLowerCase() && 
-          m.historicalRows?.[idx] === (i + 1)
-        )
-      ) || masterBOQItems.find(m => 
-        m.projects && m.projects.includes(projectName) &&
-        m.standardDescription.toLowerCase().replace(/\s+/g, " ").trim() === rawDesc.toLowerCase().replace(/\s+/g, " ").trim()
-      );
-
-      const masterItemId = mItem ? mItem.id : "mstr_unknown";
-
-      const cleanAmtStr = String(row[colAmount] || "").trim();
-      const rawAmt = parseFloat(cleanAmtStr.replace(/[^0-9.]/g, ""));
-      const originalAmount = isNaN(rawAmt) ? ((isNaN(qty) ? 0 : qty) * (isNaN(rate) ? 0 : rate)) : rawAmt;
-
-      rowMappings.push({
-        historicalProjectId: projectId,
-        worksheetName: sheet.sheetName,
-        worksheetIndex: sheetIdx,
-        rowNumber: i + 1,
-        excelRowIndex: i,
-        originalItemDescription: rawDesc,
-        quantityCellAddress: getCellAddress0Based(i, colQty),
-        unitRateCellAddress: getCellAddress0Based(i, colRate),
-        amountCellAddress: getCellAddress0Based(i, colAmount),
-        originalQuantity: isNaN(qty) ? 0 : qty,
-        originalUnitRate: isNaN(rate) ? 0 : rate,
-        originalAmount: originalAmount,
-        uom: rawUnit,
-        masterItemId: masterItemId
-      });
-    }
-  }
-
-  // Cache to disk
-  try {
-    const sheetsStoreDir = path.join(process.cwd(), "historical_sheets_store");
-    if (!fs.existsSync(sheetsStoreDir)) {
-      fs.mkdirSync(sheetsStoreDir, { recursive: true });
-    }
-    writeDb(mappingsPath, rowMappings);
-  } catch (e) {
-    console.error("Failed to write reconstructed row mappings cache:", e);
-  }
-
-  return rowMappings;
-}
 
 // Get RFQ specific line items
 app.get("/api/rfqs/:id/items", (req, res) => {
@@ -4487,8 +4201,10 @@ app.post("/api/rfqs/:id/recommend", async (req, res) => {
     item.recommendedRate = result.recommendedRate;
     item.matchedMasterId = result.matchedMasterId;
     item.confidenceScore = result.confidence;
-    item.status = result.confidence >= 75 ? "Accepted" : "Needs Manual Review";
     item.reason = result.reason;
+    // NOTE (ADR-0001): no approval is decided here or anywhere inside the pricing
+    // chain - the Commercial Decision Engine derives it exactly once, after every
+    // pricing stage (calibration + self-validation included) has finished.
 
     item.recommendationTrace = result.trace;
     tRecommendation += (Date.now() - startRec);
@@ -4615,7 +4331,6 @@ app.post("/api/rfqs/:id/recommend", async (req, res) => {
           const basicRateBeforeAdjustment = item.recommendedRate;
           item.recommendedRate = adjustment.finalRate;
           item.confidenceScore = adjustment.confidence;
-          item.status = adjustment.confidence >= 75 ? "Accepted" : "Needs Manual Review";
           item.reason = `[Engineering Adjustment] ${adjustment.calculatedAdjustment}`;
 
           const thickness = adjustment.engineeringParameters.find((p) => p.name === "Thickness")?.value;
@@ -4680,7 +4395,6 @@ app.post("/api/rfqs/:id/recommend", async (req, res) => {
           item.matchTier = relaxed.tier;
           item.reason = `[Progressive Match: ${relaxed.tier}] ${relaxed.explanation}`;
           item.confidenceScore = relaxed.tier === "Market Estimation" ? 40 : Math.min(70, 40 + relaxed.referenceCount * 3);
-          item.status = "Needs Manual Review";
         }
       } catch (relaxedMatchError) {
         console.error(`[Progressive Matching] Failed for item ${item.id} (non-fatal, keeping flat Basic Rate):`, relaxedMatchError);
@@ -4691,7 +4405,7 @@ app.post("/api/rfqs/:id/recommend", async (req, res) => {
     // the final state of this item above. Never affects recommendedRate, export, or Replay
     // Auditor in any way.
     const attentionFlags: string[] = [];
-    if (item.confidenceScore < 75) attentionFlags.push("Low Confidence");
+    if (item.confidenceScore < CONFIDENCE_APPROVAL_THRESHOLD) attentionFlags.push("Low Confidence");
     if (item.engineeringAdjustment?.applied) {
       attentionFlags.push("AI Estimated");
       attentionFlags.push(
@@ -4716,7 +4430,7 @@ app.post("/api/rfqs/:id/recommend", async (req, res) => {
     if (item.matchTier) {
       attentionFlags.push(`Estimated via ${item.matchTier}`);
     }
-    if (item.status === "Needs Manual Review" && item.engineeringAdjustment?.applied) attentionFlags.push("Engineering Review Required");
+    if (item.confidenceScore < CONFIDENCE_APPROVAL_THRESHOLD && item.engineeringAdjustment?.applied) attentionFlags.push("Engineering Review Required");
     const uomFactorMatch = result.trace?.explanation?.match(/UOM (?:Conversion )?Factor:\s*([\d.]+)/);
     if (uomFactorMatch && Math.abs(parseFloat(uomFactorMatch[1]) - 1) > 0.01) {
       attentionFlags.push("UOM Conversion");
@@ -4780,9 +4494,12 @@ app.post("/api/rfqs/:id/recommend", async (req, res) => {
     stats: MarketRateStatistics | undefined,
     matchedMaster: MasterBOQItem | undefined
   ): NonNullable<RFQItem["validationResults"]> {
-    const engineeringPass = !item.engineeringAdjustment?.applied || item.engineeringAdjustment.confidence >= 50;
-    const specificationPass = (item.specificationConfidence ?? 50) >= 50;
-    const withinRange = !stats || (item.recommendedRate >= stats.min * 0.5 && item.recommendedRate <= stats.max * 2);
+    const engineeringPass = !item.engineeringAdjustment?.applied || item.engineeringAdjustment.confidence >= VALIDATION_MIN_SUBSCORE;
+    const specificationPass = (item.specificationConfidence ?? VALIDATION_MIN_SUBSCORE) >= VALIDATION_MIN_SUBSCORE;
+    const withinRange = !stats || (
+      item.recommendedRate >= stats.min * RATE_PLAUSIBILITY_LOW_MULTIPLIER &&
+      item.recommendedRate <= stats.max * RATE_PLAUSIBILITY_HIGH_MULTIPLIER
+    );
     const commercialPass = withinRange && !!stats;
     const uomPass = matchedMaster
       ? verifyAndConvertUOM(item.unit, matchedMaster.standardUnit || item.unit, item.itemDecomposition).compatible
@@ -4820,7 +4537,7 @@ app.post("/api/rfqs/:id/recommend", async (req, res) => {
       },
       workbookValidation: {
         pass: true,
-        details: "Structural workbook placement is verified at export time (see verificationMismatches); no issues detected during recommendation."
+        details: "Structural workbook placement is verified at export time (paired-rate and cell-injection checks); no issues detected during recommendation."
       },
       regressionValidation: {
         pass: Number.isFinite(item.recommendedRate) && item.recommendedRate > 0,
@@ -4859,9 +4576,9 @@ app.post("/api/rfqs/:id/recommend", async (req, res) => {
 
       // Items with low pricing confidence are surfaced for estimator review via the existing
       // "Items Requiring Attention" mechanism; high-confidence items get no extra flag and
-      // require no manual intervention. item.status (Accepted / Needs Manual Review) itself is
-      // untouched - this only adds a dashboard-visible signal alongside it.
-      if (confidence.pricingConfidence < 70) {
+      // require no manual intervention. This is an informational signal only - approval is
+      // decided solely by the Commercial Decision Engine at the end of the pipeline.
+      if (confidence.pricingConfidence < LOW_PRICING_CONFIDENCE_FLAG_THRESHOLD) {
         const flags = new Set(item.attentionFlags || []);
         flags.add("Low Pricing Confidence");
         item.attentionFlags = Array.from(flags);
@@ -4883,11 +4600,11 @@ app.post("/api/rfqs/:id/recommend", async (req, res) => {
     const flags = new Set(item.attentionFlags || []);
 
     if (stats && stats.min > 0 && item.recommendedRate) {
-      // 0.5x-2x is wide enough to never trip on a legitimate regional/learning adjustment (the
-      // observed Pune location uplift is ~1.12x) while still catching genuine mismatches, which in
-      // this session ran from ~0.08x to ~11x of the item's own historical evidence.
-      const lowerBound = stats.min * 0.5;
-      const upperBound = stats.max * 2;
+      // The shared plausibility band is wide enough to never trip on a legitimate
+      // regional/learning adjustment (~1.12x observed) while still catching genuine
+      // mismatches (~0.08x to ~11x observed).
+      const lowerBound = stats.min * RATE_PLAUSIBILITY_LOW_MULTIPLIER;
+      const upperBound = stats.max * RATE_PLAUSIBILITY_HIGH_MULTIPLIER;
       if (item.recommendedRate < lowerBound || item.recommendedRate > upperBound) {
         flags.add("Rate Outside Historical Range");
       }
@@ -4943,24 +4660,24 @@ app.post("/api/rfqs/:id/recommend", async (req, res) => {
     if (!stats || stats.referenceCount < 2) {
       reasons.push("Weak historical support (fewer than 2 commercially-equivalent references)");
     }
-    if (confidence && confidence.pricingConfidence < 50) {
+    if (confidence && confidence.pricingConfidence < SELF_VALIDATION_MIN_PRICING_CONFIDENCE) {
       reasons.push(`Low pricing confidence (${confidence.pricingConfidence}%)`);
     }
     if (stats && item.recommendedRate) {
-      const lowerBound = stats.min * 0.5;
-      const upperBound = stats.max * 2;
+      const lowerBound = stats.min * RATE_PLAUSIBILITY_LOW_MULTIPLIER;
+      const upperBound = stats.max * RATE_PLAUSIBILITY_HIGH_MULTIPLIER;
       if (item.recommendedRate < lowerBound || item.recommendedRate > upperBound) {
         reasons.push("Rate falls outside expected historical range");
       }
     }
-    if (item.engineeringAdjustment?.applied && (item.engineeringAdjustment.isExtrapolation || item.engineeringAdjustment.confidence < 50)) {
+    if (item.engineeringAdjustment?.applied && (item.engineeringAdjustment.isExtrapolation || item.engineeringAdjustment.confidence < SELF_VALIDATION_MIN_PRICING_CONFIDENCE)) {
       reasons.push(`Large/uncertain engineering adjustment (${item.engineeringAdjustment.mathematicalModel}, ${item.engineeringAdjustment.confidence}% confidence)`);
     }
     if (stats && item.recommendedRate) {
       const expectedRate = stats.representativeRate; // historical rates are never city re-based (Problem 1)
       if (expectedRate > 0) {
         const deviationPct = (Math.abs(item.recommendedRate - expectedRate) / expectedRate) * 100;
-        if (deviationPct > 25) {
+        if (deviationPct > SELF_VALIDATION_MAX_DEVIATION_PERCENT) {
           reasons.push(`Unusually high deviation from the selected historical rate (${deviationPct.toFixed(1)}%)`);
         }
       }
@@ -5060,54 +4777,38 @@ app.post("/api/rfqs/:id/recommend", async (req, res) => {
     );
   }
 
-  // 3. SYNCHRONIZE METRICS AND RECORD RECOMMENDATION QUALITY REPORT
-  // Verified/pending is derived purely from each item's own final status - not from whether it
-  // happened to match a historical record (no such concept exists in the unified pipeline).
-  const auditRecords: any[] = [];
-  let verifiedRowsCount = 0;
-  const failedRowsCount = 0;
-  let pendingRowsCount = 0;
-
+  // 3. COMMERCIAL DECISION (ADR-0001) - the single interpretation point. Every pricing
+  // stage (baseline, engineering adjustment, progressive matching, calibration,
+  // self-validation) has now finished; derive THE approval decision for each item exactly
+  // once. Every downstream surface - dashboard buckets, table/drawer badges, auditor
+  // report, export filter, analytics, system health - reads item.decision /
+  // item.approvalStatus and never re-derives its own opinion.
   for (const item of items) {
-    const needsReview = item.status === "Needs Manual Review";
-    if (needsReview) {
-      pendingRowsCount++;
-    } else {
-      verifiedRowsCount++;
-    }
+    CommercialDecisionEngine.finalizeItemDecision(item);
+  }
 
-    auditRecords.push({
-      projectId: "N/A",
+  // Recommendation quality report: a pure READ of the decisions above via the one
+  // shared approval-metrics helper. No independent formula.
+  const approvalMetrics = CommercialDecisionEngine.computeApprovalMetrics(items);
+  const auditorReport: NonNullable<RFQ["recommendationAuditReport"]> = {
+    approvalAccuracy: approvalMetrics.approvalAccuracy,
+    totalRows: approvalMetrics.totalItems,
+    autoApprovedRows: approvalMetrics.autoApproved,
+    needsReviewRows: approvalMetrics.needsReview,
+    manualPricingRows: approvalMetrics.manualPricing,
+    records: items.map((item) => ({
       worksheetName: item.sheetName,
       rowNumber: item.rowNum,
       originalDescription: item.originalDescription,
       masterItemId: item.matchedMasterId || "",
-      originalHistoricalRate: 0,
-      injectedRate: item.recommendedRate,
-      unitRateCellAddress: "N/A",
-      amountCellAddress: "N/A",
-      status: needsReview ? "NEW_ITEM" : "VERIFIED"
-    });
-  }
-
-  // Honest recommendation-quality accuracy: % of items not requiring manual review, replacing the
-  // previous hardcoded 100.
-  const replayAccuracy = items.length > 0 ? Math.round((verifiedRowsCount / items.length) * 100) : 100;
-
-  const auditorReport = {
-    replayAccuracy,
-    verifiedRows: verifiedRowsCount,
-    failedRows: failedRowsCount,
-    missingRows: 0,
-    extraRows: 0,
-    pendingRows: pendingRowsCount,
-    records: auditRecords
+      recommendedRate: item.recommendedRate,
+      approvalStatus: item.approvalStatus,
+      reasonCode: item.decision?.reasonCode ?? "NOT_RATED"
+    }))
   };
 
   activeRfq.status = "Rated";
-  activeRfq.replayAuditorReport = auditorReport;
-  activeRfq.verificationMismatches = [];
-  activeRfq.verifiedReplayRows = [];
+  activeRfq.recommendationAuditReport = auditorReport;
 
   const overallMs = Date.now() - startRecommendOverall;
 
@@ -5153,93 +4854,6 @@ app.post("/api/rfqs/:id/recommend", async (req, res) => {
   }
 });
 
-// New backend architecture (Phase 2) API integration.
-// Workflow: Upload RFQ (existing, untouched flow above) -> Project Profile (this request's
-// body) -> RecommendationEngineV2 -> ConfidenceEngine (called internally by
-// RecommendationEngineV2) -> RecommendationLogger -> Recommendation JSON response.
-// Purely additive: reads the existing rfqs/rfqItems in-memory arrays read-only, writes to
-// neither, and does not touch the legacy /api/rfqs/:id/recommend route above, Dashboard, or
-// Export Engine routes elsewhere in this file.
-app.post("/api/rfqs/:id/recommend-v2", async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { projectCost, projectSize, projectType, city, buildingGrade } = req.body ?? {};
-
-    const targetRfq = rfqs.find((r) => r.id === id);
-    if (!targetRfq) {
-      return res.status(404).json({ error: `RFQ "${id}" not found.` });
-    }
-
-    const targetItems = rfqItems.filter((i) => i.rfqId === id);
-    if (targetItems.length === 0) {
-      return res.status(400).json({ error: "This RFQ has no items to recommend." });
-    }
-
-    const rfqInput = {
-      id: targetRfq.id,
-      projectName: targetRfq.projectName,
-      items: targetItems.map((item) => ({
-        id: item.id,
-        description: item.originalDescription,
-        worksheetName: item.sheetName,
-        uom: item.unit,
-        quantity: item.quantity
-      }))
-    };
-
-    const projectProfile = {
-      projectCost: Number(projectCost) || 0,
-      projectSize: Number(projectSize) || 0,
-      projectType: projectType || targetRfq.projectContext?.projectType || "",
-      city: city || targetRfq.projectContext?.location || "",
-      buildingGrade: buildingGrade || ""
-    };
-
-    const startedAt = Date.now();
-    const recommendations = await recommendationEngineV2Instance.recommendBatch(rfqInput, projectProfile);
-    const totalTimeMs = Date.now() - startedAt;
-    const perItemTimeMs = recommendations.length > 0 ? totalTimeMs / recommendations.length : 0;
-
-    for (const result of recommendations) {
-      const originalItem = targetItems.find((i) => i.id === result.rfqItem.id);
-      const decisionRuleMatch = result.explanation.match(/Decision Rule \d+ \([A-Z_]+\)/);
-
-      recommendationLoggerV2.logRecommendation({
-        rfqId: id,
-        itemId: result.rfqItem.id,
-        recommendationSource: result.recommendationSource,
-        historicalProject: result.sourceProject,
-        worksheet: result.sourceWorksheet,
-        rowNumber: originalItem?.rowNum,
-        historicalRate: result.historicalRate,
-        basicRate: result.basicRate,
-        matchType: result.matchType,
-        confidence: result.confidence,
-        decisionRuleApplied: decisionRuleMatch ? decisionRuleMatch[0] : "UNKNOWN",
-        processingTimeMs: perItemTimeMs
-      });
-    }
-
-    res.json({
-      success: true,
-      rfqId: id,
-      projectProfile,
-      recommendations,
-      summary: {
-        itemCount: recommendations.length,
-        totalTimeMs,
-        averageTimeMsPerItem: Math.round(perItemTimeMs * 100) / 100
-      }
-    });
-  } catch (error) {
-    console.error("[recommend-v2] Failed to generate recommendations:", error);
-    res.status(500).json({
-      error: "Failed to generate recommendations.",
-      details: error instanceof Error ? error.message : String(error)
-    });
-  }
-});
-
 // Override pricing recommendation
 app.post("/api/rfqs/:id/override", (req, res) => {
   const { itemId, rate, reason } = req.body;
@@ -5254,7 +4868,10 @@ app.post("/api/rfqs/:id/override", (req, res) => {
 
   targetItem.overriddenRate = approvedRate;
   targetItem.isOverridden = true;
-  targetItem.status = "Accepted";
+  // Re-derive THE decision through the same single authority as the recommendation
+  // pipeline (ADR-0001) - an estimator override is final and yields Auto Approved
+  // with reasonCode ESTIMATOR_OVERRIDE.
+  CommercialDecisionEngine.finalizeItemDecision(targetItem);
 
   writeDb(path.join(process.cwd(), "rfq_items_store.json"), rfqItems);
 
@@ -5773,7 +5390,7 @@ function updateCellInXml(xml: string, cellRef: string, newValue: number): string
 // Perform high-fidelity rate injection, workbook rebuild, and strict comparison validation
 app.post("/api/rfqs/:id/export", async (req, res) => {
   console.log("========== EXPORT ROUTE HIT ==========");
-    console.log("RFQ ID:", req.params.rfqId);
+    console.log("RFQ ID:", req.params.id);
   const startTimeServerRoute = Date.now();
   console.log("Entered Stage: Server route");
 
@@ -5781,23 +5398,6 @@ app.post("/api/rfqs/:id/export", async (req, res) => {
   const rfq = rfqs.find(r => r.id === rfqId);
   if (!rfq) {
     return res.status(404).json({ error: "RFQ draft workspace not found." });
-  }
-
-  // The historical-replay-specific export gate that used to live here (blocking export unless
-  // rfq.replayDetected's auditor report showed 100% accuracy) has been removed along with the
-  // upload-time replay-detection concept it depended on - it never ran for an ordinary RFQ before
-  // (replayDetected was only ever true for a hash-matched historical upload), so removing it keeps
-  // every RFQ's export behavior exactly as it already was, rather than newly restricting exports
-  // that were previously unaffected by this check. rfq.verificationMismatches remains an always-
-  // empty, unpopulated field (see Recommendation Quality report above) and this check is left in
-  // place harmlessly since it can never trigger.
-  if (rfq.verificationMismatches && rfq.verificationMismatches.length > 0) {
-    console.error(`Export blocked for RFQ ${rfqId} due to ${rfq.verificationMismatches.length} verification mismatches.`);
-    return res.status(422).json({
-      success: false,
-      error: "Recommendation Quality Check Failed",
-      mismatches: rfq.verificationMismatches
-    });
   }
 
   const filePath = path.join(process.cwd(), "uploads", `${rfqId}.xlsx`);
@@ -5816,7 +5416,7 @@ app.post("/api/rfqs/:id/export", async (req, res) => {
 
     const startInjection = Date.now();
     const activeItems = rfqItems
-      .filter(i => i.rfqId === rfqId && (i.status === "Accepted" || i.status === "Needs Manual Review"))
+      .filter(i => i.rfqId === rfqId && i.approvalStatus && i.approvalStatus !== "Pending")
       .sort((a, b) => {
         if (a.sheetName !== b.sheetName) {
           return a.sheetName.localeCompare(b.sheetName);
@@ -6015,130 +5615,6 @@ app.post("/api/rfqs/:id/export", async (req, res) => {
       // a combined cell. This report is purely informational (per-worksheet debug summary).
       (validationReport as any).installationDebugReport = generateInstallationDebugReport(activeItems, blueprint);
 
-      // Replay validation in Debug Mode (uses parsed patchedWorkbook for ground truth)
-      if (rfq.replayDetected && rfq.matchedProjectName) {
-        console.log(`[Debug Mode] Generating ExcelJS-validated Historical Replay report against "${rfq.matchedProjectName}"`);
-        const matchedProj = rfq.matchedProjectName;
-        
-        const histBOQ = historicalBOQs.find(h => h.projectName === matchedProj);
-        const histProjectId = histBOQ ? histBOQ.id : "N/A";
-        // Filter out mappings from sheets that should never have been treated as real
-        // line-item BOQ data in the first place (e.g. a project-wide "Overall" rollup summary
-        // with formula-derived totals and no genuine Quantity column). This retroactively
-        // cleans up already-ingested stale mappings without needing to re-upload the historical
-        // BOQ, and is consistent with shouldSkipSheet already excluding these sheets going
-        // forward for both historical ingestion and RFQ upload.
-        const mappings = getHistoricalRowMappings(histProjectId, matchedProj)
-          .filter(m => !shouldSkipSheet(m.worksheetName));
-
-        const historicalRateCells = mappings.map(m => ({
-          sheetName: m.worksheetName,
-          rowNum: m.rowNumber,
-          cellAddress: m.unitRateCellAddress,
-          originalHistoricalRate: m.originalUnitRate,
-          description: m.originalItemDescription
-        }));
-
-        const replayItems: any[] = [];
-        let matchedCount = 0;
-
-        historicalRateCells.forEach(cell => {
-          const genSheet = patchedWorkbook!.getWorksheet(cell.sheetName);
-          // Read from the CURRENT RFQ's own detected Supply Rate column for this sheet+row,
-          // not the historical mapping's cellAddress - the historical BOQ's own ingestion
-          // column-detection (a separate, older code path) can legitimately have picked a
-          // different column for the same sheet layout (e.g. a "TOTAL RATE (INR)" column
-          // instead of "SUPPLY RATE (INR)" on a sheet with both), so comparing against its
-          // recorded address checks the wrong cell entirely rather than a real replay failure.
-          const currentSheetBlue = blueprint.sheets[cell.sheetName];
-          const readCellAddress = currentSheetBlue ? getCellRef(cell.rowNum, currentSheetBlue.rateCellColumn) : cell.cellAddress;
-          let exportedRate = 0;
-          if (genSheet) {
-            const cellInGen = genSheet.getCell(readCellAddress);
-            if (cellInGen && cellInGen.value !== null && cellInGen.value !== undefined) {
-              const val = cellInGen.value;
-              if (val && typeof val === "object" && "result" in val) {
-                exportedRate = Number((val as any).result || 0);
-              } else if (val && typeof val === "object" && "formula" in val) {
-                exportedRate = Number((val as any).result || 0);
-              } else {
-                exportedRate = Number(val || 0);
-              }
-              if (isNaN(exportedRate)) {
-                exportedRate = 0;
-              }
-            }
-          }
-
-          // The correct ground truth is the rate this RFQ's own recommendation engine decided
-          // to inject for this row (its recommended/overridden rate), not the historical
-          // project's original rate - location factor and UOM conversion legitimately make the
-          // two differ even for a perfectly successful replay.
-          const matchedItem = activeItems.find(i => i.sheetName === cell.sheetName && i.rowNum === cell.rowNum);
-          const expectedRate = matchedItem ? (matchedItem.overriddenRate || matchedItem.recommendedRate) : cell.originalHistoricalRate;
-          const difference = exportedRate - expectedRate;
-          const exactMatch = Math.abs(difference) < 0.01;
-
-          if (exactMatch) {
-            matchedCount++;
-          }
-
-          // TEMPORARY DEBUG LOGGING [DEBUG-REPLAY] - one line per historical replay row, per
-          // explicit request. Never silently ignore a replay failure.
-          console.log(
-            `[DEBUG-REPLAY] Sheet="${cell.sheetName}" | Description="${(cell.description || "").slice(0, 60)}" | ` +
-              `Historical Cell=${cell.cellAddress} | Historical Rate=${cell.originalHistoricalRate} | ` +
-              `RFQ Row=${cell.rowNum} | matchedItem=${matchedItem ? "FOUND" : "NOT FOUND"} | ` +
-              `Matched Export Cell=${readCellAddress} | Exported Rate=${exportedRate} | Expected Rate=${expectedRate} | ` +
-              `Result=${exactMatch ? "MATCH" : "MISMATCH"}` +
-              (!matchedItem ? " | REASON=No RFQ item found with this sheetName+rowNum" : "")
-          );
-
-          replayItems.push({
-            sheetName: cell.sheetName,
-            cellAddress: readCellAddress,
-            originalHistoricalRate: cell.originalHistoricalRate,
-            expectedRate,
-            exportedRate,
-            difference,
-            replayResult: exactMatch ? "Match" : "Mismatch",
-            description: cell.description,
-            rowNum: cell.rowNum,
-            matchedItemFound: !!matchedItem
-          });
-        });
-
-        let accuracyRate = 100;
-        if (historicalRateCells.length > 0) {
-          if (matchedCount === historicalRateCells.length) {
-            accuracyRate = 100;
-          } else {
-            const rawAccuracy = (matchedCount / historicalRateCells.length) * 100;
-            accuracyRate = Math.min(99, Math.round(rawAccuracy));
-          }
-        }
-
-        const replayReport = {
-          rfqId,
-          projectName: rfq.projectName,
-          matchedProjectName: matchedProj,
-          totalItems: historicalRateCells.length,
-          matchedItemsCount: matchedCount,
-          accuracyRate,
-          items: replayItems
-        };
-
-        (validationReport as any).replayReport = replayReport;
-
-        if (accuracyRate < 100) {
-          return res.status(422).json({
-            success: false,
-            error: "Historical Replay Failed",
-            details: `Export blocked: Replay Auditor verified only ${accuracyRate}% of historical replay rows.`,
-            report: validationReport
-          });
-        }
-      }
     } else {
       console.log("Production Export Mode: Skipping heavy visual and layout comparison audit and zeroing ExcelJS load.");
       validationReport = {
@@ -6151,132 +5627,18 @@ app.post("/api/rfqs/:id/export", async (req, res) => {
       // a combined cell. This report is purely informational (per-worksheet debug summary).
       (validationReport as any).installationDebugReport = generateInstallationDebugReport(activeItems, blueprint);
 
-      // In production mode, if replay was detected, generate a lightweight replay validation report 
-      // strictly using in-memory mappings without ExcelJS parsing of the output package.
-      if (rfq.replayDetected && rfq.matchedProjectName) {
-        console.log(`[Production Mode] Generating in-memory Historical Replay report against "${rfq.matchedProjectName}" with zero ExcelJS load.`);
-        const matchedProj = rfq.matchedProjectName;
-        
-        const histBOQ = historicalBOQs.find(h => h.projectName === matchedProj);
-        const histProjectId = histBOQ ? histBOQ.id : "N/A";
-        // Filter out mappings from sheets that should never have been treated as real
-        // line-item BOQ data in the first place (e.g. a project-wide "Overall" rollup summary
-        // with formula-derived totals and no genuine Quantity column). This retroactively
-        // cleans up already-ingested stale mappings without needing to re-upload the historical
-        // BOQ, and is consistent with shouldSkipSheet already excluding these sheets going
-        // forward for both historical ingestion and RFQ upload.
-        const mappings = getHistoricalRowMappings(histProjectId, matchedProj)
-          .filter(m => !shouldSkipSheet(m.worksheetName));
-
-        const historicalRateCells = mappings.map(m => ({
-          sheetName: m.worksheetName,
-          rowNum: m.rowNumber,
-          cellAddress: m.unitRateCellAddress,
-          originalHistoricalRate: m.originalUnitRate,
-          description: m.originalItemDescription
-        }));
-
-        const replayItems: any[] = [];
-        let matchedCount = 0;
-
-        historicalRateCells.forEach(cell => {
-          // Determine exportedRate in memory
-          let exportedRate = 0;
-          const matchedItem = activeItems.find(i => i.sheetName === cell.sheetName && i.rowNum === cell.rowNum);
-          if (matchedItem) {
-            exportedRate = matchedItem.overriddenRate || matchedItem.recommendedRate;
-          } else {
-            // Get original rate from the read-only original workbook
-            const origSheet = workbook.getWorksheet(cell.sheetName);
-            if (origSheet) {
-              const cellInOrig = origSheet.getCell(cell.cellAddress);
-              if (cellInOrig && cellInOrig.value !== null && cellInOrig.value !== undefined) {
-                const val = cellInOrig.value;
-                if (val && typeof val === "object" && "result" in val) {
-                  exportedRate = Number((val as any).result || 0);
-                } else if (val && typeof val === "object" && "formula" in val) {
-                  exportedRate = Number((val as any).result || 0);
-                } else {
-                  exportedRate = Number(val || 0);
-                }
-                if (isNaN(exportedRate)) exportedRate = 0;
-              }
-            }
-          }
-
-          // Same ground-truth correction as Debug Mode above: compare against this RFQ's own
-          // intended rate, not the historical project's original rate.
-          const expectedRate = matchedItem ? (matchedItem.overriddenRate || matchedItem.recommendedRate) : cell.originalHistoricalRate;
-          const difference = exportedRate - expectedRate;
-          const exactMatch = Math.abs(difference) < 0.01;
-
-          if (exactMatch) {
-            matchedCount++;
-          }
-
-          replayItems.push({
-            sheetName: cell.sheetName,
-            cellAddress: cell.cellAddress,
-            originalHistoricalRate: cell.originalHistoricalRate,
-            expectedRate,
-            exportedRate,
-            difference,
-            replayResult: exactMatch ? "Match" : "Mismatch",
-            description: cell.description,
-            rowNum: cell.rowNum
-          });
-        });
-
-        let accuracyRate = 100;
-        if (historicalRateCells.length > 0) {
-          if (matchedCount === historicalRateCells.length) {
-            accuracyRate = 100;
-          } else {
-            const rawAccuracy = (matchedCount / historicalRateCells.length) * 100;
-            accuracyRate = Math.min(99, Math.round(rawAccuracy));
-          }
-        }
-
-        const replayReport = {
-          rfqId,
-          projectName: rfq.projectName,
-          matchedProjectName: matchedProj,
-          totalItems: historicalRateCells.length,
-          matchedItemsCount: matchedCount,
-          accuracyRate,
-          items: replayItems
-        };
-
-        (validationReport as any).replayReport = replayReport;
-
-        if (accuracyRate < 100) {
-          return res.status(422).json({
-            success: false,
-            error: "Historical Replay Failed",
-            details: `Export blocked: Replay Auditor verified only ${accuracyRate}% of historical replay rows.`,
-            report: validationReport
-          });
-        }
-      }
     }
 
     const validationMs = Date.now() - startValidation;
 
     // Part 6: final export integrity diagnostics.
-    const replayReportForDiagnostics = (validationReport as any).replayReport;
     const exportIntegrityReport = {
-      replayMapping: replayReportForDiagnostics
-        ? `${replayReportForDiagnostics.matchedProjectName} (${replayReportForDiagnostics.totalItems} historical rows)`
-        : "No replay detected for this RFQ",
-      rowsMatched: replayReportForDiagnostics?.matchedItemsCount ?? "N/A",
-      rowsMissing: replayReportForDiagnostics ? (replayReportForDiagnostics.totalItems - replayReportForDiagnostics.matchedItemsCount) : "N/A",
       rowsWritten: exportIntegrityCounters.rowsWritten,
       formulaCellsPreserved: exportIntegrityCounters.formulaCellsPreserved,
       formulaCellsModified: exportIntegrityCounters.formulaCellsModified,
       rateCellsWritten: exportIntegrityCounters.rateCellsWritten,
       amountCellsWritten: exportIntegrityCounters.amountCellsWritten,
-      unexpectedWrites: exportIntegrityCounters.unexpectedWrites,
-      replayAccuracy: replayReportForDiagnostics ? `${replayReportForDiagnostics.accuracyRate}%` : "N/A"
+      unexpectedWrites: exportIntegrityCounters.unexpectedWrites
     };
     (validationReport as any).exportIntegrityReport = exportIntegrityReport;
     console.log("\n[Export Integrity Diagnostics - Part 6]");
@@ -6324,14 +5686,17 @@ app.get("/api/analytics", (req, res) => {
   // Calculate average confidence score across currently matched items
   const activeItemsCount = rfqItems.length;
   const sumConfidence = rfqItems.reduce((acc, curr) => acc + curr.confidenceScore, 0);
-  const averageConfidence = activeItemsCount > 0 ? Math.round(sumConfidence / activeItemsCount) : 88;
+  const averageConfidence = activeItemsCount > 0 ? Math.round(sumConfidence / activeItemsCount) : 0;
 
-  // Track dynamic estimator learning accuracy based on accepts & overrides
-  const totalAccepted = rfqItems.filter(i => i.status === "Accepted" || i.status === "Needs Manual Review").length;
-  const totalOverridden = rfqItems.filter(i => i.isOverridden).length;
-  const accuracyBase = totalAccepted > 0
-    ? Math.round(((totalAccepted - totalOverridden) / totalAccepted) * 100)
-    : 85;
+  // Real per-RFQ approval-accuracy trend (oldest -> newest, up to the 5 most recently
+  // uploaded rated RFQs) - a pure read of each RFQ's Commercial Decisions via the one
+  // shared metrics helper (ADR-0001). No fabricated points: fewer rated RFQs means a
+  // shorter series, never made-up history.
+  const ratedRfqsForTrend = rfqs.filter(r => r.status === "Rated").slice(-5);
+  const learningAccuracyHistory = ratedRfqsForTrend.map((r, idx) => ({
+    turn: idx + 1,
+    accuracy: CommercialDecisionEngine.computeApprovalMetrics(rfqItems.filter(i => i.rfqId === r.id)).approvalAccuracy
+  }));
 
   // Form structured payload
   const analyticsData: DashboardMetrics = {
@@ -6340,13 +5705,7 @@ app.get("/api/analytics", (req, res) => {
     activeRFQsCount: rfqs.length,
     averageConfidence,
     domainDistribution: domainTotals,
-    learningAccuracyHistory: [
-      { turn: 1, accuracy: 80 },
-      { turn: 2, accuracy: 82 },
-      { turn: 3, accuracy: 84 },
-      { turn: 4, accuracy: Math.max(accuracyBase - 5, 80) },
-      { turn: 5, accuracy: accuracyBase }
-    ],
+    learningAccuracyHistory,
     costIndexTrend: [
       { month: "Jan", Civil: 820, Interior: 1100, Electrical: 420, Mechanical: 3200 },
       { month: "Feb", Civil: 830, Interior: 1150, Electrical: 430, Mechanical: 3300 },
@@ -6644,37 +6003,24 @@ app.get("/api/system-health", (req, res) => {
   }
 
   const activeKbVersion = kbVersions[0]?.version || "v1.0.0";
-  
-  // Quick pre-packaged regression summary
-  const regressionSummary = {
-    passed: true,
-    total: 4,
-    tests: [
-      { name: "Historical Replay Match Accuracy Check", status: "Passed" as const, durationMs: 4, details: "Verified semantic Jaccard match indexing" },
-      { name: "Mathematical UOM Conversions", status: "Passed" as const, durationMs: 3, details: "Verified volumetric thickness ratio conversions" },
-      { name: "Workbook Formatting & Formula Integrity", status: "Passed" as const, durationMs: 1, details: "Verified ExcelJs formulas preserved successfully" },
-      { name: "Robust Recommendation Indexing & Scaling Accuracy", status: "Passed" as const, durationMs: 12, details: "Verified scaling coefficient heuristics" }
-    ]
-  };
+
+  // Real regression results - the exact same suite the /api/admin/regression-test
+  // endpoint runs, executed live. The previous hardcoded always-"Passed" summary
+  // (fabricated names/durations, disconnected from the real suite) is gone.
+  const regressionSummary = runRegressionSuite();
 
   const historicalProjectsCount = historicalBOQs.length;
   const masterBOQCount = masterBOQItems.length;
   const basicRatesCount = masterBOQItems.length + masterBOQItems.reduce((acc, curr) => acc + (curr.supplyRate?.length || 0), 0);
   const historicalRatesCount = historicalBOQs.reduce((acc, curr) => acc + curr.itemCount, 0);
   const embeddingRecordsCount = masterBOQItems.length;
-  const pendingRecommendationsCount = rfqItems.filter(i => i.status === "Pending" || i.status === "Needs Manual Review").length;
-  const completedRecommendationsCount = rfqItems.filter(i => i.status === "Accepted").length;
 
-  // Honest metric - % of recommended items not needing manual review, replacing a hardcoded
-  // constant that used to key off the now-removed replay-mode concept.
-  const ratedItems = rfqItems.filter(i => i.status === "Accepted" || i.status === "Needs Manual Review");
-  const replayAccuracy = ratedItems.length > 0
-    ? Math.round((ratedItems.filter(i => i.status !== "Needs Manual Review").length / ratedItems.length) * 1000) / 10
-    : 100;
-
-  const totalAccepted = rfqItems.filter(i => i.status === "Accepted").length;
-  const totalItems = rfqItems.length;
-  const recommendationAccuracy = totalItems > 0 ? Math.round((totalAccepted / totalItems) * 100) : 89.5;
+  // All bucket counts and accuracy figures come from the one shared approval-metrics
+  // helper (ADR-0001) - previously four differently-scoped formulas lived here and in
+  // /api/analytics and per-RFQ auditor reports, and could disagree with each other.
+  const healthMetrics = CommercialDecisionEngine.computeApprovalMetrics(rfqItems);
+  const pendingRecommendationsCount = healthMetrics.pending + healthMetrics.needsReview + healthMetrics.manualPricing;
+  const completedRecommendationsCount = healthMetrics.autoApproved;
 
   const healthPayload: SystemHealth = {
     kbSizeMb: Math.round(((masterDbSize + histDbSize) / 1024 / 1024) * 100) / 100,
@@ -6683,7 +6029,9 @@ app.get("/api/system-health", (req, res) => {
     recommendationPerformanceMs: rfqItems.length > 0 ? 85 : 0,
     exportPerformanceMs: exportHistory.length > 0 ? 1100 : 0,
     databaseStatus: "Operational (JSON ACID Lock)",
-    regressionStatus: "0 Anomalies Detected (Passed All Regressions)",
+    regressionStatus: regressionSummary.passed
+      ? `0 Anomalies Detected (${regressionSummary.total}/${regressionSummary.total} Regressions Passed)`
+      : `${regressionSummary.tests.filter(t => t.status === "Failed").length} Regression Failure(s) Detected`,
     memoryUsageMb: Math.round((process.memoryUsage().heapUsed / 1024 / 1024) * 10) / 10,
     kbVersion: activeKbVersion,
     historicalProjectsCount,
@@ -6693,27 +6041,28 @@ app.get("/api/system-health", (req, res) => {
     embeddingRecordsCount,
     pendingRecommendationsCount,
     completedRecommendationsCount,
-    replayAccuracy,
-    recommendationAccuracy,
+    approvalAccuracy: healthMetrics.approvalAccuracy,
     regressionSuite: regressionSummary
   };
 
   res.json(healthPayload);
 });
 
-// Dynamic Regression Suite Executor Endpoint
-app.get("/api/admin/regression-test", (req, res) => {
+// Dynamic Regression Suite - one real implementation, shared by the
+// /api/admin/regression-test endpoint and /api/system-health (which previously
+// reported an unrelated, hardcoded always-pass summary).
+function runRegressionSuite(): { passed: boolean; total: number; tests: { name: string; status: "Passed" | "Failed"; durationMs: number; details: string }[] } {
   const tests: { name: string; status: "Passed" | "Failed"; durationMs: number; details: string }[] = [];
   let passedCount = 0;
 
-  // Test 1: Historical Replay Match Accuracy Check
+  // Test 1: Semantic Match Accuracy Check
   {
     const start = Date.now();
     try {
       const sim = calculateWordOverlap("Providing and laying vitrified tiles flooring", "vitrified floor tiles");
       if (sim >= 0.3) {
         tests.push({
-          name: "Historical Replay Match Accuracy Check",
+          name: "Semantic Match Accuracy Check",
           status: "Passed",
           durationMs: Date.now() - start,
           details: `Passed. Successfully completed semantic mapping (Word overlap: ${sim.toFixed(2)}).`
@@ -6724,7 +6073,7 @@ app.get("/api/admin/regression-test", (req, res) => {
       }
     } catch (err: any) {
       tests.push({
-        name: "Historical Replay Match Accuracy Check",
+        name: "Semantic Match Accuracy Check",
         status: "Failed",
         durationMs: Date.now() - start,
         details: `Failed: ${err.message}`
@@ -6827,13 +6176,17 @@ app.get("/api/admin/regression-test", (req, res) => {
     }
   }
 
-  const overallPassed = passedCount === tests.length;
-  logAuditEvent("Validation", `Executed complete system regression suite. Overall Outcome: ${passedCount}/${tests.length} tests passed.`);
-  res.json({
-    passed: overallPassed,
+  return {
+    passed: passedCount === tests.length,
     total: tests.length,
     tests
-  });
+  };
+}
+
+app.get("/api/admin/regression-test", (req, res) => {
+  const suite = runRegressionSuite();
+  logAuditEvent("Validation", `Executed complete system regression suite. Overall Outcome: ${suite.tests.filter(t => t.status === "Passed").length}/${suite.total} tests passed.`);
+  res.json(suite);
 });
 
 // Power BI Unified API Stream (Direct Tabular Consumption)
@@ -6911,7 +6264,7 @@ app.get("/api/power-bi/flat-data", (req, res) => {
       ConfidenceScore: it.confidenceScore,
       Reasoning: it.reason,
       MatchedMasterItemID: it.matchedMasterId || null,
-      Status: it.status
+      Status: it.approvalStatus
     };
   });
 

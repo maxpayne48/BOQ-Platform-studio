@@ -232,16 +232,9 @@ export interface RFQ {
   uploadDate: string;
   domains: Domain[];
   itemCount: number;
-  status: "Draft" | "Analyzing" | "Rated" | "Replay";
+  status: "Draft" | "Analyzing" | "Rated";
   preamblePasted?: string;
   preambleExtracted?: PreambleData;
-  
-  // Historical Replay features
-  replayDetected?: boolean;
-  matchedProjectName?: string;
-  workbookMatchPercent?: number;
-  worksheetMatchPercent?: number;
-  itemMatchPercent?: number;
 
   // Enterprise Context
   projectContext?: ProjectContext;
@@ -273,41 +266,25 @@ export interface RFQ {
     definedNamesRemoved?: number;
   };
 
-  // Historical Replay Verification fields
-  verifiedReplayRows?: {
-    projectId: string;
-    worksheetId: string;
-    rowNumber: number;
-    rateCellAddress: string;
-    amountCellAddress: string;
-    originalHistoricalRate: number;
-  }[];
-  verificationMismatches?: {
-    worksheet: string;
-    row: number;
-    originalRate: number;
-    injectedRate: number;
-    reason: string;
-  }[];
-  replayAuditorReport?: {
-    replayAccuracy: number;
-    verifiedRows: number;
-    failedRows: number;
-    missingRows: number;
-    extraRows: number;
-    pendingRows: number;
+  /**
+   * Per-RFQ recommendation quality summary - a pure READ of every item's
+   * CommercialDecision (ADR-0001), computed by the shared approval-metrics helper.
+   * Contains no independent judgment of its own.
+   */
+  recommendationAuditReport?: {
+    approvalAccuracy: number;   // % of rated items Auto Approved
+    totalRows: number;
+    autoApprovedRows: number;
+    needsReviewRows: number;
+    manualPricingRows: number;
     records: {
-      projectId: string;
       worksheetName: string;
       rowNumber: number;
       originalDescription: string;
       masterItemId: string;
-      originalHistoricalRate: number;
-      injectedRate: number;
-      unitRateCellAddress: string;
-      amountCellAddress: string;
-      status: "VERIFIED" | "FAILED";
-      difference?: number;
+      recommendedRate: number;
+      approvalStatus: ApprovalStatus;
+      reasonCode: DecisionReasonCode;
     }[];
   };
 
@@ -323,6 +300,51 @@ export interface RFQ {
     adopted: boolean;
     detail: string;
   }[];
+}
+
+// =========================================================
+// COMMERCIAL DECISION (ADR-0001 Single Source of Truth)
+// =========================================================
+
+/**
+ * The one approval vocabulary, end to end. These are exactly the three buckets the
+ * dashboard displays (plus "Pending" for not-yet-rated items). The legacy
+ * "Accepted"/"Needs Manual Review" vocabulary and the auditor's "VERIFIED"/"NEW_ITEM"
+ * relabeling are retired - every module reads this one field.
+ */
+export type ApprovalStatus = "Pending" | "Auto Approved" | "Needs Review" | "Manual Pricing";
+
+export type DecisionReasonCode =
+  | "NOT_RATED"            // recommendation has not run for this item yet
+  | "ESTIMATOR_OVERRIDE"   // a human approved a rate; their decision is final
+  | "NO_EVIDENCE"          // zero historical/engineering evidence of any kind -> price manually
+  | "LOW_CONFIDENCE"       // confidence below CONFIDENCE_APPROVAL_THRESHOLD
+  | "VALIDATION_FAILED"    // one or more validation categories failed
+  | "LOW_CONFIDENCE_AND_VALIDATION_FAILED"
+  | "APPROVED";            // confidence and validation both clear
+
+/**
+ * The single, immutable Recommendation Object (ADR-0001). Assembled exactly once per
+ * item by src/CommercialDecisionEngine.ts after the pricing chain (baseline ->
+ * engineering adjustment -> progressive matching -> calibration -> self-validation)
+ * has fully finished. It is the ONLY place approval is decided; every downstream
+ * surface renders it read-only. Deep evidence lives on the item itself
+ * (marketRateStatistics, engineeringAdjustment, recommendationTrace, validationResults,
+ * confidence facets) - this object records the interpretation of that evidence.
+ */
+export interface CommercialDecision {
+  recommendationId: string;          // the RFQ item id this decision belongs to
+  recommendedRate: number;           // final rate at decision time
+  selectedHistoricalRate?: number;   // marketRateStatistics.selectedRate, when evidence exists
+  approvalStatus: ApprovalStatus;
+  reasonCode: DecisionReasonCode;
+  decisionSummary: string;           // human-readable one-liner, safe for direct UI display
+  confidence: number;                // the confidence value the approval rule used
+  evidenceStrength: "None" | "Weak" | "Moderate" | "Strong";
+  acceptedEvidenceCount: number;     // selected + corroborating historical references
+  rejectedEvidenceCount: number;     // discarded at retrieval or selection time
+  failedValidations: string[];       // names of failed validation categories, [] if all pass
+  rateProvenance: string;            // which pipeline stage produced the final rate
 }
 
 export interface RFQItem {
@@ -453,7 +475,19 @@ export interface RFQItem {
   confidenceScore: number; // percentage, e.g. 85
   reason: string;
   parentHierarchy: string[]; // e.g. ["Civil Works", "Flooring", "Granite Flooring"]
-  status: "Pending" | "Accepted" | "Needs Manual Review";
+  /**
+   * THE approval decision for this item - written exclusively by
+   * src/CommercialDecisionEngine.ts (ADR-0001). Every consumer (dashboard buckets,
+   * table/drawer badges, auditor, export filter, accuracy metrics) reads this field;
+   * nothing else may derive its own approval opinion from confidence/validation.
+   */
+  approvalStatus: ApprovalStatus;
+  /**
+   * The full Commercial Decision - the single, immutable (frozen) record of WHY
+   * approvalStatus is what it is. Assembled once per item by
+   * CommercialDecisionEngine.finalizeItemDecision after the pricing chain completes.
+   */
+  decision?: CommercialDecision;
   dimensions?: {
     thickness?: number;
     diameter?: number;
@@ -472,21 +506,6 @@ export interface RFQItem {
   // "Material Match") so the dashboard can show a genuinely new/unseen item was estimated via
   // broader market inference rather than a direct historical hit.
   matchTier?: "Specification Match" | "Material Match" | "Functional Match" | "Market Estimation";
-  uomTrace?: string[];
-  rateStats?: {
-    min: number;
-    max: number;
-    mean: number;
-    median: number;
-    weightedMedian: number;
-    commercialRate: number;
-    conservative: number;
-    balanced: number;
-    premium: number;
-    mostProbable: number;
-    finalRecommended: number;
-    calculationsLog: string;
-  };
   // Task 5 (Commercial Validation) - real per-item pass/fail checks, computed in server.ts's
   // buildItemValidationResults from data the recommendation pipeline already produced (market
   // statistics, confidence profile, engineering adjustment, UOM compatibility). Shape matches
@@ -500,7 +519,6 @@ export interface RFQItem {
     workbookValidation: { pass: boolean; details: string };
     regressionValidation: { pass: boolean; details: string };
   };
-  manualReviewRequired?: boolean;
   recommendationTrace?: {
     rfqItem: string;
     historicalProject: string;
@@ -579,7 +597,9 @@ export interface AuditLogItem {
   id: string;
   timestamp: string;
   user: string;
-  action: "Historical Ingestion" | "Deletion" | "Knowledge Base Merge" | "Rate Recommendation" | "Historical Replay" | "Export" | "Validation" | "Settings Update" | "System Administration" | "Error Log";
+  // "Historical Replay" is retired for new events (kept in the union so persisted legacy
+  // log entries still type-check); new RFQ uploads log as "RFQ Upload".
+  action: "Historical Ingestion" | "RFQ Upload" | "Deletion" | "Knowledge Base Merge" | "Rate Recommendation" | "Historical Replay" | "Export" | "Validation" | "Settings Update" | "System Administration" | "Error Log";
   details: string;
   status: "Success" | "Failure";
 }
@@ -601,8 +621,11 @@ export interface SystemHealth {
   embeddingRecordsCount: number;
   pendingRecommendationsCount: number;
   completedRecommendationsCount: number;
-  replayAccuracy: number;
-  recommendationAccuracy: number;
+  /**
+   * % of rated items Auto Approved by the Commercial Decision Engine - the platform's
+   * one accuracy figure (ADR-0001), shared with /api/analytics and per-RFQ audit reports.
+   */
+  approvalAccuracy: number;
   regressionSuite?: {
     passed: boolean;
     total: number;
@@ -701,4 +724,5 @@ export interface ValidationReport {
   timestamp: string;
   differences: ValidationDifference[];
 }
+
 

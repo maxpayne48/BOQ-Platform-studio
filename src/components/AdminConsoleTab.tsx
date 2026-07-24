@@ -386,27 +386,16 @@ export default function AdminConsoleTab() {
                     </div>
                   </div>
 
-                  {/* Card 8: Replay Accuracy */}
+                  {/* Card 8: Approval Accuracy - the platform's one accuracy figure, read
+                      directly from the Commercial Decision Engine's shared metrics (ADR-0001) */}
                   <div className="bg-white p-5 rounded-xl border border-slate-100 shadow-2xs space-y-3">
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400">Replay Accuracy</span>
-                      <Activity className="w-4 h-4 text-violet-500" />
-                    </div>
-                    <div className="space-y-1">
-                      <span className="text-xl font-bold font-mono block text-slate-800">{health.replayAccuracy ?? 98.2}%</span>
-                      <span className="text-[10px] text-slate-400">Workbook cell match yield</span>
-                    </div>
-                  </div>
-
-                  {/* Card 9: Recommendation Accuracy */}
-                  <div className="bg-white p-5 rounded-xl border border-slate-100 shadow-2xs space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400">Recommendation Accuracy</span>
+                      <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400">Approval Accuracy</span>
                       <Cpu className="w-4 h-4 text-sky-500" />
                     </div>
                     <div className="space-y-1">
-                      <span className="text-xl font-bold font-mono block text-slate-800">{health.recommendationAccuracy ?? 89.5}%</span>
-                      <span className="text-[10px] text-slate-400">Averages semantic acceptance</span>
+                      <span className="text-xl font-bold font-mono block text-slate-800">{health.approvalAccuracy ?? 0}%</span>
+                      <span className="text-[10px] text-slate-400">Rated items auto-approved by the decision engine</span>
                     </div>
                   </div>
 
@@ -521,7 +510,7 @@ export default function AdminConsoleTab() {
                       <div>
                         <h3 className="text-xs font-bold uppercase text-slate-400 tracking-wider">Automated Regression Verification Suite</h3>
                         <p className="text-[11px] text-slate-500 mt-0.5">
-                          Verifies workbook formatting, estimation accuracy, formula structures, and historical replays.
+                          Verifies workbook formatting, estimation accuracy, formula structures, and semantic matching.
                         </p>
                       </div>
                       <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-bold text-[10px] border border-emerald-100 flex items-center gap-1">

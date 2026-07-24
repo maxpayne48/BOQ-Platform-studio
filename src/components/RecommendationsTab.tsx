@@ -36,6 +36,7 @@ import {
 import ExcelJS from "exceljs";
 import * as XLSX from "xlsx";
 import { RFQItem, MasterBOQItem, ValidationReport, ValidationDifference } from "../types.js";
+import { CONFIDENCE_APPROVAL_THRESHOLD } from "../decisionConstants.js";
 
 interface RecommendationsTabProps {
   rfqId: string;
@@ -285,7 +286,7 @@ export default function RecommendationsTab({
     console.log("Execution Time: 0ms");
     console.log("Returned Value: undefined (void)");
 
-    const activeItems = items.filter((i) => i.status === "Accepted" || i.status === "Needs Manual Review");
+    const activeItems = items.filter((i) => i.approvalStatus && i.approvalStatus !== "Pending");
     if (activeItems.length === 0) {
       showNotification("error", "No accepted rated items. Please accept some pricing recommendations first.");
       console.log("Completed Stage: Frontend click handler - Early return (no active items)");
@@ -371,23 +372,10 @@ export default function RecommendationsTab({
         console.log("Execution Time: " + (endTimeHandling - startTimeHandling) + "ms");
         console.log("Returned Value: success = true");
 
-      } else if (response.status === 422 && data.error === "Recommendation Quality Check Failed") {
-        // This 422 comes from the export-time Recommendation Quality guard, whose `report`/
-        // `mismatches` payload is shaped completely differently from the ValidationReport
-        // ({success, differences}) the modal below renders. Routing it into that modal crashes
-        // the render (validationReport.differences is undefined), which unmounts the whole tree -
-        // a blank page with no visible error. Show a plain notification instead; never open the
-        // structural validation modal for this case.
-        showNotification("error", data.details || "Export blocked: recommendation quality check has not passed for this RFQ.");
-
-        const endTimeHandling = Date.now();
-        console.log("Completed Stage: Frontend response handling");
-        console.log("Execution Time: " + (endTimeHandling - startTimeHandling) + "ms");
-        console.log("Returned Value: recommendation quality check failed (no modal shown)");
       } else if (response.status === 422 && data.error === "Installation Rate Validation Failed") {
-        // Same reasoning as the Recommendation Quality Check Failed branch above - this payload carries
-        // `violations` (sheetName/rowNum/reason), not a ValidationReport `report.differences`,
-        // so it must never be routed into the structural validation modal.
+        // This payload carries `violations` (sheetName/rowNum/reason), not a ValidationReport
+        // `report.differences`, so it must never be routed into the structural validation modal
+        // (that render crashes on a missing differences array and blanks the whole page).
         const violationCount = Array.isArray(data.violations) ? data.violations.length : 0;
         showNotification("error", data.details || `Export blocked: ${violationCount} row(s) have only one of the Supply/Installation Rate pair populated.`);
         if (Array.isArray(data.violations)) {
@@ -457,16 +445,14 @@ export default function RecommendationsTab({
     document.body.removeChild(link);
   };
 
-  // Recommendation Summary: Auto Approved / Needs Review / Manual Pricing - derived purely from
-  // each item's existing status + attention flags, never recomputed independently of them.
+  // Recommendation Summary: a pure READ of the Commercial Decision Engine's approvalStatus
+  // (ADR-0001). The dashboard never re-derives its own bucketing - attention flags are
+  // informational only and can no longer demote an approved item here.
   const recommendationSummary = items.reduce(
     (acc, item) => {
-      // "Zero Historical Coverage" (no master match at all - a pure domain-baseline guess with no
-      // rate basis whatsoever) is treated the same as "Manual Pricing Required": there is nothing
-      // for an estimator to "review", only a number to price from scratch.
-      if (item.attentionFlags?.includes("Manual Pricing Required") || item.attentionFlags?.includes("Zero Historical Coverage")) acc.manualPricing++;
-      else if (item.status === "Needs Manual Review" || (item.attentionFlags?.length || 0) > 0) acc.needsReview++;
-      else acc.autoApproved++;
+      if (item.approvalStatus === "Manual Pricing") acc.manualPricing++;
+      else if (item.approvalStatus === "Needs Review") acc.needsReview++;
+      else if (item.approvalStatus === "Auto Approved") acc.autoApproved++;
       return acc;
     },
     { autoApproved: 0, needsReview: 0, manualPricing: 0 }
@@ -945,7 +931,7 @@ export default function RecommendationsTab({
         </div>
       ) : (
         <>
-          {rfqDetails?.replayAuditorReport && (
+          {rfqDetails?.recommendationAuditReport && (
             <div className="bg-purple-50/50 border border-purple-100 rounded-xl p-5 text-purple-950 space-y-4 mb-5 shadow-3xs">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
@@ -953,45 +939,41 @@ export default function RecommendationsTab({
                   <h4 className="text-sm font-bold text-purple-900">Recommendation Quality Report</h4>
                 </div>
                 <span className="px-2.5 py-0.5 bg-purple-100 text-purple-800 rounded-full font-extrabold text-[10px] uppercase tracking-wide border border-purple-200">
-                  Accuracy: {rfqDetails.replayAuditorReport.replayAccuracy.toFixed(1)}%
+                  Approval Accuracy: {rfqDetails.recommendationAuditReport.approvalAccuracy.toFixed(1)}%
                 </span>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3 text-center">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 text-center">
                 <div className="p-3 bg-white rounded-xl border border-purple-100/60 shadow-3xs">
-                  <div className="text-[10px] text-purple-600 font-bold uppercase tracking-wider">Verified Rows</div>
-                  <div className="text-base font-black text-purple-950 mt-1">{rfqDetails.replayAuditorReport.verifiedRows}</div>
+                  <div className="text-[10px] text-purple-600 font-bold uppercase tracking-wider">Total Rows</div>
+                  <div className="text-base font-black text-purple-950 mt-1">{rfqDetails.recommendationAuditReport.totalRows}</div>
                 </div>
                 <div className="p-3 bg-white rounded-xl border border-purple-100/60 shadow-3xs">
-                  <div className="text-[10px] text-purple-600 font-bold uppercase tracking-wider">Failed Rows</div>
-                  <div className={`text-base font-black mt-1 ${rfqDetails.replayAuditorReport.failedRows > 0 ? "text-rose-600" : "text-purple-950"}`}>
-                    {rfqDetails.replayAuditorReport.failedRows}
+                  <div className="text-[10px] text-purple-600 font-bold uppercase tracking-wider">Auto Approved</div>
+                  <div className="text-base font-black text-emerald-700 mt-1">{rfqDetails.recommendationAuditReport.autoApprovedRows}</div>
+                </div>
+                <div className="p-3 bg-white rounded-xl border border-purple-100/60 shadow-3xs">
+                  <div className="text-[10px] text-purple-600 font-bold uppercase tracking-wider">Needs Review</div>
+                  <div className={`text-base font-black mt-1 ${rfqDetails.recommendationAuditReport.needsReviewRows > 0 ? "text-amber-600" : "text-purple-950"}`}>
+                    {rfqDetails.recommendationAuditReport.needsReviewRows}
                   </div>
                 </div>
                 <div className="p-3 bg-white rounded-xl border border-purple-100/60 shadow-3xs">
-                  <div className="text-[10px] text-purple-600 font-bold uppercase tracking-wider">Missing Rows</div>
-                  <div className="text-base font-black text-purple-950 mt-1">{rfqDetails.replayAuditorReport.missingRows}</div>
-                </div>
-                <div className="p-3 bg-white rounded-xl border border-purple-100/60 shadow-3xs">
-                  <div className="text-[10px] text-purple-600 font-bold uppercase tracking-wider">Extra Rows</div>
-                  <div className="text-base font-black text-purple-950 mt-1">{rfqDetails.replayAuditorReport.extraRows}</div>
-                </div>
-                <div className="p-3 bg-white rounded-xl border border-purple-100/60 shadow-3xs">
-                  <div className="text-[10px] text-purple-600 font-bold uppercase tracking-wider">Pending Rows</div>
-                  <div className={`text-base font-black mt-1 ${rfqDetails.replayAuditorReport.pendingRows > 0 ? "text-amber-600" : "text-purple-950"}`}>
-                    {rfqDetails.replayAuditorReport.pendingRows}
+                  <div className="text-[10px] text-purple-600 font-bold uppercase tracking-wider">Manual Pricing</div>
+                  <div className={`text-base font-black mt-1 ${rfqDetails.recommendationAuditReport.manualPricingRows > 0 ? "text-rose-600" : "text-purple-950"}`}>
+                    {rfqDetails.recommendationAuditReport.manualPricingRows}
                   </div>
                 </div>
                 <div className="p-3 bg-white rounded-xl border border-purple-100/60 shadow-3xs">
                   <div className="text-[10px] text-purple-600 font-bold uppercase tracking-wider">Accuracy</div>
-                  <div className="text-base font-black text-indigo-700 mt-1">{rfqDetails.replayAuditorReport.replayAccuracy.toFixed(1)}%</div>
+                  <div className="text-base font-black text-indigo-700 mt-1">{rfqDetails.recommendationAuditReport.approvalAccuracy.toFixed(1)}%</div>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Recommendation Summary + Items Requiring Attention - additive dashboard surface.
-              Reads only from item.status/attentionFlags computed server-side; never mutates the
-              main table, export pipeline, or any recommendation values. */}
+          {/* Recommendation Summary + Items Requiring Attention - a read-only view of
+              item.approvalStatus/attentionFlags computed server-side by the Commercial
+              Decision Engine; never re-derives or mutates any decision. */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-5">
             <div className="p-4 bg-emerald-50/60 border border-emerald-100 rounded-xl flex items-center gap-3">
               <span className="text-2xl">✅</span>
@@ -1095,8 +1077,9 @@ export default function RecommendationsTab({
                   const masterMatch = masterCatalog.find((m) => m.id === item.matchedMasterId);
                   const isEditing = editingItemId === item.id;
                   const finalRate = item.overriddenRate || item.recommendedRate || 0;
-                  const itemValidations = item.validationResults;
-                  const hasAuditFail = itemValidations && Object.values(itemValidations).some((v: any) => v && v.pass === false);
+                  // Read-only consumption of the Commercial Decision (ADR-0001) - the row badge
+                  // never re-derives approval from validation/confidence on its own.
+                  const needsAttention = item.approvalStatus === "Needs Review" || item.approvalStatus === "Manual Pricing";
 
                   // Base row background: highlighted (jumped-to from Attention panel) > selected
                   // (drawer open for this row) > zebra striping for every other even row > plain.
@@ -1269,7 +1252,7 @@ export default function RecommendationsTab({
                       <td className="p-2 w-16 text-center">
                         {item.confidenceScore > 0 ? (
                           <span className={`inline-block px-1.5 py-0.5 rounded-full text-[9px] font-bold font-mono ${
-                            item.confidenceScore >= 80
+                            item.confidenceScore >= CONFIDENCE_APPROVAL_THRESHOLD
                               ? "bg-emerald-50 text-emerald-600 border border-emerald-100"
                               : "bg-amber-50 text-amber-600 border border-amber-100"
                           }`}>
@@ -1280,34 +1263,34 @@ export default function RecommendationsTab({
                         )}
                       </td>
 
-                      {/* Decision Summary - compact status badge replacing the long "Pricing Decision
-                          Reason" text that used to occupy excessive width. Clicking opens the
-                          existing Specs & Auditor drawer on its Trace tab, which already shows the
-                          complete recommendation explanation (item.reason / recommendationTrace) -
-                          no new modal needed, full explainability is preserved, just moved out of
-                          the table itself. */}
+                      {/* Decision Summary - a read-only render of the Commercial Decision
+                          (item.approvalStatus / item.decision). Clicking opens the Specs &
+                          Auditor drawer on its Trace tab, which shows the complete decision
+                          explanation. */}
                       <td className="p-2 w-32 text-center">
                         <button
                           onClick={() => { setSelectedItemId(item.id); setActiveDrawerTab("trace"); }}
-                          title={item.reason}
+                          title={item.decision?.decisionSummary || item.reason}
                           className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-[9px] font-bold cursor-pointer transition-colors ${
-                            hasAuditFail || item.status === "Needs Manual Review"
-                              ? "bg-amber-50 text-amber-700 border border-amber-100 hover:bg-amber-100"
-                              : "bg-emerald-50 text-emerald-700 border border-emerald-100 hover:bg-emerald-100"
+                            item.approvalStatus === "Manual Pricing"
+                              ? "bg-red-50 text-red-700 border border-red-100 hover:bg-red-100"
+                              : item.approvalStatus === "Needs Review"
+                                ? "bg-amber-50 text-amber-700 border border-amber-100 hover:bg-amber-100"
+                                : "bg-emerald-50 text-emerald-700 border border-emerald-100 hover:bg-emerald-100"
                           }`}
                         >
-                          {hasAuditFail || item.status === "Needs Manual Review" ? "⚠" : "✔"}{" "}
-                          {hasAuditFail
-                            ? "Manual Review"
-                            : item.engineeringAdjustment?.applied
-                              ? "Engineering Adj."
-                              : item.recommendationTrace?.rateSource === "Historical Rate"
-                                ? "Historical Match"
-                                : item.matchTier
-                                  ? item.matchTier
-                                  : item.status === "Needs Manual Review"
-                                    ? "Manual Review"
-                                    : "Basic Rate"}
+                          {needsAttention ? "⚠" : "✔"}{" "}
+                          {item.approvalStatus === "Manual Pricing"
+                            ? "Manual Pricing"
+                            : item.approvalStatus === "Needs Review"
+                              ? "Needs Review"
+                              : item.engineeringAdjustment?.applied
+                                ? "Engineering Adj."
+                                : item.recommendationTrace?.rateSource === "Historical Rate"
+                                  ? "Historical Match"
+                                  : item.matchTier
+                                    ? item.matchTier
+                                    : "Auto Approved"}
                         </button>
                       </td>
 
@@ -1353,71 +1336,13 @@ export default function RecommendationsTab({
 
         const masterMatch = masterCatalog.find((m) => m.id === selectedItem.matchedMasterId);
         const finalRate = selectedItem.overriddenRate || selectedItem.recommendedRate || 0;
-        const validation = selectedItem.validationResults || {
-          engineeringValidation: { pass: true, details: "Dynamic matching verified within tolerances." },
-          specificationValidation: { pass: true, details: "Material standard matched CPWD baseline." },
-          commercialValidation: { pass: true, details: "Rate aligns with current cost indices." },
-          uomValidation: { pass: true, details: "Compatible unit standard matched." },
-          historicalValidation: { pass: true, details: "Rate variance remains within 15%." },
-          workbookValidation: { pass: true, details: "Original grid positioning preserved." },
-          regressionValidation: { pass: true, details: "Calculations pass dynamic checks." }
-        };
-
-        const decomp = selectedItem.itemDecomposition || {
-          activity: "General Civil Execution",
-          material: "As Specified",
-          specification: "Standard CPWD Rules",
-          dimensions: "Standard Scale",
-          brand: "Approved List",
-          finish: "Sanded/Honed",
-          executionMethod: "Mechanical & Manual",
-          fixingMethod: "Site Installation",
-          measurementMethod: "Standard Area superficial",
-          commercialScope: "Supply, tools, wastage",
-          rateStructure: "Material + labor + overheads",
-          engineeringDependencies: ["Base_Screed_Laid", "Grid_Aligned"]
-        };
-
-        const stats = selectedItem.rateStats || {
-          minHistorical: finalRate * 0.85,
-          maxHistorical: finalRate * 1.15,
-          median: finalRate,
-          weightedMedian: finalRate * 0.98,
-          mean: finalRate * 0.99,
-          commercialRate: finalRate * 1.05,
-          conservativeRate: finalRate * 0.90,
-          balancedRate: finalRate,
-          premiumRate: finalRate * 1.12,
-          mostProbableRate: finalRate,
-          finalRecommendedRate: finalRate,
-          calculationLog: [
-            "Baseline item matched CPWD code references.",
-            "Extracted physical dimensions verified.",
-            "Converted units successfully with tracing.",
-            "Applied +5.0% buffer for regional location.",
-            "Self-validation checks passed successfully."
-          ]
-        };
-
-        const trace = selectedItem.uomTrace || [
-          `Ingested quantity: ${selectedItem.quantity} ${selectedItem.unit}.`,
-          `No physical scale modification required.`,
-          `UOM compatibility match verified.`
-        ];
-
-        const worksheetCtx = rfqDetails?.worksheetContexts?.[selectedItem.sheetName] || {
-          sheetName: selectedItem.sheetName,
-          domain: selectedItem.domain,
-          subDomain: "General Subcategory Execution",
-          executionScope: "Supply & In-situ installation",
-          commercialScope: "Inclusive of minor consumables and local freight",
-          measurementMethod: "Superficial area / volume parameters",
-          rateStructure: "Direct costs + overheads + margin",
-          dependencies: ["Site preparation cleared", "Approved shop drawings"]
-        };
-
-        const showReviewRequired = selectedItem.manualReviewRequired || 
-          Object.values(validation).some((v: any) => v && v.pass === false);
+        // Everything below is a read-only render of what the backend actually computed
+        // (ADR-0001). Nothing is fabricated client-side: missing data renders as an honest
+        // "not available" state, never as invented pass-marks, rates, or specifications.
+        const validation = selectedItem.validationResults;
+        const decomp = selectedItem.itemDecomposition;
+        const marketStats = selectedItem.marketRateStatistics;
+        const worksheetCtx = rfqDetails?.worksheetContexts?.[selectedItem.sheetName];
 
         return (
           <div className="fixed inset-0 z-50 overflow-hidden flex justify-end" id="drawer_overlay">
@@ -1439,13 +1364,21 @@ export default function RecommendationsTab({
                     <span className="font-mono text-[10px] text-slate-500 bg-slate-100 px-2 py-0.5 rounded font-bold uppercase">
                       {selectedItem.domain}
                     </span>
-                    {showReviewRequired ? (
+                    {selectedItem.approvalStatus === "Manual Pricing" ? (
                       <span className="inline-flex items-center gap-1 text-[10px] font-bold text-red-600 bg-red-50 border border-red-100 px-2 py-0.5 rounded-full uppercase">
-                        <AlertTriangle className="w-3 h-3" /> Manual Review Required
+                        <AlertTriangle className="w-3 h-3" /> Manual Pricing
+                      </span>
+                    ) : selectedItem.approvalStatus === "Needs Review" ? (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-600 bg-amber-50 border border-amber-100 px-2 py-0.5 rounded-full uppercase">
+                        <AlertTriangle className="w-3 h-3" /> Needs Review
+                      </span>
+                    ) : selectedItem.approvalStatus === "Auto Approved" ? (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full uppercase">
+                        <CheckCircle2 className="w-3 h-3" /> Auto Approved
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full uppercase">
-                        <CheckCircle2 className="w-3 h-3" /> Self-Validated Pass
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-500 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-full uppercase">
+                        Pending
                       </span>
                     )}
                   </div>
@@ -1501,11 +1434,50 @@ export default function RecommendationsTab({
                 {/* TAB 1: SELF VALIDATION AUDITOR & ITEM DECOMPOSITION */}
                 {activeDrawerTab === "auditor" && (
                   <div className="space-y-6 animate-fade-in">
+                    {/* Commercial Decision - THE approval verdict and why (read-only) */}
+                    {selectedItem.decision && (
+                      <div>
+                        <h4 className="text-[11px] font-bold uppercase text-slate-400 tracking-wider mb-3">
+                          Commercial Decision
+                        </h4>
+                        <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 space-y-3 text-xs">
+                          <p className="text-slate-700 leading-relaxed font-medium">{selectedItem.decision.decisionSummary}</p>
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                            <div className="space-y-0.5">
+                              <span className="text-[10px] text-slate-400 font-semibold block uppercase">Approval</span>
+                              <span className="text-slate-800 font-bold">{selectedItem.decision.approvalStatus}</span>
+                            </div>
+                            <div className="space-y-0.5">
+                              <span className="text-[10px] text-slate-400 font-semibold block uppercase">Confidence Used</span>
+                              <span className="text-slate-800 font-bold font-mono">{selectedItem.decision.confidence}%</span>
+                            </div>
+                            <div className="space-y-0.5">
+                              <span className="text-[10px] text-slate-400 font-semibold block uppercase">Evidence Strength</span>
+                              <span className="text-slate-800 font-bold">{selectedItem.decision.evidenceStrength}</span>
+                            </div>
+                            <div className="space-y-0.5">
+                              <span className="text-[10px] text-slate-400 font-semibold block uppercase">Rate Provenance</span>
+                              <span className="text-slate-800 font-semibold">{selectedItem.decision.rateProvenance}</span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3 pt-1 text-[10px] text-slate-500">
+                            <span className="font-mono font-bold uppercase bg-slate-100 border border-slate-200 rounded px-1.5 py-0.5">{selectedItem.decision.reasonCode}</span>
+                            <span>{selectedItem.decision.acceptedEvidenceCount} accepted / {selectedItem.decision.rejectedEvidenceCount} rejected historical reference(s)</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Auditor scorecard */}
                     <div>
                       <h4 className="text-[11px] font-bold uppercase text-slate-400 tracking-wider mb-3">
                         Automated Self-Validation Auditor Scorecard
                       </h4>
+                      {!validation ? (
+                        <p className="text-xs text-slate-400 italic">
+                          Validation has not run for this item yet - trigger "Recommend" to generate the per-item validation report.
+                        </p>
+                      ) : (
                       <div className="grid grid-cols-1 gap-2.5">
                         {Object.entries(validation).map(([key, value]: [string, any]) => {
                           if (!value) return null;
@@ -1544,6 +1516,7 @@ export default function RecommendationsTab({
                           );
                         })}
                       </div>
+                      )}
                     </div>
 
                     <hr className="border-slate-100" />
@@ -1553,6 +1526,11 @@ export default function RecommendationsTab({
                       <h4 className="text-[11px] font-bold uppercase text-slate-400 tracking-wider mb-3 flex items-center gap-1.5">
                         <Activity className="w-3.5 h-3.5 text-indigo-500" /> Parsed Engineering Decomposition
                       </h4>
+                      {!decomp ? (
+                        <p className="text-xs text-slate-400 italic">
+                          Engineering decomposition has not been parsed for this item yet - trigger "Recommend" to analyze it.
+                        </p>
+                      ) : (
                       <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 grid grid-cols-2 gap-4 text-xs">
                         <div className="space-y-0.5">
                           <span className="text-[10px] text-slate-400 font-semibold block uppercase">Activity Category</span>
@@ -1633,86 +1611,98 @@ export default function RecommendationsTab({
                           </div>
                         )}
                       </div>
+                      )}
                     </div>
                   </div>
                 )}
 
-                {/* TAB 2: PRICING STATISTICS & CALCULATIONS */}
+                {/* TAB 2: HISTORICAL EVIDENCE & SELECTION - a read-only render of the
+                    marketRateStatistics the pricing chain actually produced. The engine
+                    SELECTS a single best-matching historical observation and keeps the rest
+                    only as corroboration - it never averages, and this panel never invents
+                    numbers the backend did not compute. */}
                 {activeDrawerTab === "pricing" && (
                   <div className="space-y-6 animate-fade-in">
-                    <div>
-                      <h4 className="text-[11px] font-bold uppercase text-slate-400 tracking-wider mb-3">
-                        Multi-Percentile Historical Rate Analysis
-                      </h4>
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                        
-                        <div className="p-3 bg-slate-50 border border-slate-100 rounded-lg text-xs space-y-0.5">
-                          <span className="text-[9px] text-slate-400 font-semibold uppercase">Min Historical Rate</span>
-                          <p className="font-bold text-slate-700 font-mono">₹{stats.minHistorical ? stats.minHistorical.toLocaleString(undefined, { maximumFractionDigits: 2 }) : "N/A"}</p>
-                        </div>
-
-                        <div className="p-3 bg-slate-50 border border-slate-100 rounded-lg text-xs space-y-0.5">
-                          <span className="text-[9px] text-slate-400 font-semibold uppercase">Max Historical Rate</span>
-                          <p className="font-bold text-slate-700 font-mono">₹{stats.maxHistorical ? stats.maxHistorical.toLocaleString(undefined, { maximumFractionDigits: 2 }) : "N/A"}</p>
-                        </div>
-
-                        <div className="p-3 bg-slate-50 border border-slate-100 rounded-lg text-xs space-y-0.5">
-                          <span className="text-[9px] text-slate-400 font-semibold uppercase">Statistical Median Price</span>
-                          <p className="font-bold text-slate-400 font-mono">Not Available</p>
-                        </div>
-
-                        <div className="p-3 bg-slate-50 border border-slate-100 rounded-lg text-xs space-y-0.5">
-                          <span className="text-[9px] text-slate-400 font-semibold uppercase">Weighted Index Price</span>
-                          <p className="font-bold text-slate-400 font-mono">Not Available</p>
-                        </div>
-
-                        <div className="p-3 bg-slate-50 border border-slate-100 rounded-lg text-xs space-y-0.5">
-                          <span className="text-[9px] text-slate-400 font-semibold uppercase">Statistical Average Price</span>
-                          <p className="font-bold text-slate-400 font-mono">Not Available</p>
-                        </div>
-
-                        <div className="p-3 bg-slate-50 border border-slate-100 rounded-lg text-xs space-y-0.5">
-                          <span className="text-[9px] text-slate-400 font-semibold uppercase">Commercial Bid Rate</span>
-                          <p className="font-bold text-slate-700 font-mono">₹{stats.commercialRate ? stats.commercialRate.toLocaleString(undefined, { maximumFractionDigits: 2 }) : "N/A"}</p>
-                        </div>
-
-                        <div className="p-3 bg-emerald-50 border border-emerald-100 text-emerald-800 rounded-lg text-xs space-y-0.5">
-                          <span className="text-[9px] text-emerald-500 font-bold uppercase">Balanced Estimate</span>
-                          <p className="font-extrabold text-emerald-700 font-mono text-sm">₹{stats.balancedRate ? stats.balancedRate.toLocaleString(undefined, { maximumFractionDigits: 2 }) : "N/A"}</p>
-                        </div>
-
-                        <div className="p-3 bg-red-50 border border-red-100 text-red-800 rounded-lg text-xs space-y-0.5">
-                          <span className="text-[9px] text-red-400 font-bold uppercase">Conservative ceiling</span>
-                          <p className="font-bold text-red-700 font-mono">₹{stats.conservativeRate ? stats.conservativeRate.toLocaleString(undefined, { maximumFractionDigits: 2 }) : "N/A"}</p>
-                        </div>
-
-                        <div className="p-3 bg-indigo-50 border border-indigo-100 text-indigo-800 rounded-lg text-xs space-y-0.5">
-                          <span className="text-[9px] text-indigo-500 font-bold uppercase">Premium Margin Rate</span>
-                          <p className="font-bold text-indigo-700 font-mono">₹{stats.premiumRate ? stats.premiumRate.toLocaleString(undefined, { maximumFractionDigits: 2 }) : "N/A"}</p>
-                        </div>
+                    {!marketStats ? (
+                      <div className="text-xs text-slate-500 italic space-y-1">
+                        <p>No historical evidence selection exists for this item.</p>
+                        <p className="text-[10px] text-slate-400">
+                          Either recommendation has not been run yet, or no commercially-equivalent historical
+                          reference survived filtering (see the Discarded Evidence list on the Trace tab).
+                        </p>
                       </div>
-                    </div>
-
-                    <hr className="border-slate-100" />
-
-                    {/* Step-by-step formula tracing log */}
-                    <div>
-                      <h4 className="text-[11px] font-bold uppercase text-slate-400 tracking-wider mb-3">
-                        Estimation Formula Tracing Log (Step-by-Step)
-                      </h4>
-                      <div className="bg-slate-950 text-slate-300 font-mono p-4 rounded-xl text-[11px] space-y-2 border border-slate-800 leading-relaxed shadow-inner">
-                        {stats.calculationLog && stats.calculationLog.length > 0 ? (
-                          stats.calculationLog.map((logLine: string, index: number) => (
-                            <div key={index} className="flex gap-2.5">
-                              <span className="text-slate-500 shrink-0 select-none">[{index + 1}]</span>
-                              <p className="text-slate-300">{logLine}</p>
+                    ) : (
+                      <>
+                        <div>
+                          <h4 className="text-[11px] font-bold uppercase text-slate-400 tracking-wider mb-3">
+                            Historical Evidence Range & Selection
+                          </h4>
+                          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                            <div className="p-3 bg-slate-50 border border-slate-100 rounded-lg text-xs space-y-0.5">
+                              <span className="text-[9px] text-slate-400 font-semibold uppercase">Min Historical Rate</span>
+                              <p className="font-bold text-slate-700 font-mono">₹{marketStats.min.toLocaleString(undefined, { maximumFractionDigits: 2 })}</p>
                             </div>
-                          ))
-                        ) : (
-                          <p className="text-slate-500 italic">No estimation tracing logs recorded.</p>
-                        )}
-                      </div>
-                    </div>
+                            <div className="p-3 bg-slate-50 border border-slate-100 rounded-lg text-xs space-y-0.5">
+                              <span className="text-[9px] text-slate-400 font-semibold uppercase">Max Historical Rate</span>
+                              <p className="font-bold text-slate-700 font-mono">₹{marketStats.max.toLocaleString(undefined, { maximumFractionDigits: 2 })}</p>
+                            </div>
+                            <div className="p-3 bg-indigo-50 border border-indigo-100 text-indigo-800 rounded-lg text-xs space-y-0.5">
+                              <span className="text-[9px] text-indigo-500 font-bold uppercase">Selected Historical Rate</span>
+                              <p className="font-extrabold text-indigo-700 font-mono text-sm">₹{marketStats.selectedRate.toLocaleString(undefined, { maximumFractionDigits: 2 })}</p>
+                            </div>
+                            <div className="p-3 bg-emerald-50 border border-emerald-100 text-emerald-800 rounded-lg text-xs space-y-0.5">
+                              <span className="text-[9px] text-emerald-500 font-bold uppercase">Representative Rate</span>
+                              <p className="font-extrabold text-emerald-700 font-mono text-sm">₹{marketStats.representativeRate.toLocaleString(undefined, { maximumFractionDigits: 2 })}</p>
+                            </div>
+                            <div className="p-3 bg-slate-50 border border-slate-100 rounded-lg text-xs space-y-0.5">
+                              <span className="text-[9px] text-slate-400 font-semibold uppercase">Selected Match Score</span>
+                              <p className="font-bold text-slate-700 font-mono">{marketStats.selectedMatchScore.toFixed(1)}%</p>
+                            </div>
+                            <div className="p-3 bg-slate-50 border border-slate-100 rounded-lg text-xs space-y-0.5">
+                              <span className="text-[9px] text-slate-400 font-semibold uppercase">Evidence Considered</span>
+                              <p className="font-bold text-slate-700 font-mono">
+                                {marketStats.referenceCount} accepted ({marketStats.corroboratingCount} corroborating) / {marketStats.rejectedCount} rejected
+                              </p>
+                            </div>
+                            {marketStats.secondBestRateDeviationPercent !== null && marketStats.secondBestRateDeviationPercent !== undefined && (
+                              <div className="p-3 bg-slate-50 border border-slate-100 rounded-lg text-xs space-y-0.5">
+                                <span className="text-[9px] text-slate-400 font-semibold uppercase">2nd-Best Rate Deviation</span>
+                                <p className="font-bold text-slate-700 font-mono">{marketStats.secondBestRateDeviationPercent.toFixed(1)}%</p>
+                              </div>
+                            )}
+                            {marketStats.learningAdjustmentPercent !== null && marketStats.learningAdjustmentPercent !== undefined && marketStats.learningAdjustmentPercent !== 0 && (
+                              <div className="p-3 bg-amber-50 border border-amber-100 rounded-lg text-xs space-y-0.5">
+                                <span className="text-[9px] text-amber-500 font-bold uppercase">Learning Adjustment</span>
+                                <p className="font-bold text-amber-700 font-mono">{marketStats.learningAdjustmentPercent > 0 ? "+" : ""}{marketStats.learningAdjustmentPercent.toFixed(1)}%</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        <hr className="border-slate-100" />
+
+                        {/* Real decision log - assembled from what the pipeline recorded, never invented */}
+                        <div>
+                          <h4 className="text-[11px] font-bold uppercase text-slate-400 tracking-wider mb-3">
+                            Pricing Decision Log
+                          </h4>
+                          <div className="bg-slate-950 text-slate-300 font-mono p-4 rounded-xl text-[11px] space-y-2 border border-slate-800 leading-relaxed shadow-inner">
+                            {[
+                              selectedItem.reason,
+                              selectedItem.recommendationTrace?.explanation,
+                              selectedItem.calibrationReason,
+                              marketStats.learningReason || undefined,
+                              selectedItem.decision?.decisionSummary
+                            ].filter(Boolean).map((logLine: any, index: number) => (
+                              <div key={index} className="flex gap-2.5">
+                                <span className="text-slate-500 shrink-0 select-none">[{index + 1}]</span>
+                                <p className="text-slate-300">{logLine}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
 
@@ -1841,13 +1831,21 @@ export default function RecommendationsTab({
 
                     <hr className="border-slate-100" />
 
-                    {/* UOM conversions bridge */}
+                    {/* UOM facts - real ingested data only, never a fabricated conversion log */}
                     <div>
                       <h4 className="text-[11px] font-bold uppercase text-slate-400 tracking-wider mb-3 flex items-center gap-1.5">
-                        <Scale className="w-4 h-4 text-indigo-500" /> Unit of Measurement Conversion Bridge Trace
+                        <Scale className="w-4 h-4 text-indigo-500" /> Unit of Measurement
                       </h4>
                       <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 space-y-3">
-                        {trace.map((tLine: string, index: number) => (
+                        {[
+                          `Ingested quantity: ${selectedItem.quantity} ${selectedItem.unit}.`,
+                          masterMatch
+                            ? `Matched master catalog unit: ${masterMatch.standardUnit || "same as ingested"}.`
+                            : "No master catalog match - the rate applies to the ingested unit as-is.",
+                          ...(selectedItem.attentionFlags?.includes("UOM Conversion")
+                            ? ["A UOM conversion factor was applied - the exact factor is stated in the Pricing Explanation above."]
+                            : [])
+                        ].map((tLine: string, index: number) => (
                           <div key={index} className="flex items-start gap-2.5 text-xs text-slate-600">
                             <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0 mt-1.5" />
                             <p className="leading-relaxed">{tLine}</p>
@@ -1856,9 +1854,11 @@ export default function RecommendationsTab({
                       </div>
                     </div>
 
+                    {/* Worksheet context - only rendered when the upload parser actually
+                        extracted one for this sheet; never fabricated client-side */}
+                    {worksheetCtx && (<>
                     <hr className="border-slate-100" />
 
-                    {/* Worksheet context */}
                     <div>
                       <h4 className="text-[11px] font-bold uppercase text-slate-400 tracking-wider mb-3 flex items-center gap-1.5">
                         <FileSpreadsheet className="w-4 h-4 text-indigo-500" /> Worksheet-Level Context: "{worksheetCtx.sheetName}"
@@ -1902,6 +1902,7 @@ export default function RecommendationsTab({
                         )}
                       </div>
                     </div>
+                    </>)}
                   </div>
                 )}
               </div>
@@ -1971,86 +1972,6 @@ export default function RecommendationsTab({
                   </p>
                 </div>
               </div>
-
-              {/* Historical Replay Report Panel */}
-              {(validationReport as any).replayReport && (
-                <div className="p-5 bg-purple-50/50 border border-purple-100 rounded-xl text-purple-950 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Sparkles className="w-5 h-5 text-purple-600 shrink-0" />
-                      <h3 className="text-sm font-bold text-purple-900">Historical Replay Report</h3>
-                    </div>
-                    <span className="px-2.5 py-0.5 bg-purple-100 text-purple-800 rounded-full font-extrabold text-[10px] uppercase tracking-wide border border-purple-200">
-                      Replay Accuracy: {(validationReport as any).replayReport.accuracyRate}%
-                    </span>
-                  </div>
-                  
-                  <p className="text-xs leading-relaxed text-purple-800">
-                    {(validationReport as any).replayReport.accuracyRate === 100 ? (
-                      <>
-                        Deterministic rate replay successfully verified against historical baseline project <span className="font-bold">"{(validationReport as any).replayReport.matchedProjectName}"</span>. All rate dimensions and commercial calculations match with 100% mathematical precision.
-                      </>
-                    ) : (
-                      <>
-                        Historical rate replay comparison against baseline project <span className="font-bold">"{(validationReport as any).replayReport.matchedProjectName}"</span>. Baseline rate deviations detected.
-                      </>
-                    )}
-                  </p>
-
-                  <div className="border border-purple-100 rounded-lg overflow-hidden max-h-[220px] overflow-y-auto bg-white">
-                    <table className="w-full border-collapse text-left text-[11px] text-purple-950">
-                      <thead className="bg-purple-50 border-b border-purple-150 text-purple-800 font-bold">
-                        <tr>
-                          <th className="p-2.5">Worksheet</th>
-                          <th className="p-2.5">Cell Address</th>
-                          <th className="p-2.5 text-right">Original Historical Rate</th>
-                          <th className="p-2.5 text-right">Exported Rate</th>
-                          <th className="p-2.5 text-right">Difference</th>
-                          <th className="p-2.5 text-center">Replay Result</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-purple-100 font-medium">
-                        {(validationReport as any).replayReport.items.map((it: any, itIdx: number) => {
-                          const isMatch = it.replayResult === "Match";
-                          return (
-                            <tr key={itIdx} className="hover:bg-purple-50/30">
-                              <td className="p-2.5 max-w-[150px] truncate font-semibold text-purple-900" title={`${it.sheetName} (Row ${it.rowNum})`}>
-                                {it.sheetName}
-                                <span className="block text-[9px] text-purple-500 font-normal truncate" title={it.description}>
-                                  {it.description}
-                                </span>
-                              </td>
-                              <td className="p-2.5 font-mono text-purple-700 font-bold">
-                                {it.cellAddress}
-                              </td>
-                              <td className="p-2.5 text-right font-mono text-purple-900">
-                                ₹{Number(it.originalHistoricalRate).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
-                              </td>
-                              <td className="p-2.5 text-right font-mono text-purple-900">
-                                ₹{Number(it.exportedRate).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
-                              </td>
-                              <td className={`p-2.5 text-right font-mono font-bold ${it.difference === 0 ? "text-emerald-600" : "text-rose-600"}`}>
-                                {it.difference === 0 ? "-" : `₹${Number(it.difference).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`}
-                              </td>
-                              <td className="p-2.5 text-center">
-                                {isMatch ? (
-                                  <span className="px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 text-[9px] font-extrabold inline-flex items-center gap-0.5">
-                                    <Check className="w-2.5 h-2.5 text-emerald-600" /> Match
-                                  </span>
-                                ) : (
-                                  <span className="px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-200 text-[9px] font-extrabold inline-flex items-center gap-0.5">
-                                    <X className="w-2.5 h-2.5 text-rose-600" /> Mismatch
-                                  </span>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
 
               {/* Audit Details */}
               <div className="space-y-3">

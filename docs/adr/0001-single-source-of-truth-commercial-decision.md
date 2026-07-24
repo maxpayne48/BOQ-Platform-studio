@@ -1,6 +1,6 @@
 # ADR-0001: Single Source of Truth for the Commercial Decision
 
-- Status: Accepted (implementation pending)
+- Status: **Implemented** (2026-07-24, same day; see "Implementation Notes" at the bottom for deltas from the plan)
 - Date: 2026-07-24 (decisions on open questions confirmed by user same day)
 - Audit this ADR is based on: `docs/audit/recommendation-pipeline-audit.md`
 
@@ -112,3 +112,17 @@ This does **not** mean collapsing the pricing pipeline into one function. The fi
 - New code that needs an approval/validation/confidence answer has exactly one correct place to get it; adding logic anywhere else is a reviewable violation of this ADR.
 - The five-stage pricing chain is preserved untouched in its internal engineering (no regression risk to matching/adjustment quality) — only the layer that interprets its output is consolidated.
 - This document and `docs/audit/recommendation-pipeline-audit.md` should be updated together if a future change alters which module is authoritative for any decision listed here.
+
+## Implementation Notes (2026-07-24)
+
+Implemented as planned, with these concrete details/deltas:
+
+- **New modules:** `src/decisionConstants.ts` (all shared thresholds) and `src/CommercialDecisionEngine.ts` (the orchestrator). The decision object is `CommercialDecision` (`src/types.ts`), attached frozen to `RFQItem.decision`, with `RFQItem.approvalStatus` as the flat one-field vocabulary (`Pending` / `Auto Approved` / `Needs Review` / `Manual Pricing`). `finalizeItemDecision` has exactly two call sites: end of the `/recommend` pipeline (after self-validation) and the estimator `/override` route.
+- **`item.status` fully retired**, including at item-creation sites and in persisted stores; a load-time migration (`migrateLegacyItem`) translates legacy items once and deletes the old field. A parallel RFQ-store migration strips all persisted replay-era fields (`replayDetected`, `matchedProjectName`, `*MatchPercent`, `replayAuditorReport`, `verifiedReplayRows`, `verificationMismatches`) and the `"Replay"` RFQ status.
+- **`replayAuditorReport` was renamed, not just consolidated**: the per-RFQ report is now `RFQ.recommendationAuditReport` (`approvalAccuracy` + the three bucket counts + per-row records carrying `approvalStatus`/`reasonCode`), computed exclusively by `CommercialDecisionEngine.computeApprovalMetrics`.
+- **One accuracy formula**: `computeApprovalMetrics` feeds the per-RFQ report, `/api/analytics` (`learningAccuracyHistory` is now a real per-rated-RFQ series — no fabricated points; fewer RFQs = shorter series), `/api/system-health` (`SystemHealth.approvalAccuracy`, replacing both `replayAccuracy` and `recommendationAccuracy`), and `/api/rfqs` progress counts.
+- **Regression suite made real everywhere**: the previously hardcoded `regressionSummary` in `/api/system-health` now calls the same extracted `runRegressionSuite()` the admin endpoint runs; `regressionStatus` derives from the actual result.
+- **Deleted outright**: `backend/` (the entire dormant parallel engine tree + its store), the `/api/rfqs/:id/recommend-v2` route, both upload-route fire-and-forget hooks, both dead Historical Replay export gates, the always-empty `verificationMismatches` export gate, dead helpers `getHistoricalRowMappings`/`getHistoricalProjectSheets`, the dead `manualReviewRequired` field, and the never-populated `RFQItem.rateStats`/`uomTrace` fields.
+- **Frontend fabrications removed** (beyond the plan): the drawer's fake all-pass validation fallback, fake engineering decomposition, the entirely fabricated "Multi-Percentile Historical Rate Analysis" (rendered from `finalRate * 0.85` etc. — `rateStats` was never populated by the backend) and its invented "calculation log", the fake UOM conversion trace, and the fabricated worksheet-context defaults. All replaced by read-only renders of real pipeline data (`marketRateStatistics`, `itemDecomposition`, `decision`) with honest empty states. The frontend confidence-badge cutoff now imports `CONFIDENCE_APPROVAL_THRESHOLD` (the old 80-vs-75 disagreement is gone), and the drawer gained a "Commercial Decision" panel rendering `item.decision`.
+- **Validated** on the Kohler Pune benchmark RFQ (672 items): every item gets exactly one frozen decision, decision/approvalStatus mismatches = 0, dashboard buckets == audit report == metrics helper by construction. As predicted, Auto-Approved dropped (validation now gates approval): 350 auto-approved / 248 needs-review / 74 manual-pricing on this RFQ.
+- **Known remaining cosmetic debt** (explicitly out of scope, display-only): `/api/analytics` `costIndexTrend` is still a hardcoded decorative series; `ExportHistoryItem.recommendationMode` retains the legacy `"Historical Replay"` union member for old persisted rows (new exports never produce it); the blueprint panel's sheet-parsing confidence colors use their own display cutoffs (parser quality, not approval — intentionally separate).

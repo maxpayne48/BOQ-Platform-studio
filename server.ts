@@ -4316,6 +4316,16 @@ app.post("/api/rfqs/:id/recommend", async (req, res) => {
     item.matchedMasterId = result.matchedMasterId;
     item.confidenceScore = result.confidence;
     item.reason = result.reason;
+    // Explicitly clear rather than merely skip (same convention as installationRate below): a
+    // fresh recommend run must never leave item.calibrationApplied/calibrationReason holding a
+    // narrative from a PRIOR run's calibration/self-validation decision. Neither field was ever
+    // reset anywhere, so an item whose self-validation pass adopted a switch on one run, then
+    // correctly declined to act on a later run (e.g. after a threshold/criteria change), kept
+    // displaying the old run's "replaced X with Y" text indefinitely - a stale-narrative bug
+    // discovered via a bug report on "Tile - Type -01 (1200mm x 1200mm)" showing a Pricing
+    // Explanation claiming a switch to ₹3,000 that never actually happened this run.
+    item.calibrationApplied = false;
+    item.calibrationReason = undefined;
     // NOTE (ADR-0001): no approval is decided here or anywhere inside the pricing
     // chain - the Commercial Decision Engine derives it exactly once, after every
     // pricing stage (calibration + self-validation included) has finished.
@@ -4416,7 +4426,20 @@ app.post("/api/rfqs/:id/recommend", async (req, res) => {
     // the flat Basic Rate catalog guess is replaced with an interpolated/extrapolated/area-scaled
     // estimate; otherwise item.recommendedRate is left exactly as RecommendationV2 computed it, to
     // be recalibrated further downstream by the weighted-evidence market-rate statistics.
-    if (result.source === "Basic Rate") {
+    //
+    // Bug fix (found via a reported drawer inconsistency on "Tile - Type -01 (1200mm x 1200mm)"):
+    // `result.source` is UNCONDITIONALLY "Basic Rate" for every item (RecommendationEngineV2 has
+    // no separate branch), so this block previously ran for every item regardless of match
+    // quality - including items where the baseline already found an EXACT master-catalog
+    // description match (`result.matchedMasterId` set, confidence 85, rate used "directly" per
+    // RecommendationEngineV2's own generated explanation). For this item, that let a genuine
+    // ₹3,000 exact match get overridden by a ₹1,600 "Area Scaling" interpolation whose own
+    // 4-item "family" pulled in a Lintel ("Type 02 - Size of Lintel: 150mm x 150mm"), a known
+    // ₹0.165 corrupted vitrified-tile rate (Audit 0002's documented residual data debt), and an
+    // unrelated "Printed Tile Flooring" variant - none of which are the same item. Engineering
+    // Adjustment is a fallback for the "flat catalog guess" case (no master match at all, per the
+    // comment above), never a second opinion on an already-exact match - gate it accordingly.
+    if (result.source === "Basic Rate" && !result.matchedMasterId) {
       try {
         const adjustment = EngineeringAdjustmentEngine.computeEngineeringAdjustment(
           item.originalDescription,

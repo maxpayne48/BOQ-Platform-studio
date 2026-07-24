@@ -165,15 +165,23 @@ export class CommercialDecisionEngine {
   }
 
   /**
-   * Audit 0002 fix 4: the recommendation trace is written once by the baseline stage and
-   * was never updated when a later stage (engineering adjustment, progressive matching,
-   * calibration, self-validation, estimator override) overwrote the rate - so the trace
-   * could tell a fabricated provenance story ("₹3,500 historical rate used directly")
-   * for an item whose real final rate was something else entirely. Same single-writer-
-   * at-the-end pattern as the approval decision: this engine reconciles the trace
-   * exactly once, here, and no pricing stage edits it mid-flight. The baseline stage's
-   * original explanation is preserved verbatim in `baselineExplanation` (set once,
-   * idempotent) so lineage stays visible without contradiction.
+   * Audit 0002 fix 4 (+ follow-up fix after a reported drawer inconsistency on "Tile - Type -01
+   * (1200mm x 1200mm)"): the recommendation trace is written once by the baseline stage and was
+   * never updated when a later stage (engineering adjustment, progressive matching, calibration,
+   * self-validation, estimator override) overwrote the rate - so the trace could tell a
+   * fabricated provenance story ("₹3,500 historical rate used directly") for an item whose real
+   * final rate was something else entirely. Same single-writer-at-the-end pattern as the
+   * approval decision: this engine reconciles the trace exactly once, here, and no pricing stage
+   * edits it mid-flight. The baseline stage's original explanation is preserved verbatim in
+   * `baselineExplanation` (set once, idempotent) so lineage stays visible without contradiction.
+   *
+   * `historicalUnitRate` gets the same treatment as `recommendedUnitRate`: it is frozen by the
+   * baseline stage at whatever the initially-matched master item's own rate was, but a later
+   * calibration/self-validation pass can select a DIFFERENT historical observation entirely
+   * (marketRateStatistics.selectedRate) as the actual evidence behind the final decision. Left
+   * unreconciled, the drawer could show a "Historical Unit Rate" that no longer matches the
+   * "Selected" row in its own Historical Evidence table - reconciled here to whichever selected
+   * rate is authoritative at finalize time.
    */
   private static reconcileRecommendationTrace(item: RFQItem): void {
     const trace = item.recommendationTrace;
@@ -184,9 +192,16 @@ export class CommercialDecisionEngine {
       trace.baselineExplanation = trace.explanation || "";
     }
 
+    const selectedHistoricalRate = item.marketRateStatistics?.selectedRate;
+    const historicalRateStale = selectedHistoricalRate !== undefined &&
+      Math.abs(selectedHistoricalRate - trace.historicalUnitRate) >= 0.005;
+    if (historicalRateStale) {
+      trace.historicalUnitRate = Math.round(selectedHistoricalRate * 100) / 100;
+    }
+
     const rateUnchangedSinceBaseline = Math.abs(finalRate - trace.recommendedUnitRate) < 0.005 &&
       trace.explanation === trace.baselineExplanation;
-    if (rateUnchangedSinceBaseline) return;
+    if (rateUnchangedSinceBaseline && !historicalRateStale) return;
 
     // The stage narratives below are the stages' OWN recorded reasoning - this engine
     // only assembles them, it never invents pricing rationale.

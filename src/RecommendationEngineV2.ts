@@ -28,34 +28,56 @@ export interface ReplayRecord {
   masterItemId?: string;
 }
 
+// Stage 1 of the two-stage retrieval pipeline (Historical Project Ranking). Project Type is
+// weighted as the strongest single factor per spec, with Cost/Size/City/Grade all contributing to
+// which historical projects even become eligible for Stage 2 item matching - none of these ever
+// touch a rate (see RecommendationEngineV2.recommendItem / ProjectCalibrationEngine, which no
+// longer apply any location or scale multiplier to a historical rate).
+const MIN_PROJECT_SIMILARITY_TO_SHORTLIST = 0.30; // reject poor project matches automatically -
+// never pad the shortlist to 5 with a project that isn't genuinely relevant.
+
 export const RecommendationEngineV2 = {
-  // STEP 2: Retrieve the Top 5 similar historical projects
+  // STAGE 1: Retrieve the Top 5 similar historical projects (Historical Project Ranking). Must run
+  // BEFORE any item-level matching - Stage 2 (src/HistoricalRetrievalEngine.ts /
+  // ProjectCalibrationEngine.ts) is bounded to exactly the projects returned here, never the whole
+  // historical database.
   getSimilarProjects(
     historicalBOQs: HistoricalBOQ[],
-    input: ProjectSimilarityInput
+    input: ProjectSimilarityInput,
+    historicalCostByProjectId: Map<string, number>
   ): { project: HistoricalBOQ; similarity: number }[] {
     const scored = historicalBOQs.map(h => {
-      // 1. Project Type Match (Weight: 20%)
+      // 1. Project Type Match (Weight: 30%) - the strongest ranking factor per spec: projects of
+      // the same type must score much higher than projects from a different sector.
       const hType = (h.projectType || "Commercial Office").toLowerCase().trim();
       const inputType = input.projectType.toLowerCase().trim();
       const typeSimilarity = hType === inputType ? 1.0 : (hType.includes(inputType) || inputType.includes(hType) ? 0.6 : 0.0);
 
-      // 2. Project Cost Match (Weight: 25%)
-      const hCost = h.projectCost ? parseFloat(String(h.projectCost).replace(/[^0-9.]/g, "")) : 15000000;
-      const costDiff = Math.abs(input.projectCost - hCost);
-      const costSimilarity = input.projectCost > 0 ? Math.max(0, 1 - (costDiff / input.projectCost)) : 1.0;
+      // 2. Project Cost Match (Weight: 20%) - real, replay-derived cost per historical project
+      // (historicalCostByProjectId, built once in server.ts from actual historical line-item
+      // amounts). HistoricalBOQ carries no stored cost field, so this was previously comparing
+      // every historical project against the same constant fallback, making cost contribute
+      // nothing to ranking - fixed here to be a genuine differentiator (₹40 Cr projects should
+      // rank near other commercial-scale projects, not ₹500 Cr ones).
+      const hCost = historicalCostByProjectId.get(h.id) || 0;
+      const costSimilarity = input.projectCost > 0 && hCost > 0
+        ? Math.max(0, 1 - (Math.abs(input.projectCost - hCost) / input.projectCost))
+        : 0.5; // neutral, not a phantom perfect/zero match, when real cost data is unavailable
 
-      // 3. Project Size Match (Weight: 25%)
+      // 3. Project Size Match (Weight: 20%) - small projects should primarily compare with small
+      // projects, large with large; never itself modifies a rate.
       const hSize = h.projectSize ? parseFloat(String(h.projectSize).replace(/[^0-9.]/g, "")) : 50000;
       const sizeDiff = Math.abs(input.projectSize - hSize);
       const sizeSimilarity = input.projectSize > 0 ? Math.max(0, 1 - (sizeDiff / input.projectSize)) : 1.0;
 
-      // 4. City Match (Weight: 20%)
+      // 4. City Match (Weight: 20%) - influences which historical PROJECTS are selected only; a
+      // city match/mismatch never scales a historical rate up or down (Problem 1 fix).
       const hLoc = (h.location || "").toLowerCase();
       const inputCity = input.city.toLowerCase().trim();
       const citySimilarity = hLoc.includes(inputCity) || inputCity.includes(hLoc) ? 1.0 : 0.0;
 
-      // 5. Building Grade Match (Weight: 10%)
+      // 5. Building Grade Match (Weight: 10%) - existing keyword-based Building Type proxy (no
+      // fabricated industry/construction-scope fields exist in the historical data model yet).
       const pGrade = (h.projectName + " " + (h.projectType || "")).toLowerCase();
       let projectGrade = "Grade A";
       if (pGrade.includes("grade a") || pGrade.includes("premium") || pGrade.includes("luxury")) {
@@ -66,11 +88,12 @@ export const RecommendationEngineV2 = {
       const inputGrade = input.buildingGrade.toLowerCase().trim();
       const gradeSimilarity = projectGrade.includes(inputGrade) || inputGrade.includes(projectGrade) ? 1.0 : 0.5;
 
-      const similarity = (typeSimilarity * 0.20) + (costSimilarity * 0.25) + (sizeSimilarity * 0.25) + (citySimilarity * 0.20) + (gradeSimilarity * 0.10);
+      const similarity = (typeSimilarity * 0.30) + (costSimilarity * 0.20) + (sizeSimilarity * 0.20) + (citySimilarity * 0.20) + (gradeSimilarity * 0.10);
       return { project: h, similarity };
     });
 
     return scored
+      .filter(s => s.similarity >= MIN_PROJECT_SIMILARITY_TO_SHORTLIST)
       .sort((a, b) => b.similarity - a.similarity)
       .slice(0, 5);
   },
@@ -85,39 +108,13 @@ export const RecommendationEngineV2 = {
     return DOMAIN_ADJUSTMENTS[domain] || DOMAIN_ADJUSTMENTS[Domain.Civil];
   },
 
-  getLocationFactorForCity(city: string): number {
-    if (!city) return 1.0;
-    const c = city.toLowerCase();
-    if (c.includes("delhi") || c.includes("ncr") || c.includes("gurgaon") || c.includes("gurugram") || c.includes("noida")) {
-      return 1.0;
-    }
-    if (c.includes("mumbai") || c.includes("bkc") || c.includes("pune")) {
-      return 1.12;
-    }
-    if (c.includes("bangalore") || c.includes("bengaluru")) {
-      return 1.05;
-    }
-    if (c.includes("hyderabad")) {
-      return 1.02;
-    }
-    if (c.includes("chennai")) {
-      return 0.98;
-    }
-    if (c.includes("kolkata")) {
-      return 0.95;
-    }
-    if (c.includes("jaipur")) {
-      return 0.90;
-    }
-    if (c.includes("ahmedabad")) {
-      return 0.92;
-    }
-    if (c.includes("chandigarh")) {
-      return 1.00;
-    }
-    return 1.0;
-  },
-
+  // One recommendation engine, no historical-BOQ special case: every item is priced from this
+  // same baseline-then-recalibrate path, whether or not it happens to be a verbatim match for a
+  // historical record. There is no separate "exact match -> return the stored rate" branch here
+  // any more - an exact description match is simply strong evidence, and gets its say entirely
+  // through HistoricalRetrievalEngine's ranked candidates / ProjectCalibrationEngine's weighted
+  // market-rate statistics (which run unconditionally afterward, in server.ts) - never through an
+  // early return that bypasses that evidence pool.
   recommendItem(
     item: RFQItem,
     top5Projects: HistoricalBOQ[],
@@ -127,68 +124,13 @@ export const RecommendationEngineV2 = {
     city: string,
     uomConverter: (rfqUnit: string, targetUnit: string) => { factor: number; compatible: boolean; trace: string[] }
   ) {
-    const locationFactor = this.getLocationFactorForCity(city);
-    const top5Ids = new Set(top5Projects.map(p => p.id));
     const descKey = item.originalDescription.toLowerCase().trim();
+    const itemDomainKey = (item.domain || "").toLowerCase().trim();
 
-    // A. SEARCH ONLY THOSE TOP 5 PROJECTS
-    const top5Records = replayDatabase.filter(r => top5Ids.has(r.projectUuid));
-
-    // STEP 4: If Historical Rate exists
-    // 1. Direct exact description match
-    let matchRecord = top5Records.find(r => r.originalDescription.toLowerCase().trim() === descKey);
-
-    // 2. Index-based match
-    if (!matchRecord) {
-      const masterId = descriptionToMasterIdIndex[descKey];
-      if (masterId) {
-        matchRecord = top5Records.find(r => r.masterItemId === masterId);
-      }
-    }
-
-    if (matchRecord) {
-      const historicalRate = matchRecord.unitRate;
-      const uomMatch = uomConverter(item.unit, matchRecord.uom);
-      const uomFactor = uomMatch.factor;
-      const finalRate = historicalRate * uomFactor * locationFactor;
-      const confidence = 95;
-
-      const matchedProj = top5Projects.find(p => p.id === matchRecord?.projectUuid);
-      const projName = matchedProj ? matchedProj.projectName : "Similar Project";
-
-      return {
-        recommendedRate: Math.round(finalRate * 100) / 100,
-        source: "Historical Rate" as const,
-        worksheet: matchRecord.worksheetName || "Historical Worksheet",
-        historicalItem: matchRecord.originalDescription,
-        confidence,
-        reason: `[Historical Rate] Sourced from matching item in Top 5 similar project "${projName}". Adjustments: UOM Factor: ${uomFactor.toFixed(2)}, Location Factor (City: ${city}): ${locationFactor.toFixed(2)}.`,
-        matchedMasterId: matchRecord.masterItemId,
-        trace: {
-          rfqItem: item.originalDescription,
-          historicalProject: projName,
-          historicalProjectCost: matchedProj?.projectCost ? parseFloat(String(matchedProj.projectCost).replace(/[^0-9.]/g, "")) : 0,
-          historicalProjectType: matchedProj?.projectType || "N/A",
-          historicalWorksheet: matchRecord.worksheetName || "N/A",
-          historicalCell: matchRecord.rateCellAddress || "N/A",
-          historicalUnitRate: historicalRate,
-          recommendedUnitRate: Math.round(finalRate * 100) / 100,
-          replayMode: "Yes" as "Yes" | "No",
-          matchType: "Top 5 Similar Project Match",
-          rateSource: "Historical Rate",
-          explanation: `[Historical Rate Recommendation Trace]
-- Source Project: ${projName}
-- Historical Item: ${matchRecord.originalDescription}
-- Base Rate: ₹${historicalRate.toFixed(2)}
-- UOM Conversion Factor: ${uomFactor.toFixed(2)}
-- Location Factor: ${locationFactor.toFixed(2)} (City: ${city})
-- Final Recommended Rate: ₹${(Math.round(finalRate * 100) / 100).toFixed(2)}`
-        }
-      };
-    }
-
-    // STEP 5: Else, calculate Basic Rate sequential adjustments
-    const masterId = descriptionToMasterIdIndex[descKey];
+    // Baseline rate: classify which Master Catalog item this description resembles (item
+    // understanding), then apply engineering/market sequential adjustments. This baseline is
+    // always subject to the same downstream weighted-evidence recalibration as every other item.
+    const masterId = descriptionToMasterIdIndex[`${itemDomainKey}::${descKey}`];
     let basePrice = 1000;
     let standardUnit = item.unit;
     let baseSource = "Domain Baseline Fallback";
@@ -206,27 +148,54 @@ export const RecommendationEngineV2 = {
 
     const uomMatch = uomConverter(item.unit, standardUnit);
     const conversionFactor = uomMatch.factor;
-    const adj = this.getAdjustmentsForDomain(item.domain);
 
-    // Sequential adjustments
-    const rateUOM = basePrice * conversionFactor;
-    const rateWastage = rateUOM * (1 + adj.wastage);
-    const rateHandling = rateWastage * (1 + adj.handling);
-    const rateInstallation = rateHandling * (1 + adj.installation);
-    const rateMargin = rateInstallation * (1 + adj.margin);
-    const finalRate = rateMargin * locationFactor;
+    // m.basicRate/averageRate/medianRate (see server.ts's precomputeMasterItemFields, where
+    // basicRate is itself just set to medianRate||averageRate) are ALL historical aggregates -
+    // real market rates already inclusive of contractor margin, labour, wastage, handling,
+    // overheads, and normal commercial pricing, because that's what a historical BOQ rate is.
+    // Sequential wastage/handling/installation/margin build-up must therefore NEVER be applied on
+    // top of them - that would double-count commercial markup that's already baked in. The build-
+    // up stack is legitimate ONLY for the true no-evidence-at-all case (basePrice falling back to
+    // the flat ₹1000 domain default because no Master Catalog item was found), where there is no
+    // historical commercial rate to preserve and a rate genuinely has to be built up from scratch.
+    // A genuine engineering difference (different size/dimension) is handled separately and only
+    // afterward, by EngineeringAdjustmentEngine in server.ts - never by re-applying this stack.
+    let finalRate: number;
+    let explanation: string;
+    let reason: string;
 
-    const confidence = matchedMaster ? 70 : 40;
-    const explanation = `[Basic Rate Recommendation Trace]
+    if (matchedMaster) {
+      finalRate = basePrice * conversionFactor;
+      explanation = `[Historical Commercial Rate]
+- Base Sourced From: ${baseSource}
+- Historical Commercial Rate: ₹${basePrice.toFixed(2)} (already inclusive of margin, labour, wastage, handling and overheads - no commercial markup re-applied)
+- UOM Conversion Factor: ${conversionFactor.toFixed(2)}
+- Final Recommended Rate: ₹${(Math.round(finalRate * 100) / 100).toFixed(2)} (historical rate used directly; only a genuine engineering/dimensional difference, if any, adjusts it further downstream)`;
+      reason = `[Historical Commercial Rate] Sourced from ${baseSource}, used directly as a final market rate. UOM Factor: x${conversionFactor.toFixed(2)}. No wastage/handling/installation/margin re-applied - the historical rate already includes these.`;
+    } else {
+      const adj = this.getAdjustmentsForDomain(item.domain);
+      const rateUOM = basePrice * conversionFactor;
+      const rateWastage = rateUOM * (1 + adj.wastage);
+      const rateHandling = rateWastage * (1 + adj.handling);
+      const rateInstallation = rateHandling * (1 + adj.installation);
+      // No city re-basing here either (Problem 1) - the Basic Rate estimate stands on its own
+      // engineering/market adjustments only.
+      finalRate = rateInstallation * (1 + adj.margin);
+      explanation = `[Basic Rate Recommendation Trace - no historical evidence found, full cost build-up]
 - Base Sourced From: ${baseSource}
 - Base Price Sourced: ₹${basePrice.toFixed(2)}
 - 1. UOM Conversion Factor: ${conversionFactor.toFixed(2)} (Running total: ₹${rateUOM.toFixed(2)})
 - 2. Material Wastage (${(adj.wastage * 100).toFixed(1)}%): +₹${(rateUOM * adj.wastage).toFixed(2)} (Running total: ₹${rateWastage.toFixed(2)})
 - 3. Material Handling (${(adj.handling * 100).toFixed(1)}%): +₹${(rateWastage * adj.handling).toFixed(2)} (Running total: ₹${rateHandling.toFixed(2)})
 - 4. Installation Cost (${(adj.installation * 100).toFixed(1)}%): +₹${(rateHandling * adj.installation).toFixed(2)} (Running total: ₹${rateInstallation.toFixed(2)})
-- 5. Contractor Margin (${(adj.margin * 100).toFixed(1)}%): +₹${(rateInstallation * adj.margin).toFixed(2)} (Running total: ₹${rateMargin.toFixed(2)})
-- 6. Location Factor: ${locationFactor.toFixed(2)} (City: ${city}) (Running total: ₹${finalRate.toFixed(2)})
-- Final Recommended Rate: ₹${(Math.round(finalRate * 100) / 100).toFixed(2)}`;
+- 5. Contractor Margin (${(adj.margin * 100).toFixed(1)}%): +₹${(rateInstallation * adj.margin).toFixed(2)} (Running total: ₹${finalRate.toFixed(2)})
+- Final Recommended Rate: ₹${(Math.round(finalRate * 100) / 100).toFixed(2)} (no city re-basing applied)`;
+      reason = `[Basic Rate] No historical evidence found - built up from ${baseSource}. Sequential adjustments: UOM: x${conversionFactor.toFixed(2)}, Wastage: +${(adj.wastage * 100)}%, Handling: +${(adj.handling * 100)}%, Installation: +${(adj.installation * 100)}%, Margin: +${(adj.margin * 100)}%.`;
+    }
+
+    // A genuine, commercially-equivalent historical match deserves real trust (no markup was
+    // guessed on top of it) - not the same low confidence as a from-scratch domain-default guess.
+    const confidence = matchedMaster ? 85 : 40;
 
     return {
       recommendedRate: Math.round(finalRate * 100) / 100,
@@ -234,7 +203,7 @@ export const RecommendationEngineV2 = {
       worksheet: "Master Catalog",
       historicalItem: matchedMaster ? matchedMaster.standardDescription : "Domain Baseline Fallback",
       confidence,
-      reason: `[Basic Rate] Sourced from ${matchedMaster ? "Master Catalog" : "Domain Baseline"}. Sequential adjustments: UOM: x${conversionFactor.toFixed(2)}, Wastage: +${(adj.wastage * 100)}%, Handling: +${(adj.handling * 100)}%, Installation: +${(adj.installation * 100)}%, Margin: +${(adj.margin * 100)}%, Location: x${locationFactor.toFixed(2)}.`,
+      reason,
       matchedMasterId: masterId,
       trace: {
         rfqItem: item.originalDescription,
@@ -245,7 +214,6 @@ export const RecommendationEngineV2 = {
         historicalCell: "N/A",
         historicalUnitRate: basePrice,
         recommendedUnitRate: Math.round(finalRate * 100) / 100,
-        replayMode: "No" as "Yes" | "No",
         matchType: "Basic Rate Estimation",
         rateSource: "Basic Rate",
         explanation

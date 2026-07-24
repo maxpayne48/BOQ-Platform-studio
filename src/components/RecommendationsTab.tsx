@@ -80,7 +80,8 @@ export default function RecommendationsTab({
   const [blueprintSubTab, setBlueprintSubTab] = useState<"sheets" | "knowledge">("sheets");
 
   // "Items Requiring Attention" dashboard state - purely informational, additive on top of the
-  // existing recommendation table. Never affects recommendedRate, export, or Replay Auditor.
+  // existing recommendation table. Never affects recommendedRate, export, or the Recommendation
+  // Quality report.
   const [showAttentionPanel, setShowAttentionPanel] = useState(true);
   const [highlightedItemId, setHighlightedItemId] = useState<string | null>(null);
 
@@ -370,21 +371,21 @@ export default function RecommendationsTab({
         console.log("Execution Time: " + (endTimeHandling - startTimeHandling) + "ms");
         console.log("Returned Value: success = true");
 
-      } else if (response.status === 422 && data.error === "Historical Replay Failed") {
-        // This 422 comes from the Replay Auditor guard, whose `report` is shaped completely
-        // differently ({replayAccuracy, verifiedRows, failedRows, pendingRows, records}) from
-        // the ValidationReport ({success, differences}) the modal below renders. Routing it
-        // into that modal crashes the render (validationReport.differences is undefined),
-        // which unmounts the whole tree - a blank page with no visible error. Show a plain
-        // notification instead; never open the structural validation modal for this case.
-        showNotification("error", data.details || "Export blocked: historical replay verification has not passed for this RFQ.");
+      } else if (response.status === 422 && data.error === "Recommendation Quality Check Failed") {
+        // This 422 comes from the export-time Recommendation Quality guard, whose `report`/
+        // `mismatches` payload is shaped completely differently from the ValidationReport
+        // ({success, differences}) the modal below renders. Routing it into that modal crashes
+        // the render (validationReport.differences is undefined), which unmounts the whole tree -
+        // a blank page with no visible error. Show a plain notification instead; never open the
+        // structural validation modal for this case.
+        showNotification("error", data.details || "Export blocked: recommendation quality check has not passed for this RFQ.");
 
         const endTimeHandling = Date.now();
         console.log("Completed Stage: Frontend response handling");
         console.log("Execution Time: " + (endTimeHandling - startTimeHandling) + "ms");
-        console.log("Returned Value: replay verification failed (no modal shown)");
+        console.log("Returned Value: recommendation quality check failed (no modal shown)");
       } else if (response.status === 422 && data.error === "Installation Rate Validation Failed") {
-        // Same reasoning as the Historical Replay Failed branch above - this payload carries
+        // Same reasoning as the Recommendation Quality Check Failed branch above - this payload carries
         // `violations` (sheetName/rowNum/reason), not a ValidationReport `report.differences`,
         // so it must never be routed into the structural validation modal.
         const violationCount = Array.isArray(data.violations) ? data.violations.length : 0;
@@ -460,7 +461,10 @@ export default function RecommendationsTab({
   // each item's existing status + attention flags, never recomputed independently of them.
   const recommendationSummary = items.reduce(
     (acc, item) => {
-      if (item.attentionFlags?.includes("Manual Pricing Required")) acc.manualPricing++;
+      // "Zero Historical Coverage" (no master match at all - a pure domain-baseline guess with no
+      // rate basis whatsoever) is treated the same as "Manual Pricing Required": there is nothing
+      // for an estimator to "review", only a number to price from scratch.
+      if (item.attentionFlags?.includes("Manual Pricing Required") || item.attentionFlags?.includes("Zero Historical Coverage")) acc.manualPricing++;
       else if (item.status === "Needs Manual Review" || (item.attentionFlags?.length || 0) > 0) acc.needsReview++;
       else acc.autoApproved++;
       return acc;
@@ -946,10 +950,10 @@ export default function RecommendationsTab({
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
                   <ShieldCheck className="w-5 h-5 text-purple-600 shrink-0" />
-                  <h4 className="text-sm font-bold text-purple-900">Replay Auditor Enterprise Report</h4>
+                  <h4 className="text-sm font-bold text-purple-900">Recommendation Quality Report</h4>
                 </div>
                 <span className="px-2.5 py-0.5 bg-purple-100 text-purple-800 rounded-full font-extrabold text-[10px] uppercase tracking-wide border border-purple-200">
-                  Replay Accuracy: {rfqDetails.replayAuditorReport.replayAccuracy.toFixed(1)}%
+                  Accuracy: {rfqDetails.replayAuditorReport.replayAccuracy.toFixed(1)}%
                 </span>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3 text-center">
@@ -1060,44 +1064,69 @@ export default function RecommendationsTab({
           )}
 
           <div className="bg-white border border-slate-100 rounded-xl overflow-hidden shadow-3xs">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs">
+          {/* Bounded, independently scrolling viewport (both axes) so the sticky thead/pinned
+              columns below have a well-defined scrollport to stick within - overflow-hidden on the
+              outer wrapper above only clips the rounded corners, it doesn't affect this inner
+              scroll container. thin-scrollbar (src/index.css) keeps the scrollbar modern/unobtrusive
+              in both light and dark mode. */}
+          <div className="overflow-auto thin-scrollbar" style={{ maxHeight: "70vh" }}>
+            <table className="text-left border-collapse text-xs" style={{ minWidth: "max-content" }}>
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-100 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
-                  <th className="p-3.5 text-center">Row / Item</th>
-                  <th className="p-3.5 max-w-sm">Description & parent Category</th>
-                  <th className="p-3.5 text-center">Unit</th>
-                  <th className="p-3.5 text-center">Qty</th>
-                  <th className="p-3.5 text-right">Matched Historical averages</th>
-                  <th className="p-3.5 text-right bg-indigo-50/20 text-indigo-700">Supply Rate (₹)</th>
-                  <th className="p-3.5 text-right">Installation Rate (₹)</th>
-                  <th className="p-3.5 text-right bg-slate-50 text-slate-700">Total Installed Rate (₹)</th>
-                  <th className="p-3.5 text-center">Confidence</th>
-                  <th className="p-3.5 max-w-xs">Pricing Decision Reason</th>
-                  <th className="p-3.5 text-right">Pricing Correction</th>
+                  {/* Pinned columns (Row/Item, Description, Unit) - sticky on both axes at once in
+                      the top-left corner cells, so they stay visible through both vertical AND
+                      horizontal scrolling. Widths are fixed (w-24/w-56/w-14) so the left offsets
+                      below (0, 96px, 320px) line up exactly with the matching body cells. */}
+                  <th className="sticky top-0 left-0 z-30 bg-slate-50 p-2 w-24 text-center">Row / Item</th>
+                  <th className="sticky top-0 left-24 z-30 bg-slate-50 p-2 w-56">Description & parent Category</th>
+                  <th className="sticky top-0 left-[320px] z-30 bg-slate-50 p-2 w-14 text-center">Unit</th>
+                  <th className="sticky top-0 z-20 bg-slate-50 p-2 w-14 text-center">Qty</th>
+                  <th className="sticky top-0 z-20 bg-slate-50 p-3 text-right">Matched Historical averages</th>
+                  <th className="sticky top-0 z-20 bg-indigo-50 p-3 text-right text-indigo-700">Supply Rate (₹)</th>
+                  <th className="sticky top-0 z-20 bg-slate-50 p-3 text-right">Installation Rate (₹)</th>
+                  <th className="sticky top-0 z-20 bg-slate-50 p-3 text-right text-slate-700">Total Installed Rate (₹)</th>
+                  <th className="sticky top-0 z-20 bg-slate-50 p-2 w-16 text-center">Confidence</th>
+                  <th className="sticky top-0 z-20 bg-slate-50 p-2 w-32 text-center">Decision Summary</th>
+                  <th className="sticky top-0 z-20 bg-slate-50 p-2 text-right">Override</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {items.map((item) => {
+                {items.map((item, itemIdx) => {
                   const masterMatch = masterCatalog.find((m) => m.id === item.matchedMasterId);
                   const isEditing = editingItemId === item.id;
                   const finalRate = item.overriddenRate || item.recommendedRate || 0;
                   const itemValidations = item.validationResults;
                   const hasAuditFail = itemValidations && Object.values(itemValidations).some((v: any) => v && v.pass === false);
 
+                  // Base row background: highlighted (jumped-to from Attention panel) > selected
+                  // (drawer open for this row) > zebra striping for every other even row > plain.
+                  // Computed once so the pinned/sticky cells below can apply an equivalent color.
+                  const rowBg = highlightedItemId === item.id
+                    ? "bg-amber-50"
+                    : selectedItemId === item.id
+                      ? "bg-indigo-50/15"
+                      : itemIdx % 2 === 1 ? "bg-slate-50/40" : "bg-white";
+                  const rowRing = highlightedItemId === item.id ? "ring-2 ring-inset ring-amber-300" : "";
+                  // Sticky cells need a FULLY OPAQUE background of their own (unlike rowBg above,
+                  // which can safely be translucent since nothing scrolls underneath a normal
+                  // cell) - otherwise the non-pinned columns scrolling horizontally underneath
+                  // bleed through the pinned columns instead of being hidden behind them.
+                  const pinnedBg = highlightedItemId === item.id
+                    ? "bg-amber-50"
+                    : selectedItemId === item.id
+                      ? "bg-indigo-100"
+                      : itemIdx % 2 === 1 ? "bg-slate-50" : "bg-white";
+                  const pinnedCellBase = `sticky z-10 ${pinnedBg} group-hover:bg-slate-100 transition-colors`;
+
                   return (
                     <tr
                       key={item.id}
                       id={`item-row-${item.id}`}
-                      className={`hover:bg-slate-50/40 transition-colors ${
-                        highlightedItemId === item.id
-                          ? "bg-amber-50 ring-2 ring-inset ring-amber-300"
-                          : selectedItemId === item.id ? "bg-indigo-50/15" : ""
-                      }`}
+                      className={`group hover:bg-slate-50/70 transition-colors ${rowBg} ${rowRing}`}
                     >
-                      <td 
+                      <td
                         onClick={() => setSelectedItemId(item.id)}
-                        className="p-3.5 text-center cursor-pointer group hover:bg-slate-50/80"
+                        className={`${pinnedCellBase} left-0 p-2 w-24 text-center cursor-pointer`}
                       >
                         <div className="space-y-0.5 font-mono">
                           <p className="text-slate-400 text-[10px] flex items-center justify-center gap-1">
@@ -1108,9 +1137,9 @@ export default function RecommendationsTab({
                         </div>
                       </td>
 
-                      <td 
+                      <td
                         onClick={() => setSelectedItemId(item.id)}
-                        className="p-3.5 max-w-sm cursor-pointer group hover:bg-slate-50/80"
+                        className={`${pinnedCellBase} left-24 p-2 w-56 cursor-pointer`}
                       >
                         <div className="space-y-1.5">
                           {item.parentHierarchy.length > 0 && (
@@ -1131,17 +1160,17 @@ export default function RecommendationsTab({
                         </div>
                       </td>
 
-                      <td className="p-3.5 text-center">
-                        <span className="px-1.5 py-0.5 rounded font-mono font-medium text-slate-500 bg-slate-100">
+                      <td className={`${pinnedCellBase} left-[320px] p-2 w-14 text-center`}>
+                        <span className="px-1.5 py-0.5 rounded font-mono text-[10px] font-medium text-slate-500 bg-slate-100">
                           {item.unit}
                         </span>
                       </td>
 
-                      <td className="p-3.5 text-center font-bold text-slate-700 font-mono">
+                      <td className="p-2 w-14 text-center font-bold text-slate-700 font-mono tabular-nums">
                         {item.quantity}
                       </td>
 
-                      <td className="p-3.5 text-right font-mono text-slate-500 space-y-0.5">
+                      <td className="p-2.5 text-right font-mono text-slate-500 space-y-0.5 tabular-nums">
                         {masterMatch ? (
                           <>
                             <p className="font-bold text-[11px]">Avg: ₹{masterMatch.averageRate.toLocaleString()}</p>
@@ -1152,7 +1181,7 @@ export default function RecommendationsTab({
                         )}
                       </td>
 
-                      <td className="p-3.5 text-right font-mono bg-indigo-50/10 border-x border-indigo-50/10">
+                      <td className="p-2.5 text-right font-mono tabular-nums bg-indigo-50/10 border-x border-indigo-50/10">
                         {isEditing ? (
                           <div className="space-y-1">
                             <input
@@ -1195,7 +1224,7 @@ export default function RecommendationsTab({
                         )}
                       </td>
 
-                      <td className="p-3.5 text-right font-mono">
+                      <td className="p-2.5 text-right font-mono tabular-nums">
                         {item.installationRate !== undefined ? (
                           <div className="space-y-0.5">
                             <p className="font-bold text-sm text-slate-700">
@@ -1231,38 +1260,58 @@ export default function RecommendationsTab({
                         )}
                       </td>
 
-                      <td className="p-3.5 text-right font-mono bg-slate-50/60">
+                      <td className="p-2.5 text-right font-mono tabular-nums bg-slate-50/60">
                         <p className="font-bold text-sm text-slate-800">
                           ₹{(finalRate + (item.installationRate || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </p>
                       </td>
 
-                      <td className="p-3.5 text-center">
+                      <td className="p-2 w-16 text-center">
                         {item.confidenceScore > 0 ? (
                           <span className={`inline-block px-1.5 py-0.5 rounded-full text-[9px] font-bold font-mono ${
-                            item.confidenceScore >= 80 
-                              ? "bg-emerald-50 text-emerald-600 border border-emerald-100" 
+                            item.confidenceScore >= 80
+                              ? "bg-emerald-50 text-emerald-600 border border-emerald-100"
                               : "bg-amber-50 text-amber-600 border border-amber-100"
                           }`}>
                             {item.confidenceScore}%
                           </span>
                         ) : (
-                          <span className="text-slate-400 text-[10px] font-bold uppercase">Pending</span>
+                          <span className="text-slate-400 text-[9px] font-bold uppercase">Pending</span>
                         )}
                       </td>
 
-                      <td className="p-3.5 max-w-xs text-slate-500 text-[11px] leading-relaxed">
-                        <div className="space-y-1">
-                          <p>{item.reason}</p>
-                          {hasAuditFail && (
-                            <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-red-500 bg-red-50 px-1.5 py-0.2 rounded font-mono">
-                              ⚠️ Audit warning
-                            </span>
-                          )}
-                        </div>
+                      {/* Decision Summary - compact status badge replacing the long "Pricing Decision
+                          Reason" text that used to occupy excessive width. Clicking opens the
+                          existing Specs & Auditor drawer on its Trace tab, which already shows the
+                          complete recommendation explanation (item.reason / recommendationTrace) -
+                          no new modal needed, full explainability is preserved, just moved out of
+                          the table itself. */}
+                      <td className="p-2 w-32 text-center">
+                        <button
+                          onClick={() => { setSelectedItemId(item.id); setActiveDrawerTab("trace"); }}
+                          title={item.reason}
+                          className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-[9px] font-bold cursor-pointer transition-colors ${
+                            hasAuditFail || item.status === "Needs Manual Review"
+                              ? "bg-amber-50 text-amber-700 border border-amber-100 hover:bg-amber-100"
+                              : "bg-emerald-50 text-emerald-700 border border-emerald-100 hover:bg-emerald-100"
+                          }`}
+                        >
+                          {hasAuditFail || item.status === "Needs Manual Review" ? "⚠" : "✔"}{" "}
+                          {hasAuditFail
+                            ? "Manual Review"
+                            : item.engineeringAdjustment?.applied
+                              ? "Engineering Adj."
+                              : item.recommendationTrace?.rateSource === "Historical Rate"
+                                ? "Historical Match"
+                                : item.matchTier
+                                  ? item.matchTier
+                                  : item.status === "Needs Manual Review"
+                                    ? "Manual Review"
+                                    : "Basic Rate"}
+                        </button>
                       </td>
 
-                      <td className="p-3.5 text-right shrink-0">
+                      <td className="p-2.5 text-right shrink-0">
                         <div className="flex flex-col items-end gap-1.5">
                           {isEditing ? (
                             <button
@@ -1679,20 +1728,12 @@ export default function RecommendationsTab({
                         {selectedItem.recommendationTrace ? (
                           <div className="space-y-3">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                              <div className="space-y-0.5">
-                                <span className="text-[10px] text-slate-400 font-semibold block uppercase">Replay Mode Activated</span>
-                                <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold font-mono ${
-                                  selectedItem.recommendationTrace.replayMode === "Yes" 
-                                    ? "text-emerald-700 bg-emerald-50 border border-emerald-100" 
-                                    : "text-amber-700 bg-amber-50 border border-amber-100"
-                                }`}>
-                                  {selectedItem.recommendationTrace.replayMode === "Yes" ? "YES (Historical Replay)" : "NO (Estimated)"}
-                                </span>
-                              </div>
-                              <div className="space-y-0.5">
-                                <span className="text-[10px] text-slate-400 font-semibold block uppercase">Historical Project Selected</span>
-                                <span className="text-slate-800 font-bold font-mono break-all">{selectedItem.recommendationTrace.historicalProject}</span>
-                              </div>
+                              {(!selectedItem.marketRateStatistics?.historicalEvidence || selectedItem.marketRateStatistics.historicalEvidence.length === 0) && (
+                                <div className="space-y-0.5">
+                                  <span className="text-[10px] text-slate-400 font-semibold block uppercase">Historical Project Selected</span>
+                                  <span className="text-slate-800 font-bold font-mono break-all">{selectedItem.recommendationTrace.historicalProject}</span>
+                                </div>
+                              )}
                               <div className="space-y-0.5">
                                 <span className="text-[10px] text-slate-400 font-semibold block uppercase">Historical Worksheet</span>
                                 <span className="text-slate-700 font-semibold font-mono break-all">{selectedItem.recommendationTrace.historicalWorksheet}</span>
@@ -1710,10 +1751,81 @@ export default function RecommendationsTab({
                                 <span className="text-indigo-800 font-extrabold font-mono text-sm">₹{selectedItem.recommendationTrace.recommendedUnitRate.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                               </div>
                             </div>
-                            
-                            {selectedItem.recommendationTrace.replayMode === "No" && selectedItem.recommendationTrace.explanation && (
+
+                            {/* Historical Evidence - replaces a single "Reference Project" display. Shows
+                                every commercially-equivalent historical project considered: the `selected`
+                                row is the single closest match the recommendation was taken from directly
+                                (never blended); the rest are shown only as corroborating evidence. */}
+                            {selectedItem.marketRateStatistics?.historicalEvidence && selectedItem.marketRateStatistics.historicalEvidence.length > 0 && (
+                              <div className="space-y-2">
+                                <span className="text-[10px] text-slate-400 font-semibold block uppercase">Historical Evidence</span>
+                                <div className="overflow-x-auto rounded-lg border border-indigo-100">
+                                  <table className="w-full text-xs">
+                                    <thead>
+                                      <tr className="bg-indigo-50/70 text-[10px] uppercase text-slate-500">
+                                        <th className="text-left font-semibold px-2.5 py-1.5">Project</th>
+                                        <th className="text-right font-semibold px-2.5 py-1.5">Project Sim.</th>
+                                        <th className="text-right font-semibold px-2.5 py-1.5">Item Sim.</th>
+                                        <th className="text-right font-semibold px-2.5 py-1.5">Spec Sim.</th>
+                                        <th className="text-right font-semibold px-2.5 py-1.5">Historical Rate</th>
+                                        <th className="text-right font-semibold px-2.5 py-1.5">Status</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {selectedItem.marketRateStatistics.historicalEvidence.map((e, idx) => (
+                                        <tr key={idx} className={`border-t border-indigo-50 ${e.selected ? "bg-indigo-50/50" : ""}`}>
+                                          <td className="px-2.5 py-1.5 font-semibold text-slate-700 break-all">{e.projectName}</td>
+                                          <td className="px-2.5 py-1.5 text-right font-mono text-slate-600">{e.projectSimilarity.toFixed(1)}%</td>
+                                          <td className="px-2.5 py-1.5 text-right font-mono text-slate-600">{e.itemSimilarity.toFixed(1)}%</td>
+                                          <td className="px-2.5 py-1.5 text-right font-mono text-slate-600">{e.specificationSimilarity.toFixed(1)}%</td>
+                                          <td className="px-2.5 py-1.5 text-right font-mono text-slate-700">₹{e.historicalRate.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                          <td className="px-2.5 py-1.5 text-right">
+                                            {e.selected ? (
+                                              <span className="inline-block px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase bg-indigo-100 text-indigo-700">Selected</span>
+                                            ) : (
+                                              <span className="inline-block px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase bg-slate-100 text-slate-500">Corroborating</span>
+                                            )}
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                                <div className="flex items-center justify-between px-1 pt-1">
+                                  <span className="text-[10px] text-slate-400 font-semibold uppercase">Selected Historical Rate</span>
+                                  <span className="text-indigo-800 font-extrabold font-mono text-sm">₹{selectedItem.marketRateStatistics.selectedRate.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Discarded Evidence - Step 7 explainability: which historical items were
+                                considered but rejected, and why (different product, stale, UOM mismatch,
+                                etc.), from both retrieval-time gates and pre-selection filters. */}
+                            {(() => {
+                              const discarded = [
+                                ...(selectedItem.rejectedHistoricalCandidates || []),
+                                ...(selectedItem.marketRateStatistics?.rejectedEvidence || [])
+                              ];
+                              if (discarded.length === 0) return null;
+                              return (
+                                <div className="space-y-1.5">
+                                  <span className="text-[10px] text-slate-400 font-semibold block uppercase">Discarded Evidence</span>
+                                  <div className="space-y-1 max-h-40 overflow-y-auto">
+                                    {discarded.slice(0, 20).map((r, idx) => (
+                                      <div key={idx} className="p-2 bg-slate-50/60 border border-slate-100 rounded-lg text-[11px] text-slate-600">
+                                        <span className="font-semibold text-slate-700">{r.standardDescription}</span>
+                                        {r.projectName && r.projectName !== "N/A" && <span className="text-slate-400"> ({r.projectName})</span>}
+                                        <p className="text-slate-500">{r.reason}</p>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              );
+                            })()}
+
+                            {selectedItem.recommendationTrace.explanation && (
                               <div className="p-3 bg-amber-50/60 border border-amber-100 rounded-lg text-xs text-amber-900 leading-relaxed space-y-1">
-                                <span className="font-bold block uppercase text-[9px] text-amber-500 tracking-wider">Deactivation Reason:</span>
+                                <span className="font-bold block uppercase text-[9px] text-amber-500 tracking-wider">Pricing Explanation:</span>
                                 <p className="font-medium">{selectedItem.recommendationTrace.explanation}</p>
                               </div>
                             )}

@@ -1,78 +1,86 @@
 import { HistoricalBOQ, LearningEvent, MasterBOQItem, RFQItem } from "./types.js";
-import { RecommendationEngineV2, ReplayRecord } from "./RecommendationEngineV2.js";
+import { ReplayRecord } from "./RecommendationEngineV2.js";
 import { LearningEngine, LearningAnalysis } from "./LearningEngine.js";
 
-// Project Calibration & Validation Layer ("the pricing engine") - runs strictly AFTER item
-// matching, specification matching, UOM logic, historical candidate retrieval
+// Project Calibration Layer ("the pricing engine") - runs strictly AFTER item matching,
+// specification matching, UOM logic, historical candidate retrieval
 // (src/HistoricalRetrievalEngine.ts), and engineering dimension adjustment are all complete.
 // Never re-derives or overwrites those upstream results by itself.
 //
-// For every recommendation this computes a full Historical Market Distribution (min, max,
-// median, weighted median, weighted mean, standard deviation, IQR, reference count) from that
-// item's ranked historical candidates, using each candidate's similarity/match score as its
-// weight - never a simple average. The "most representative market rate" is the WEIGHTED MEDIAN
-// of that distribution rather than a single "best" historical rate or a weighted mean, so a small
-// number of premium/luxury-project rates cannot dominate the recommendation regardless of how
-// heavily they're weighted, and the estimate stabilizes (rather than swings) as more BOQs are
-// added to the database.
+// This engine does NOT average, median, or otherwise statistically blend historical rates -
+// historical BOQs are engineering evidence, not pricing data. For every recommendation it filters
+// the ranked historical candidates (src/HistoricalRetrievalEngine.ts) down to commercially
+// equivalent evidence, then SELECTS the single closest match (highest project x item x
+// specification x confidence score, already computed upstream) and uses that rate directly -
+// unblended. Other equivalent evidence is retained only as corroboration (its COUNT strengthens
+// confidence; its VALUES are never combined with the selected rate) and for explainability -
+// "why this rate, why these historical items, why discarded."
 //
 // The objective is NOT to reproduce historical BOQs - historical replay accuracy is a validation
-// metric, not the goal. The representativeRate above IS the final recommended rate for every item
-// with genuine distributional evidence (>=2 outlier-cleaned references), replacing the raw
-// single-match rate that the upstream matching engine proposed. This is universal, not a narrow
-// correction gated behind project/domain deviation thresholds: an exact historical match is simply
-// the strongest single input into the same distribution, so it naturally dominates the result
-// without ever being blindly copied outright. Only two exceptions exist - an engineering
-// dimensional model (Rule 7) or a human's explicit override - both cases where better evidence
-// than a market average already exists. Project- and domain-level deviation are still computed and
-// reported (Rules 2/3/6/9) purely as validation diagnostics.
-
-const FALLBACK_PROJECT_WEIGHT = 0.35; // similarity weight used for historical rate references whose
-// originating project isn't one of the current Top 5 similar projects - still counted (Rule 6:
-// "consider all relevant projects with similarity-weighted influence"), just discounted.
+// side-effect, not the goal. When a genuine historical-BOQ twin exists, it naturally ranks highest
+// and gets selected on its own merits - never via any code path that detects "is this a replay."
+// The selectedRate above IS the final recommended rate for every item with genuine evidence,
+// replacing the raw baseline the upstream matching engine proposed. Only two exceptions exist - an
+// engineering dimensional model (a genuine size/dimension difference, handled separately by
+// EngineeringAdjustmentEngine) or a human's explicit override - both cases where better evidence
+// than a single historical match already exists. Project- and domain-level deviation are still
+// computed and reported purely as validation diagnostics, never as inputs to pricing.
+// (Interface name `MarketRateStatistics` and field name `representativeRate` are kept for minimal
+// churn across call sites, even though nothing in this file is a statistic any more.)
 
 const TOTAL_COST_DEVIATION_TARGET_PCT = 5; // Rule 10 - target for Total Project Cost Deviation
 const DOMAIN_DEVIATION_TARGET_PP = 8; // Rule 10 - target for Domain Cost Deviation reporting
 
-// --- Part A: Outlier Detection thresholds ---
+// --- Evidence pre-filters (Step 3: filter, never average) ---
 const OLD_PROJECT_YEARS_THRESHOLD = 5; // a historical rate from a project older than this, relative
-// to the current year, is stale market evidence ("Very Old Rates") and excluded before pricing.
-const Z_SCORE_THRESHOLD = 3; // classic 3-sigma rule
-const MODIFIED_Z_SCORE_THRESHOLD = 3.5; // MAD-based modified z-score, the standard Iglewicz &
-// Hoaglin convention - more robust than a plain z-score since it's built on the median/MAD rather
-// than the mean/stdDev, so it isn't itself distorted by the very outliers it's trying to catch.
-const MIN_SAMPLE_FOR_STATISTICAL_TRIM = 4; // below this there isn't enough data to reliably call
-// anything an "outlier" - IQR/Z-score/MAD would just be arbitrarily discarding scarce evidence.
+// to the current year, is stale market evidence ("Very Old Rates") and excluded before selection.
 
-// The Historical Market Distribution for a single recommendation - replaces the old "pick the
-// Best Historical Rate" mental model entirely. Every recommendation with a matched master gets
-// one of these, built from its ranked historical candidates (src/HistoricalRetrievalEngine.ts),
-// using each candidate's similarity/match score as its weight - never a simple average.
+// The Historical Evidence outcome for a single recommendation - replaces the old "statistical
+// distribution" mental model entirely. Built from an item's ranked, commercially-equivalent
+// historical candidates (src/HistoricalRetrievalEngine.ts); selects the single closest match
+// rather than blending multiple rates together.
 export interface MarketRateStatistics {
-  min: number;
-  max: number;
-  median: number;
-  weightedMedian: number;
-  weightedMean: number;
-  standardDeviation: number;
-  q1: number;
-  q3: number;
-  iqr: number;
-  referenceCount: number;
-  representativeRate: number;
-  // Part A: Outlier Detection - how many raw historical references were excluded, and why,
-  // before this distribution was computed. referenceCount above already reflects the cleaned set.
-  outliersRemoved: number;
-  outlierBreakdown: { reason: string; count: number }[];
-  // Similarity-weighted average match score across the surviving candidates (0-100) - one of the
-  // named inputs to Pricing Confidence below.
-  averageSimilarityScore: number;
-  // Learning Layer - a small, bounded nudge (see src/LearningEngine.ts) applied to
-  // representativeRate above when estimators have a consistent, sufficiently-evidenced
-  // correction history for this item/domain. null when no learned bias was available or
-  // applicable - representativeRate is then the untouched statistical market rate.
+  min: number; // lowest rate among surviving evidence (the literal extreme observed, not an average)
+  max: number; // highest rate among surviving evidence
+  referenceCount: number; // how many commercially-equivalent historical observations survived filtering
+  selectedRate: number; // the single closest-matching historical observation's rate, unblended
+  representativeRate: number; // selectedRate with the Learning Layer's bounded nudge applied (see below)
+  // How many OTHER surviving observations corroborate the selection (commercially equivalent,
+  // price-consistent) - a count, not a statistic on the rate values themselves.
+  corroboratingCount: number;
+  // Percent difference between the selected rate and the next-best evidence's rate, if any exists -
+  // a direct two-point comparison (not a distribution-wide computation), used as a confidence
+  // signal: the closer the second-best evidence agrees, the more the pick is corroborated.
+  secondBestRateDeviationPercent: number | null;
+  // The selected evidence's own overallMatchScore (0-100, project x item x specification x
+  // confidence) - how strong is the single best piece of evidence itself.
+  selectedMatchScore: number;
+  // Step 7 (Explainability) - how many raw historical references were excluded before selection,
+  // and why. referenceCount above already reflects the surviving set.
+  rejectedCount: number;
+  rejectedBreakdown: { reason: string; count: number }[];
+  // Learning Layer - a small, bounded nudge (see src/LearningEngine.ts) applied to selectedRate
+  // above when estimators have a consistent, sufficiently-evidenced correction history for this
+  // item/domain. null when no learned bias was available or applicable.
   learningAdjustmentPercent: number | null;
   learningReason: string | null;
+  // Explainability (Step 4/7): one row per historical project that survived filtering - the
+  // `selected` one is the actual source of the recommendation; the rest are shown as corroborating
+  // evidence only, never blended into the rate.
+  historicalEvidence: {
+    projectName: string;
+    projectSimilarity: number; // 0-100, Stage 1 project ranking score
+    itemSimilarity: number;    // 0-100, item-level (semantic+material) match quality
+    specificationSimilarity: number; // 0-100, independent specification match quality
+    historicalRate: number;
+    selected: boolean; // true for the single observation this recommendation was taken from
+    corroborating: boolean; // true for other commercially-equivalent, price-consistent survivors
+    section: string;      // worksheet/BOQ section this observation came from
+    historicalDate: string; // originating project's year, "N/A" if unknown
+  }[];
+  // Step 7 - the historical items considered but discarded, and why (from both
+  // HistoricalRetrievalEngine's gates and this engine's own pre-filters).
+  rejectedEvidence: { standardDescription: string; projectName: string; reason: string }[];
 }
 
 // Confidence Engine redesign - replaces the old single confidenceScore with six explicit,
@@ -117,91 +125,94 @@ export interface CalibrationOutcome {
   validationReport: ProjectValidationReport;
 }
 
-function percentile(sorted: number[], p: number): number {
-  const n = sorted.length;
-  if (n === 1) return sorted[0];
-  const idx = (n - 1) * p;
-  const lo = Math.floor(idx);
-  const hi = Math.ceil(idx);
-  if (lo === hi) return sorted[lo];
-  return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
-}
+// Task 6 (Domain Consistency) - the core Domain enum only has 4 buckets (Civil/Interior/
+// Electrical/Mechanical), which hides quality differences between e.g. HVAC and Plumbing (both
+// "Mechanical") or Furniture and generic Interior fit-out. This is purely a REPORTING label used
+// only in the domain-cost-breakdown diagnostics below - it never touches pricing, outlier
+// detection, getAdjustmentsForDomain, or the Domain enum itself, so recalibration behavior is
+// unaffected. A fresh, minimal keyword list (not a reuse of InstallationRateEngine's own 17-
+// category system, which is scoped to installation-percentage baselines, not domain reporting).
+const SUBDOMAIN_KEYWORDS: { label: string; keywords: string[] }[] = [
+  { label: "Fire Fighting", keywords: ["fire alarm", "fire fighting", "firefighting", "sprinkler", "hydrant", "fire pump", "smoke detector"] },
+  { label: "HVAC", keywords: ["hvac", "ahu", "vrf", "vrv", "chiller", "fcu", "duct", "ducting"] },
+  { label: "Plumbing", keywords: ["plumb", "sanitary", "pipe", "piping", "wash basin", "valve", "phe"] },
+  { label: "Furniture", keywords: ["furniture", "workstation", "veneer", "laminate"] }
+];
 
-// Standard weighted-median algorithm: sort by rate, walk cumulative weight until it crosses half
-// of the total weight. Unlike a weighted MEAN, a handful of heavily-weighted premium/luxury rates
-// can only shift this if they make up more than half the total weight - a small number of
-// outliers, however large in value, cannot drag the result toward them. This is what makes the
-// statistic resistant to premium/luxury domination, and also what keeps it stable as more BOQs
-// are added: each new reference can only nudge the median, never swing it the way it could swing
-// a small-sample mean.
-function weightedMedian(pairs: { r: number; w: number }[]): number {
-  const sorted = [...pairs].sort((a, b) => a.r - b.r);
-  const totalWeight = sorted.reduce((s, p) => s + p.w, 0);
-  if (totalWeight <= 0) {
-    return sorted.length > 0 ? sorted[Math.floor(sorted.length / 2)].r : 0;
+function deriveReportingDomain(domain: string, description: string): string {
+  const text = (description || "").toLowerCase();
+  for (const entry of SUBDOMAIN_KEYWORDS) {
+    if (entry.keywords.some((k) => text.includes(k))) return entry.label;
   }
-  const half = totalWeight / 2;
-  let cumulative = 0;
-  for (let i = 0; i < sorted.length; i++) {
-    cumulative += sorted[i].w;
-    if (cumulative >= half) {
-      if (Math.abs(cumulative - half) < 1e-9 && i + 1 < sorted.length) {
-        return (sorted[i].r + sorted[i + 1].r) / 2;
-      }
-      return sorted[i].r;
-    }
-  }
-  return sorted[sorted.length - 1].r;
+  return domain; // Civil / Interior / Electrical stay as-is; unclassified items keep their base domain label
 }
 
-function weightedStandardDeviation(pairs: { r: number; w: number }[], weightedMean: number): number {
-  const totalWeight = pairs.reduce((s, p) => s + p.w, 0);
-  if (totalWeight <= 0) return 0;
-  const variance = pairs.reduce((s, p) => s + p.w * Math.pow(p.r - weightedMean, 2), 0) / totalWeight;
-  return Math.sqrt(variance);
-}
-
-function deriveGradeForOutlierCheck(projectName: string, projectType: string): "Premium" | "Standard" {
+function deriveGradeForEvidenceCheck(projectName: string, projectType: string): "Premium" | "Standard" {
   // Same simple keyword convention used elsewhere in this codebase (RecommendationEngineV2's own
   // project-grade heuristic, and HistoricalRetrievalEngine's deriveProjectGrade) - kept as an
-  // independent local copy here rather than a cross-file import so Outlier Detection never
+  // independent local copy here rather than a cross-file import so evidence filtering never
   // depends on, or risks disturbing, those other engines.
   const text = `${projectName} ${projectType || ""}`.toLowerCase();
   if (text.includes("grade a") || text.includes("premium") || text.includes("luxury")) return "Premium";
   return "Standard";
 }
 
-interface OutlierCandidate {
+interface EvidenceRecord {
   rate: number;
-  weight: number;
+  weight: number; // overallMatchScore/100 from HistoricalRetrievalEngine - used for RANKING/
+  // SELECTION only, never to weight-average multiple rates together.
   projectName: string;
+  // Item-level match quality (0-100), independent of project similarity - carried through
+  // filtering untouched so the surviving evidence can be grouped per-project for the
+  // historicalEvidence explainability table below. Mirrors HistoricalRetrievalEngine's own
+  // "Item Similarity" factor definition (semantic + material only - specification is now its own
+  // separate factor, not folded in here, so the two numbers shown in Historical Evidence stay
+  // non-redundant).
+  itemSimilarity: number;
+  // Step 4 (Historical Evidence): specification match quality, shown as its own evidence-record
+  // field per the brief, rather than folded into itemSimilarity above.
+  specificationSimilarity: number;
+  // Step 4: which BOQ section/worksheet this observation came from (informational only).
+  section: string;
 }
 
-// Part A: Outlier Detection. Runs BEFORE final pricing (before the Historical Market Distribution
-// is built), removing:
+// Mirrors HistoricalRetrievalEngine's "Item Similarity" factor (semantic*0.625 + material*0.375,
+// the same 5:3 ratio the old additive weights .25/.15 had) - not a new metric, just applied here to
+// build the per-project Historical Evidence rows with the identical definition used for weighting.
+function computeItemSimilarity(scores: { semantic: number; material: number }): number {
+  return Math.round(scores.semantic * 0.625 + scores.material * 0.375);
+}
+
+// Confidence/specification used for the historicalEvidence table when falling back to a matched
+// master's raw historicalRates (no per-candidate score breakdown exists on that path) - matches
+// the existing "matched to a known Master Catalog item" confidence convention used elsewhere in
+// this codebase (RecommendationEngineV2's Basic Rate path uses the same 70 for an analogous "known
+// match, no finer-grained score" situation).
+const FALLBACK_ITEM_SIMILARITY = 70;
+
+// Step 3 (Filter Historical Evidence) - runs BEFORE selection, discarding (never averaging away):
 //  - Incorrect Rates: non-finite / zero / negative values.
-//  - Very Old Rates: from a project more than OLD_PROJECT_YEARS_THRESHOLD years old.
+//  - Very Old Rates: from a project more than OLD_PROJECT_YEARS_THRESHOLD years old (stale
+//    commercial evidence).
 //  - Premium/Luxury Projects: a Grade A/Premium/Luxury reference is excluded ONLY when the
 //    current target project is NOT itself Premium/Luxury - a premium project's own historical
-//    data still legitimately prices against premium references, it's only distorting when it
-//    leaks into a standard-grade estimate.
-//  - Statistical Outliers: via IQR (Tukey fence), Z-score (3-sigma), and Median Absolute Deviation
-//    (modified z-score) - a candidate is removed if ANY of the three methods flags it, but
-//    statistical trimming is skipped entirely below MIN_SAMPLE_FOR_STATISTICAL_TRIM references,
-//    and is never allowed to remove every remaining candidate.
-function detectOutliers(
-  candidates: OutlierCandidate[],
+//    data still legitimately prices against premium references, it's only commercially
+//    inconsistent when it leaks into a standard-grade estimate.
+// No statistical outlier detection here (no IQR/Z-score/MAD) - there is no distribution to detect
+// outliers from once the goal is selecting the single closest match, not blending a set of prices.
+function filterHistoricalEvidence(
+  candidates: EvidenceRecord[],
   currentGrade: string,
   projectByName: Map<string, HistoricalBOQ>,
   currentYear: number
-): { survivors: OutlierCandidate[]; removed: { reason: string; count: number }[] } {
-  const removalCounts = new Map<string, number>();
-  const flag = (reason: string) => removalCounts.set(reason, (removalCounts.get(reason) || 0) + 1);
+): { survivors: EvidenceRecord[]; rejected: { reason: string; count: number }[] } {
+  const rejectionCounts = new Map<string, number>();
+  const flag = (reason: string) => rejectionCounts.set(reason, (rejectionCounts.get(reason) || 0) + 1);
   const isCurrentPremium = currentGrade.toLowerCase().includes("premium") ||
     currentGrade.toLowerCase().includes("luxury") ||
     currentGrade.toLowerCase().includes("grade a");
 
-  const stage1: OutlierCandidate[] = [];
+  const survivors: EvidenceRecord[] = [];
   for (const c of candidates) {
     if (!Number.isFinite(c.rate) || c.rate <= 0) {
       flag("Incorrect Rate");
@@ -215,156 +226,142 @@ function detectOutliers(
       continue;
     }
 
-    const candidateGrade = deriveGradeForOutlierCheck(c.projectName, project?.projectType || "");
+    const candidateGrade = deriveGradeForEvidenceCheck(c.projectName, project?.projectType || "");
     if (candidateGrade === "Premium" && !isCurrentPremium) {
       flag("Premium/Luxury Project");
       continue;
     }
 
-    stage1.push(c);
+    survivors.push(c);
   }
 
-  if (stage1.length < MIN_SAMPLE_FOR_STATISTICAL_TRIM) {
-    return { survivors: stage1, removed: Array.from(removalCounts.entries()).map(([reason, count]) => ({ reason, count })) };
-  }
-
-  const rates = stage1.map((c) => c.rate);
-  const sorted = [...rates].sort((a, b) => a - b);
-  const q1 = percentile(sorted, 0.25);
-  const q3 = percentile(sorted, 0.75);
-  const iqr = q3 - q1;
-  const fenceLow = q1 - 1.5 * iqr;
-  const fenceHigh = q3 + 1.5 * iqr;
-
-  const mean = rates.reduce((a, b) => a + b, 0) / rates.length;
-  const variance = rates.reduce((s, r) => s + Math.pow(r - mean, 2), 0) / rates.length;
-  const stdDev = Math.sqrt(variance);
-
-  const medianRate = percentile(sorted, 0.5);
-  const absDeviations = rates.map((r) => Math.abs(r - medianRate)).sort((a, b) => a - b);
-  const mad = percentile(absDeviations, 0.5);
-
-  const stage2: OutlierCandidate[] = [];
-  for (const c of stage1) {
-    const outsideIqr = iqr > 0 && (c.rate < fenceLow || c.rate > fenceHigh);
-    const zScore = stdDev > 0 ? Math.abs((c.rate - mean) / stdDev) : 0;
-    const outsideZ = zScore > Z_SCORE_THRESHOLD;
-    const modifiedZ = mad > 0 ? Math.abs((0.6745 * (c.rate - medianRate)) / mad) : 0;
-    const outsideMad = modifiedZ > MODIFIED_Z_SCORE_THRESHOLD;
-
-    if (outsideIqr || outsideZ || outsideMad) {
-      const reason = outsideIqr ? "Statistical Outlier (IQR)" : outsideZ ? "Statistical Outlier (Z-score)" : "Statistical Outlier (MAD)";
-      flag(reason);
-      continue;
-    }
-    stage2.push(c);
-  }
-
-  // Never let statistical trimming remove every remaining reference - if it would, keep the
-  // pre-trim set instead of returning an empty distribution.
-  const survivors = stage2.length > 0 ? stage2 : stage1;
-  if (survivors === stage1) {
-    // Undo any Stage 2 removal counts since none were actually applied.
-    removalCounts.delete("Statistical Outlier (IQR)");
-    removalCounts.delete("Statistical Outlier (Z-score)");
-    removalCounts.delete("Statistical Outlier (MAD)");
-  }
-
-  return { survivors, removed: Array.from(removalCounts.entries()).map(([reason, count]) => ({ reason, count })) };
+  return { survivors, rejected: Array.from(rejectionCounts.entries()).map(([reason, count]) => ({ reason, count })) };
 }
 
-function computeMarketRateStatistics(
+function selectHistoricalEvidence(
   matchedMaster: MasterBOQItem | undefined,
   similarityByProjectName: Map<string, number>,
-  historicalCandidates: { rate: number; overallMatchScore: number; projectName: string }[] | undefined,
+  historicalCandidates: {
+    rate: number;
+    overallMatchScore: number;
+    projectName: string;
+    scores?: { semantic: number; specification: number; material: number; dimension: number; engineering: number };
+    section?: string;
+  }[] | undefined,
   currentGrade: string,
   projectByName: Map<string, HistoricalBOQ>,
   currentYear: number,
   domain: string,
   learningAnalysis: LearningAnalysis
 ): MarketRateStatistics | null {
-  // Historical Retrieval redesign: when the new filtered/scored/ranked candidate list is
-  // available (src/HistoricalRetrievalEngine.ts), it is the market-rate evidence used here -
-  // each candidate already passed Domain/Item Family/UOM filtering and carries a proper
-  // multi-factor match score, which is a strictly better weight than the old "similarity of the
-  // originating project only" approach. Falls back to the matched master's raw historicalRates
-  // (the previous behavior) only if retrieval produced nothing, so this never regresses to "no
-  // statistics at all" for an item that still has a matched master.
+  // Historical Retrieval redesign: when the filtered/scored/ranked candidate list is available
+  // (src/HistoricalRetrievalEngine.ts), it is the evidence pool used here - each candidate already
+  // passed Domain/Item Family/UOM/Commercial-Equivalence filtering and carries a proper
+  // multi-factor match score. Falls back to the matched master's raw historicalRates only if
+  // retrieval produced nothing, so this never regresses to "no evidence at all" for an item that
+  // still has a matched master.
   const useCandidates = historicalCandidates && historicalCandidates.length > 0;
 
-  let rawCandidates: OutlierCandidate[];
+  let rawCandidates: EvidenceRecord[];
 
   if (useCandidates) {
     rawCandidates = historicalCandidates!
       .filter((c) => Number.isFinite(c.rate) && c.rate > 0)
-      .map((c) => ({ rate: c.rate, weight: Math.max(0.05, c.overallMatchScore / 100), projectName: c.projectName }));
+      .map((c) => ({
+        rate: c.rate,
+        weight: Math.max(0.05, c.overallMatchScore / 100),
+        projectName: c.projectName,
+        itemSimilarity: c.scores ? computeItemSimilarity(c.scores) : c.overallMatchScore,
+        specificationSimilarity: c.scores ? c.scores.specification : c.overallMatchScore,
+        section: c.section || "N/A"
+      }));
   } else {
     if (!matchedMaster || !matchedMaster.historicalRates || matchedMaster.historicalRates.length === 0) {
       return null;
     }
     const projectsForRates = matchedMaster.projects || [];
+    const worksheetsForRates = matchedMaster.historicalWorksheets || [];
+    // Stage 2 boundary (Problem 2 fix): same as HistoricalRetrievalEngine - only rates from
+    // projects inside the Stage 1 shortlist count as evidence here, never "anyone in the whole
+    // catalog at a discount".
     rawCandidates = matchedMaster.historicalRates
-      .filter((r) => Number.isFinite(r) && r > 0)
-      .map((r, i) => {
-        const pname = projectsForRates[i];
-        return {
-          rate: r,
-          weight: pname && similarityByProjectName.has(pname) ? (similarityByProjectName.get(pname) as number) : FALLBACK_PROJECT_WEIGHT,
-          projectName: pname || "Unknown Project"
-        };
-      });
+      .map((r, i) => ({ rate: r, projectName: projectsForRates[i], section: worksheetsForRates[i] }))
+      .filter((c) => Number.isFinite(c.rate) && c.rate > 0 && c.projectName && similarityByProjectName.has(c.projectName))
+      .map((c) => ({
+        rate: c.rate,
+        weight: similarityByProjectName.get(c.projectName as string) as number,
+        projectName: c.projectName as string,
+        itemSimilarity: FALLBACK_ITEM_SIMILARITY,
+        specificationSimilarity: FALLBACK_ITEM_SIMILARITY,
+        section: c.section || "N/A"
+      }));
   }
 
   if (rawCandidates.length === 0) return null;
 
-  // Part A: Outlier Detection - runs before final pricing, on whichever raw evidence set was
-  // assembled above (ranked candidates when available, the matched master's own historical rates
-  // otherwise).
-  const { survivors, removed } = detectOutliers(rawCandidates, currentGrade, projectByName, currentYear);
+  // Step 3 - filter (never average away) before selection.
+  const { survivors, rejected } = filterHistoricalEvidence(rawCandidates, currentGrade, projectByName, currentYear);
   if (survivors.length === 0) return null;
 
+  // Step 5/6 - SELECT the single closest commercial match; rank by the same overallMatchScore-
+  // derived weight already computed upstream (project x item x specification x confidence) - never
+  // a median/mean/weighted-average of the surviving rates.
+  const ranked = [...survivors].sort((a, b) => b.weight - a.weight);
+  const selected = ranked[0];
+  const selectedRate = selected.rate;
+  const secondBest = ranked.length > 1 ? ranked[1] : null;
+  const secondBestRateDeviationPercent = secondBest && selectedRate > 0
+    ? Math.round((Math.abs(secondBest.rate - selectedRate) / selectedRate) * 1000) / 10
+    : null;
+
   const rates = survivors.map((s) => s.rate);
-  const weights = survivors.map((s) => s.weight);
-  const pairs = rates.map((r, i) => ({ r, w: weights[i] }));
-  const sorted = [...rates].sort((a, b) => a - b);
-  const median = percentile(sorted, 0.5);
-  const q1 = percentile(sorted, 0.25);
-  const q3 = percentile(sorted, 0.75);
-  const iqr = q3 - q1;
+  const min = Math.min(...rates);
+  const max = Math.max(...rates);
 
-  const totalWeight = weights.reduce((s, w) => s + w, 0) || rates.length;
-  const weightedMean = rates.reduce((s, r, i) => s + r * weights[i], 0) / totalWeight;
-  const weightedMedianRate = weightedMedian(pairs);
-  const standardDeviation = weightedStandardDeviation(pairs, weightedMean);
-
-  // "Recommend the statistically most representative market rate" - the weighted median, not the
-  // weighted mean, is used as the representative rate precisely so premium/luxury outliers (which
-  // pull a mean upward regardless of how few of them there are) cannot dominate the recommendation.
-  //
-  // Learning Layer: on top of that statistical rate, gradually incorporate any consistent,
-  // sufficiently-evidenced estimator correction history for this exact item or its domain - a
-  // small, bounded nudge (+-10% max, scaled down further when evidence is thin), never a
-  // replacement for the market-rate statistic itself.
+  // Learning Layer: on top of the selected historical observation, gradually incorporate any
+  // consistent, sufficiently-evidenced estimator correction history for this exact item or its
+  // domain - a small, bounded nudge (+-10% max, scaled down further when evidence is thin), never
+  // a replacement for the selected rate itself.
   const learnedBias = LearningEngine.getLearnedBiasAdjustment(domain, matchedMaster?.id, learningAnalysis);
-  const representativeRate = weightedMedianRate * (1 + learnedBias.adjustmentFactor);
+  const representativeRate = selectedRate * (1 + learnedBias.adjustmentFactor);
+
+  // Explainability (Step 4/7): one row per historical project that survived filtering - never
+  // blended. When a project has multiple surviving occurrences, its highest-ranked one represents
+  // it (still no averaging within a project either).
+  const bestPerProject = new Map<string, EvidenceRecord>();
+  for (const s of survivors) {
+    const existing = bestPerProject.get(s.projectName);
+    if (!existing || s.weight > existing.weight) bestPerProject.set(s.projectName, s);
+  }
+  const historicalEvidence = Array.from(bestPerProject.entries())
+    .map(([projectName, e]) => ({
+      projectName,
+      projectSimilarity: Math.round((similarityByProjectName.get(projectName) || 0) * 100),
+      itemSimilarity: e.itemSimilarity,
+      specificationSimilarity: e.specificationSimilarity,
+      historicalRate: Math.round(e.rate * 100) / 100,
+      selected: projectName === selected.projectName,
+      corroborating: projectName !== selected.projectName,
+      section: e.section,
+      historicalDate: projectByName.get(projectName)?.projectYear || "N/A"
+    }))
+    .sort((a, b) => (b.selected ? 1 : 0) - (a.selected ? 1 : 0));
 
   return {
-    min: sorted[0],
-    max: sorted[sorted.length - 1],
-    median,
-    weightedMedian: Math.round(weightedMedianRate * 100) / 100,
-    weightedMean: Math.round(weightedMean * 100) / 100,
-    standardDeviation: Math.round(standardDeviation * 100) / 100,
-    q1,
-    q3,
-    iqr,
+    min: Math.round(min * 100) / 100,
+    max: Math.round(max * 100) / 100,
     referenceCount: rates.length,
+    selectedRate: Math.round(selectedRate * 100) / 100,
     representativeRate: Math.round(representativeRate * 100) / 100,
-    outliersRemoved: removed.reduce((s, r) => s + r.count, 0),
-    outlierBreakdown: removed,
-    averageSimilarityScore: Math.round(weights.reduce((s, w) => s + w, 0) / weights.length * 100),
+    corroboratingCount: historicalEvidence.filter((e) => e.corroborating).length,
+    secondBestRateDeviationPercent,
+    selectedMatchScore: Math.round(selected.weight * 100),
+    rejectedCount: rejected.reduce((s, r) => s + r.count, 0),
+    rejectedBreakdown: rejected,
     learningAdjustmentPercent: learnedBias.reason ? Math.round(learnedBias.adjustmentFactor * 1000) / 10 : null,
-    learningReason: learnedBias.reason
+    learningReason: learnedBias.reason,
+    historicalEvidence,
+    rejectedEvidence: [] // merged in with HistoricalRetrievalEngine's own rejections by server.ts
   };
 }
 
@@ -372,26 +369,28 @@ function clampConfidence(value: number): number {
   return Math.max(0, Math.min(100, Math.round(value)));
 }
 
-// Confidence Engine redesign. Six independent dimensions, each answering a different question:
+// Confidence Engine. Six independent dimensions, each answering a different question - none of
+// them a statistic over multiple historical rates (no variance, no IQR, no coefficient of
+// variation - those concepts don't exist in this engine any more):
 //   Semantic       - does the historical item's DESCRIPTION genuinely match this RFQ item?
 //   Specification  - does its SPECIFICATION/MATERIAL genuinely match (from the ranked
 //                    candidates' own per-candidate specification/material similarity scores)?
 //   Engineering    - if a dimensional model was used to adjust for a different size, how much
 //                    trust does that specific mathematical adjustment deserve?
 //   Historical     - how much evidence backs this recommendation, and how clean is it (reference
-//                    count, how much outlier removal was needed, how similar the source projects
-//                    were)?
-//   Pricing        - given ALL of that evidence, how confident are we in the recommended rate
-//                    itself - explicitly a function of reference count, historical variance,
-//                    distribution stability, similarity scores, and engineering adjustment
-//                    magnitude, per the redesign spec.
+//                    count, how much evidence had to be rejected as commercially non-equivalent
+//                    or stale)?
+//   Pricing        - given the SELECTED evidence, how confident are we in the recommended rate -
+//                    a function of reference count, the selected match's own quality, how many
+//                    other observations corroborate it, how closely the second-best evidence
+//                    agrees, and engineering adjustment magnitude.
 //   Overall        - a single weighted roll-up of the five, for at-a-glance triage.
 function computeItemConfidenceProfile(
   item: RFQItem,
   marketStats: MarketRateStatistics | null,
   rateSource: string | undefined
 ): ItemConfidenceProfile {
-  const semanticConfidence = rateSource === "Historical Rate" ? 99 : item.matchedMasterId ? 75 : 45;
+  const semanticConfidence = item.matchedMasterId ? 75 : 45;
 
   const specificationCandidateScores = (item.historicalCandidates || []).map((c) => c.scores.specification);
   let specificationConfidence: number;
@@ -414,40 +413,43 @@ function computeItemConfidenceProfile(
     ? clampConfidence(item.engineeringAdjustment.confidence)
     : 100;
 
-  // Historical Confidence: trust in the EVIDENCE BASE itself - more references and higher source
-  // similarity raise it; needing to strip out a lot of outliers lowers it. A Learning Layer
-  // adjustment having been necessary at all is itself a signal that the raw historical rate
-  // wasn't fully trustworthy on its own, so it costs a small additional penalty here.
+  // Historical Confidence: trust in the EVIDENCE BASE itself - more surviving references and a
+  // stronger selected match raise it; needing to reject a lot of evidence as commercially non-
+  // equivalent or stale lowers it. A Learning Layer adjustment having been necessary at all is
+  // itself a signal the raw selected rate wasn't fully trustworthy on its own, so it costs a small
+  // additional penalty here.
   let historicalConfidence: number;
   if (!marketStats || marketStats.referenceCount === 0) {
     historicalConfidence = 20;
   } else {
     const referenceCoverage = clampConfidence(30 + marketStats.referenceCount * 10);
-    const outlierPenalty = Math.min(20, marketStats.outliersRemoved * 5);
+    const rejectionPenalty = Math.min(20, marketStats.rejectedCount * 5);
     const learningPenalty = marketStats.learningAdjustmentPercent !== null ? Math.min(10, Math.abs(marketStats.learningAdjustmentPercent) * 1.5) : 0;
-    historicalConfidence = clampConfidence(referenceCoverage * 0.7 + marketStats.averageSimilarityScore * 0.3 - outlierPenalty - learningPenalty);
+    historicalConfidence = clampConfidence(referenceCoverage * 0.7 + marketStats.selectedMatchScore * 0.3 - rejectionPenalty - learningPenalty);
   }
 
-  // Pricing Confidence - explicitly the five named inputs from the redesign spec, never a simple
-  // "does the current rate sit near the median" check.
+  // Pricing Confidence - a function of the SELECTED evidence's quality and how well it's
+  // corroborated, never a "how tight is the spread of all historical rates" statistic.
   let pricingConfidence: number;
   if (!marketStats || marketStats.referenceCount === 0) {
     pricingConfidence = 30;
   } else {
-    // 1. Number of Historical References - saturating, more references raise confidence.
+    // 1. Number of Historical References - saturating, more surviving evidence raises confidence.
     const referenceScore = clampConfidence(20 + marketStats.referenceCount * 13);
 
-    // 2. Historical Variance - coefficient of variation (stdDev / mean); tighter spread = higher.
-    const coefficientOfVariation = marketStats.weightedMean > 0 ? marketStats.standardDeviation / marketStats.weightedMean : 0;
-    const varianceScore = clampConfidence(100 - coefficientOfVariation * 150);
+    // 2. Corroboration Strength - how many OTHER commercially-equivalent observations agree with
+    //    the selection (a count, not a statistic on the rate values themselves).
+    const corroborationScore = clampConfidence(50 + marketStats.corroboratingCount * 15);
 
-    // 3. Distribution Stability - IQR relative to the median; a robust, outlier-resistant spread
-    //    measure distinct from variance above.
-    const relativeIqr = marketStats.median > 0 ? marketStats.iqr / marketStats.median : 0;
-    const stabilityScore = clampConfidence(100 - relativeIqr * 100);
+    // 3. Rate Consistency - how closely the second-best evidence's rate agrees with the selected
+    //    one (a direct two-point comparison, not a distribution-wide spread measure). Neutral when
+    //    there's no second observation to compare against.
+    const consistencyScore = marketStats.secondBestRateDeviationPercent === null
+      ? 70
+      : clampConfidence(100 - marketStats.secondBestRateDeviationPercent * 2);
 
-    // 4. Similarity Scores - the surviving candidates' own similarity-weighted match quality.
-    const similarityScore = clampConfidence(marketStats.averageSimilarityScore);
+    // 4. Match Score - the selected evidence's own project x item x specification x confidence score.
+    const matchScore = clampConfidence(marketStats.selectedMatchScore);
 
     // 5. Engineering Adjustment Magnitude - larger dimensional adjustments (and extrapolation
     //    beyond the known reference range) introduce additional pricing uncertainty.
@@ -458,9 +460,9 @@ function computeItemConfidenceProfile(
 
     pricingConfidence = clampConfidence(
       referenceScore * 0.25 +
-      varianceScore * 0.2 +
-      stabilityScore * 0.2 +
-      similarityScore * 0.2 +
+      corroborationScore * 0.2 +
+      consistencyScore * 0.2 +
+      matchScore * 0.2 +
       engineeringMagnitudeScore * 0.15
     );
   }
@@ -508,7 +510,8 @@ function computeProjectDomainCosts(
     const amount = r.amount || r.unitRate * r.quantity || 0;
     if (amount <= 0) continue;
     total += amount;
-    const domain = (r.masterItemId && masterItemIdIndex[r.masterItemId]?.domain) || "Uncategorized";
+    const baseDomain = (r.masterItemId && masterItemIdIndex[r.masterItemId]?.domain) || "Uncategorized";
+    const domain = deriveReportingDomain(baseDomain, r.originalDescription);
     byDomain[domain] = (byDomain[domain] || 0) + amount;
   }
   return { total, byDomain };
@@ -565,6 +568,17 @@ function computeExpectedProjectProfile(
 }
 
 export const ProjectCalibrationEngine = {
+  // Exposed for src/ProgressiveMatchingEngine.ts, which reuses this exact filter-then-select
+  // evidence logic to price relaxed-tier candidate pools (Specification/Material/Functional match)
+  // rather than re-implementing the same reasoning a third time.
+  selectHistoricalEvidence,
+
+  // Exposed for server.ts's Task 8 Self-Validation second pass, which needs to recompute an
+  // item's confidence profile after adopting a better-evidenced re-evaluated rate (never touches
+  // business/pricing logic itself - purely re-derives the same confidence report this engine
+  // already computes for every item on the first pass).
+  computeItemConfidenceProfile,
+
   runProjectCalibration(params: {
     items: RFQItem[];
     similarProjects: { project: HistoricalBOQ; similarity: number }[];
@@ -574,19 +588,8 @@ export const ProjectCalibrationEngine = {
     historicalBOQs: HistoricalBOQ[];
     buildingGrade: string;
     learningEvents: LearningEvent[];
-    city: string;
   }): CalibrationOutcome {
-    const { items, similarProjects, masterItemIdIndex, replayDatabase, shouldSkipSheet, historicalBOQs, buildingGrade, learningEvents, city } = params;
-
-    // Historical candidate rates (src/HistoricalRetrievalEngine.ts / MasterBOQItem.historicalRates)
-    // are RAW, un-adjusted rates - the frozen upstream matching engine (RecommendationEngineV2)
-    // applies this same location factor on top of the raw rate before ever setting
-    // item.recommendedRate. Reusing it here (never modifying that engine) keeps the market-rate
-    // distribution on the same footing as the rate it's replacing - otherwise a correct regional
-    // uplift (e.g. Pune/Mumbai +12%) would be silently discarded every time this layer applies,
-    // which is exactly what caused an observed regression (project cost deviation got WORSE, not
-    // better, after broadening calibration) until this was caught and fixed.
-    const locationFactor = RecommendationEngineV2.getLocationFactorForCity(city);
+    const { items, similarProjects, masterItemIdIndex, replayDatabase, shouldSkipSheet, historicalBOQs, buildingGrade, learningEvents } = params;
 
     const similarityByProjectName = new Map<string, number>();
     similarProjects.forEach((sp) => similarityByProjectName.set(sp.project.projectName, sp.similarity));
@@ -606,7 +609,7 @@ export const ProjectCalibrationEngine = {
 
     for (const item of items) {
       const matchedMaster = item.matchedMasterId ? masterItemIdIndex[item.matchedMasterId] : undefined;
-      const stats = computeMarketRateStatistics(matchedMaster, similarityByProjectName, item.historicalCandidates, buildingGrade, projectByName, currentYear, item.domain, learningAnalysis);
+      const stats = selectHistoricalEvidence(matchedMaster, similarityByProjectName, item.historicalCandidates, buildingGrade, projectByName, currentYear, item.domain, learningAnalysis);
       if (stats) itemMarketStats.set(item.id, stats);
       itemConfidences.set(item.id, computeItemConfidenceProfile(item, stats, item.recommendationTrace?.rateSource));
     }
@@ -621,31 +624,33 @@ export const ProjectCalibrationEngine = {
 
     const expectedProfile = computeExpectedProjectProfile(similarProjects, replayDatabase, masterItemIdIndex, shouldSkipSheet);
 
-    // Core philosophy: this engine answers "what is the statistically most probable market rate
-    // for this item?", not "what historical rate should I copy?". So the Historical Market
-    // Distribution's representativeRate (similarity-weighted, outlier-cleaned, learning-adjusted -
-    // see computeMarketRateStatistics above) is now the PRIMARY final rate for every item that has
-    // genuine distributional evidence, not a rare correction applied only to a narrow,
-    // domain-flagged subset. An exact historical match is not exempted from this - it simply
-    // becomes the strongest single input into the same distribution (almost always the
-    // highest-similarity-weighted point), so it naturally dominates the resulting estimate without
-    // ever being blindly copied outright. This is exactly why replay accuracy on historical BOQs
-    // should emerge as a validation side-effect of good estimation, rather than existing as a
-    // designed-in special case - the two remaining exclusions below are the only real exceptions,
-    // both protecting evidence that is already better than a market average: an engineering
-    // dimensional model (Rule 7), or a human's explicit override.
+    // Core philosophy: this engine answers "what is the closest, commercially-equivalent
+    // historical evidence for this item?", never "what's the average/median historical rate?".
+    // The selected evidence's representativeRate (the single closest match, with the Learning
+    // Layer's bounded nudge applied - see selectHistoricalEvidence above) is now the PRIMARY final
+    // rate for every item that has ANY surviving commercially-equivalent evidence - even just one
+    // observation is legitimate evidence to select from ("no requirement to use all historical
+    // observations"), not a rare correction applied only to a narrow, domain-flagged subset. An
+    // exact historical match is not exempted from this - it simply IS the selected evidence
+    // (almost always the highest-ranked one), so it naturally dominates the resulting estimate
+    // without ever being blended with anything else. This is exactly why replay accuracy on
+    // historical BOQs should emerge as a validation side-effect of good reasoning, rather than
+    // existing as a designed-in special case - the two remaining exclusions below are the only
+    // real exceptions, both protecting evidence that is already better than a single historical
+    // match: an engineering dimensional model (a genuine size/dimension difference), or a human's
+    // explicit override.
     let itemsRecalibrated = 0;
     for (const item of items) {
       if (item.engineeringAdjustment?.applied) continue;
       if (item.isOverridden) continue;
 
       const stats = itemMarketStats.get(item.id);
-      if (!stats || stats.referenceCount < 2) continue; // no real distribution to draw from yet -
-      // keep whatever the upstream matching/basic-rate engine already computed.
+      if (!stats) continue; // no commercially-equivalent evidence survived filtering - keep
+      // whatever the upstream matching/basic-rate engine already computed.
 
-      // Raw distribution rate, brought onto the same footing as the rate it may replace by
-      // applying the same location factor the frozen upstream engine itself would apply.
-      const marketRate = stats.representativeRate * locationFactor;
+      // Historical rates are already real market rates - never city re-based (Problem 1), so the
+      // selected evidence's representativeRate is used directly, with no location multiplier.
+      const marketRate = stats.representativeRate;
       if (!Number.isFinite(marketRate) || marketRate <= 0) continue;
 
       const currentRate = item.recommendedRate;
@@ -655,10 +660,11 @@ export const ProjectCalibrationEngine = {
       item.recommendedRate = Math.round(marketRate * 100) / 100;
       item.calibrationApplied = true;
       item.calibrationReason =
-        `Final rate is the statistically most probable market rate - a similarity-weighted, ` +
-        `outlier-cleaned distribution of ${stats.referenceCount} historical reference(s) ` +
-        `(median ₹${stats.median.toFixed(2)}, weighted median ₹${stats.weightedMedian.toFixed(2)}), ` +
-        `not a single copied historical rate. Adjusted from ₹${currentRate.toFixed(2)} to ₹${item.recommendedRate.toFixed(2)}.`;
+        `Final rate selected from the closest commercially-equivalent historical evidence ` +
+        `(₹${stats.selectedRate.toFixed(2)}, match score ${stats.selectedMatchScore}%)` +
+        `${stats.corroboratingCount > 0 ? `, corroborated by ${stats.corroboratingCount} other equivalent observation(s)` : ""} ` +
+        `out of ${stats.referenceCount} historical reference(s) considered - never an average or blend. ` +
+        `Adjusted from ₹${currentRate.toFixed(2)} to ₹${item.recommendedRate.toFixed(2)}.`;
       itemsRecalibrated++;
     }
 
@@ -670,7 +676,8 @@ export const ProjectCalibrationEngine = {
     for (const item of items) {
       const cost = (item.overriddenRate ?? item.recommendedRate ?? 0) * (item.quantity || 0);
       estimatedCostAfter += cost;
-      domainCostAfter[item.domain] = (domainCostAfter[item.domain] || 0) + cost;
+      const reportingDomain = deriveReportingDomain(item.domain, item.originalDescription);
+      domainCostAfter[reportingDomain] = (domainCostAfter[reportingDomain] || 0) + cost;
     }
 
     const allDomainKeysAfter = new Set([...Object.keys(domainCostAfter), ...(expectedProfile ? Object.keys(expectedProfile.domainWeightedPercent) : [])]);

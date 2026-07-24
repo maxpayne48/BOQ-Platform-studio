@@ -8,7 +8,7 @@ import { MasterBOQItem } from "./types.js";
 // master items in the same item "family" (same description with a different size/parameter).
 
 export interface EngineeringParameter {
-  name: "Width" | "Height" | "Diameter" | "Thickness" | "Dimension";
+  name: "Width" | "Height" | "Depth" | "Diameter" | "Thickness" | "Dimension";
   value: number;
   unit: string;
 }
@@ -17,6 +17,7 @@ export interface FamilyReferencePoint {
   description: string;
   dimensionValue: number;
   secondaryValue?: number;
+  tertiaryValue?: number;
   rate: number;
   masterId: string;
 }
@@ -24,7 +25,7 @@ export interface FamilyReferencePoint {
 export interface EngineeringAdjustmentResult {
   applied: boolean;
   finalRate: number;
-  mathematicalModel: "Linear Interpolation" | "Linear Extrapolation" | "Area Scaling" | "Historical Regression" | "None";
+  mathematicalModel: "Linear Interpolation" | "Linear Extrapolation" | "Area Scaling" | "Volume Scaling" | "Historical Regression" | "None";
   engineeringParameters: EngineeringParameter[];
   familyKey: string;
   historicalReferencesUsed: FamilyReferencePoint[];
@@ -40,7 +41,8 @@ interface ExtractedDescriptor {
   familyKey: string;
   primaryDimension: number | null;
   secondaryDimension: number | null;
-  kind: "2D" | "1D" | "none";
+  tertiaryDimension: number | null;
+  kind: "3D" | "2D" | "1D" | "none";
 }
 
 const UNIT_STRIP_REGEX = /\d+(?:\.\d+)?\s*(mm|cm|m|inch|in|kw|ton|tr|cfm|sqft|sqm|nos|no\.?)\b/gi;
@@ -51,8 +53,28 @@ function extractDescriptor(description: string): ExtractedDescriptor {
   const parameters: EngineeringParameter[] = [];
   let primaryDimension: number | null = null;
   let secondaryDimension: number | null = null;
+  let tertiaryDimension: number | null = null;
   let kind: ExtractedDescriptor["kind"] = "none";
 
+  // Tier 0: three-axis furniture/joinery callouts - e.g. "800mm H X 750mm D X 3110mm L",
+  // "2500mm L X 900mm W X 1000mm H". Each number may carry a single axis-letter (H/W/D/L/T)
+  // between the unit and the "x" separator, which the plain W x H regex below can't cross - so
+  // without this tier, items differing only in their third dimension (e.g. two credenzas of the
+  // same height/depth but different length) were falling through to Tier 4 and being extracted as
+  // an identical single "800mm" dimension, making genuinely different-sized items indistinguishable.
+  const dim3DRegex = /(\d+(?:\.\d+)?)\s*(mm|cm|m|inch|in)?\s*[HWDLT]?\s*[x×]\s*(\d+(?:\.\d+)?)\s*(mm|cm|m|inch|in)?\s*[HWDLT]?\s*[x×]\s*(\d+(?:\.\d+)?)\s*(mm|cm|m|inch|in)?\s*[HWDLT]?\b/i;
+  const dim3DMatch = text.match(dim3DRegex);
+  if (dim3DMatch) {
+    primaryDimension = parseFloat(dim3DMatch[1]);
+    secondaryDimension = parseFloat(dim3DMatch[3]);
+    tertiaryDimension = parseFloat(dim3DMatch[5]);
+    const unit = dim3DMatch[2] || dim3DMatch[4] || dim3DMatch[6] || "mm";
+    parameters.push({ name: "Width", value: primaryDimension, unit });
+    parameters.push({ name: "Depth", value: secondaryDimension, unit });
+    parameters.push({ name: "Height", value: tertiaryDimension, unit });
+    kind = "3D";
+    strippedText = strippedText.replace(dim3DMatch[0], " ");
+  } else {
   // Tier 1: Width x Height (2D) - e.g. "1000x2100", "1000mm x 2100mm"
   const dim2DRegex = /(\d+(?:\.\d+)?)\s*(mm|cm|m)?\s*[x×]\s*(\d+(?:\.\d+)?)\s*(mm|cm|m)?/i;
   const dim2DMatch = text.match(dim2DRegex);
@@ -98,6 +120,7 @@ function extractDescriptor(description: string): ExtractedDescriptor {
       }
     }
   }
+  }
 
   const familyKey = strippedText
     .toLowerCase()
@@ -106,7 +129,7 @@ function extractDescriptor(description: string): ExtractedDescriptor {
     .replace(/\s+/g, " ")
     .trim();
 
-  return { parameters, familyKey, primaryDimension, secondaryDimension, kind };
+  return { parameters, familyKey, primaryDimension, secondaryDimension, tertiaryDimension, kind };
 }
 
 function wordOverlap(a: string, b: string): number {
@@ -121,6 +144,41 @@ function wordOverlap(a: string, b: string): number {
 }
 
 const FAMILY_OVERLAP_THRESHOLD = 0.6;
+
+// Commercial Equivalence Gate: text-similarity scoring (wordOverlap above, or
+// HistoricalRetrievalEngine's own wordOverlapScore) cannot tell "12mm Toughened Glass" from
+// "12mm Fire Rated Glass" apart - both share most of their words and score a high overlap, but
+// they are different, non-interchangeable commercial products. This is a curated, deliberately
+// generic (not per-work-category) list of "distinguishing qualifier" terms that materially change
+// a product regardless of domain - if one description carries a qualifier the other doesn't, the
+// pair is commercially non-equivalent, full stop, no matter how similar the rest of the text is.
+// Best-effort and generalizable, not a claim of a complete product ontology - extend the list if a
+// new recurring mismatch class is found, rather than adding per-item-category special cases.
+const DISTINGUISHING_QUALIFIERS: string[] = [
+  "fire rated", "fire-rated", "fire retardant", "fire resistant",
+  "acoustic rated", "acoustic",
+  "waterproof", "weatherproof", "weather proof",
+  "toughened", "tempered", "heat strengthened", "laminated",
+  "insulated", "double glazed", "low-e", "low e",
+  "anti-bacterial", "antibacterial",
+  "galvanized", "galvanised", "stainless", "powder coated", "anodized", "anodised",
+  "blast resistant", "bullet resistant", "ballistic",
+  "termite proof", "termite-proof",
+  "food grade", "marine grade"
+];
+
+export function isCommerciallyEquivalent(descA: string, descB: string): { equivalent: boolean; reason?: string } {
+  const a = (descA || "").toLowerCase();
+  const b = (descB || "").toLowerCase();
+  for (const qualifier of DISTINGUISHING_QUALIFIERS) {
+    const inA = a.includes(qualifier);
+    const inB = b.includes(qualifier);
+    if (inA !== inB) {
+      return { equivalent: false, reason: `Commercially non-equivalent: "${qualifier}" present in only one description` };
+    }
+  }
+  return { equivalent: true };
+}
 
 function noAdjustment(fallbackRate: number, target: ExtractedDescriptor): EngineeringAdjustmentResult {
   return {
@@ -142,6 +200,11 @@ export const EngineeringAdjustmentEngine = {
   // Exposed for the Dashboard's "Limited Historical References" / debug needs without recomputing.
   extractDescriptor,
 
+  // Exposed for src/HistoricalRetrievalEngine.ts's Commercial Equivalence filtering gate - the same
+  // qualifier-symmetry check used internally below (family-reference filtering) is reused there so
+  // both engines agree on what counts as "the same product."
+  isCommerciallyEquivalent,
+
   computeEngineeringAdjustment(
     itemDescription: string,
     fallbackRate: number,
@@ -158,6 +221,11 @@ export const EngineeringAdjustmentEngine = {
       const cand = extractDescriptor(m.standardDescription);
       if (cand.primaryDimension === null || !cand.familyKey || cand.kind !== target.kind) continue;
       if (wordOverlap(target.familyKey, cand.familyKey) < FAMILY_OVERLAP_THRESHOLD) continue;
+      // Commercial Equivalence Gate: family-key word overlap alone can't tell "toughened" from
+      // "fire rated" glass apart (both strip to a similar family key) - never build an
+      // interpolation/extrapolation model across genuinely different products just because their
+      // non-dimensional wording happens to overlap enough.
+      if (!isCommerciallyEquivalent(itemDescription, m.standardDescription).equivalent) continue;
       const rate = m.averageRate || m.medianRate || m.latestRate || 0;
       if (rate <= 0) continue;
 
@@ -167,6 +235,7 @@ export const EngineeringAdjustmentEngine = {
           description: m.standardDescription,
           dimensionValue: cand.primaryDimension,
           secondaryValue: cand.secondaryDimension ?? undefined,
+          tertiaryValue: cand.tertiaryDimension ?? undefined,
           rate,
           masterId: m.id
         });
@@ -186,7 +255,22 @@ export const EngineeringAdjustmentEngine = {
     let calculatedRate: number;
     let model: EngineeringAdjustmentResult["mathematicalModel"];
 
-    if (target.kind === "2D") {
+    if (target.kind === "3D") {
+      const targetVolume = primaryDimension * (target.secondaryDimension || primaryDimension) * (target.tertiaryDimension || primaryDimension);
+      let nearest = references[0];
+      let nearestDiff = Infinity;
+      for (const r of references) {
+        const rVolume = r.dimensionValue * (r.secondaryValue || r.dimensionValue) * (r.tertiaryValue || r.dimensionValue);
+        const diff = Math.abs(rVolume - targetVolume);
+        if (diff < nearestDiff) {
+          nearestDiff = diff;
+          nearest = r;
+        }
+      }
+      const nearestVolume = nearest.dimensionValue * (nearest.secondaryValue || nearest.dimensionValue) * (nearest.tertiaryValue || nearest.dimensionValue);
+      calculatedRate = nearestVolume > 0 ? nearest.rate * (targetVolume / nearestVolume) : nearest.rate;
+      model = "Volume Scaling";
+    } else if (target.kind === "2D") {
       const targetArea = primaryDimension * (target.secondaryDimension || primaryDimension);
       let nearest = references[0];
       let nearestDiff = Infinity;
@@ -257,7 +341,7 @@ export const EngineeringAdjustmentEngine = {
     const rateVariationPercent = meanRate > 0 ? Math.round((stdDev / meanRate) * 1000) / 10 : null;
 
     const refSummary = references
-      .map((r) => `${r.dimensionValue}${target.kind === "2D" ? "" : target.parameters[0]?.unit || "mm"}=₹${r.rate.toFixed(2)}`)
+      .map((r) => `${r.dimensionValue}${target.kind === "2D" || target.kind === "3D" ? "" : target.parameters[0]?.unit || "mm"}=₹${r.rate.toFixed(2)}`)
       .join(", ");
 
     const explanation =

@@ -448,25 +448,6 @@ export default function UploadRFQTab({ onNavigateToRecommendations, loadTrigger,
                     File: <span className="font-semibold">{draft.fileName}</span>
                   </p>
 
-                  {draft.replayDetected && (
-                    <div className="p-3 bg-purple-50 text-purple-950 rounded-lg border border-purple-150 space-y-1.5">
-                      <div className="text-[9px] font-bold uppercase tracking-wider text-purple-700 flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse"></span>
-                        Historical Replay Detected
-                      </div>
-                      <p className="text-[10px] text-purple-900 leading-relaxed">
-                        Identical structure matched with: <span className="font-bold">{draft.matchedProjectName}</span>
-                      </p>
-                      <div className="flex gap-3 text-[9px] text-purple-700 font-mono font-bold pt-1 border-t border-purple-100">
-                        <span>Workbook Match: {draft.workbookMatchPercent}%</span>
-                        <span>Sheet Match: {draft.worksheetMatchPercent}%</span>
-                      </div>
-                      <p className="text-[9px] text-purple-500 italic leading-snug">
-                        AI model calls bypassed. Rates will be deterministic-replayed with 100% fidelity.
-                      </p>
-                    </div>
-                  )}
-
                   <div className="flex flex-wrap gap-1">
                     {draft.domains.map((dom: string) => (
                       <span key={dom} className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-100 text-slate-500 border border-slate-200">

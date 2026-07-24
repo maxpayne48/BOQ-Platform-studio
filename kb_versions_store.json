@@ -1,5 +1,117 @@
 [
   {
+    "version": "v1.0.67",
+    "timestamp": "2026-07-22 19:24:41 UTC",
+    "changeDescription": "Ingested historical BOQ file \"Priced_Nuvama I Hyd I C & I & Long Lead  MEP Tender BOQ I 06.08.25 (5).xlsx\" for project \"Priced Nuvama I Hyd I C & I & Long Lead  MEP Tender BOQ I 06\" containing 375 items.",
+    "historicalProjectsUsed": 6,
+    "masterItemsCount": 1805,
+    "historicalRatesCount": 2643
+  },
+  {
+    "version": "v1.0.66",
+    "timestamp": "2026-07-22 19:24:40 UTC",
+    "changeDescription": "Ingested historical BOQ file \"Priced_COWRKS, CHENNAI_Overall Price_BOQ_CW_MILLENIA 4A 2F.xlsx\" for project \"Priced COWRKS, CHENNAI Overall Price BOQ CW MILLENIA 4A 2F\" containing 452 items.",
+    "historicalProjectsUsed": 5,
+    "masterItemsCount": 1522,
+    "historicalRatesCount": 2268
+  },
+  {
+    "version": "v1.0.65",
+    "timestamp": "2026-07-22 19:24:38 UTC",
+    "changeDescription": "Ingested historical BOQ file \"KOHLER_PUNE_FS_16TH JUNE.xlsx\" for project \"KOHLER PUNE FS 16TH JUNE\" containing 533 items.",
+    "historicalProjectsUsed": 4,
+    "masterItemsCount": 1230,
+    "historicalRatesCount": 1816
+  },
+  {
+    "version": "v1.0.64",
+    "timestamp": "2026-07-22 19:24:37 UTC",
+    "changeDescription": "Ingested historical BOQ file \"Keppel Final BOQ - 30 Dec 2025_8.75Cr.xlsx\" for project \"Keppel Final BOQ   30 Dec 2025 8\" containing 473 items.",
+    "historicalProjectsUsed": 3,
+    "masterItemsCount": 1080,
+    "historicalRatesCount": 1283
+  },
+  {
+    "version": "v1.0.63",
+    "timestamp": "2026-07-22 19:24:36 UTC",
+    "changeDescription": "Ingested historical BOQ file \"FS Submission_FINAL_SKF_Phoenix_22.05.2026_R4.xlsx\" for project \"FS Submission FINAL SKF Phoenix 22\" containing 711 items.",
+    "historicalProjectsUsed": 2,
+    "masterItemsCount": 698,
+    "historicalRatesCount": 810
+  },
+  {
+    "version": "v1.0.62",
+    "timestamp": "2026-07-22 19:24:36 UTC",
+    "changeDescription": "Ingested historical BOQ file \"DHL Chennai Estimated BOQ 31 March 2026_R0.xlsx\" for project \"DHL Chennai Estimated BOQ 31 March 2026 R0\" containing 99 items.",
+    "historicalProjectsUsed": 1,
+    "masterItemsCount": 87,
+    "historicalRatesCount": 99
+  },
+  {
+    "version": "v1.0.61",
+    "timestamp": "2026-07-22 19:24:35 UTC",
+    "changeDescription": "Cleared all historical BOQ files and database references.",
+    "historicalProjectsUsed": 0,
+    "masterItemsCount": 0,
+    "historicalRatesCount": 0
+  },
+  {
+    "version": "v1.0.60",
+    "timestamp": "2026-07-22 19:21:49 UTC",
+    "changeDescription": "Ingested historical BOQ file \"Priced_Nuvama I Hyd I C & I & Long Lead  MEP Tender BOQ I 06.08.25 (5).xlsx\" for project \"Priced Nuvama I Hyd I C & I & Long Lead  MEP Tender BOQ I 06\" containing 375 items.",
+    "historicalProjectsUsed": 6,
+    "masterItemsCount": 1510,
+    "historicalRatesCount": 2643
+  },
+  {
+    "version": "v1.0.59",
+    "timestamp": "2026-07-22 19:21:49 UTC",
+    "changeDescription": "Ingested historical BOQ file \"Priced_COWRKS, CHENNAI_Overall Price_BOQ_CW_MILLENIA 4A 2F.xlsx\" for project \"Priced COWRKS, CHENNAI Overall Price BOQ CW MILLENIA 4A 2F\" containing 452 items.",
+    "historicalProjectsUsed": 5,
+    "masterItemsCount": 1270,
+    "historicalRatesCount": 2268
+  },
+  {
+    "version": "v1.0.58",
+    "timestamp": "2026-07-22 19:21:47 UTC",
+    "changeDescription": "Ingested historical BOQ file \"KOHLER_PUNE_FS_16TH JUNE.xlsx\" for project \"KOHLER PUNE FS 16TH JUNE\" containing 533 items.",
+    "historicalProjectsUsed": 4,
+    "masterItemsCount": 1043,
+    "historicalRatesCount": 1816
+  },
+  {
+    "version": "v1.0.57",
+    "timestamp": "2026-07-22 19:21:46 UTC",
+    "changeDescription": "Ingested historical BOQ file \"Keppel Final BOQ - 30 Dec 2025_8.75Cr.xlsx\" for project \"Keppel Final BOQ   30 Dec 2025 8\" containing 473 items.",
+    "historicalProjectsUsed": 3,
+    "masterItemsCount": 912,
+    "historicalRatesCount": 1283
+  },
+  {
+    "version": "v1.0.56",
+    "timestamp": "2026-07-22 19:21:46 UTC",
+    "changeDescription": "Ingested historical BOQ file \"FS Submission_FINAL_SKF_Phoenix_22.05.2026_R4.xlsx\" for project \"FS Submission FINAL SKF Phoenix 22\" containing 711 items.",
+    "historicalProjectsUsed": 2,
+    "masterItemsCount": 574,
+    "historicalRatesCount": 810
+  },
+  {
+    "version": "v1.0.55",
+    "timestamp": "2026-07-22 19:21:45 UTC",
+    "changeDescription": "Ingested historical BOQ file \"DHL Chennai Estimated BOQ 31 March 2026_R0.xlsx\" for project \"DHL Chennai Estimated BOQ 31 March 2026 R0\" containing 99 items.",
+    "historicalProjectsUsed": 1,
+    "masterItemsCount": 73,
+    "historicalRatesCount": 99
+  },
+  {
+    "version": "v1.0.54",
+    "timestamp": "2026-07-22 19:21:26 UTC",
+    "changeDescription": "Cleared all historical BOQ files and database references.",
+    "historicalProjectsUsed": 0,
+    "masterItemsCount": 0,
+    "historicalRatesCount": 0
+  },
+  {
     "version": "v1.0.53",
     "timestamp": "2026-07-18 00:07:52 UTC",
     "changeDescription": "Seeded 18 CPWD standard master catalog specification templates.",

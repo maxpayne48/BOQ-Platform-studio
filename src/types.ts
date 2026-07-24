@@ -310,6 +310,19 @@ export interface RFQ {
       difference?: number;
     }[];
   };
+
+  // Task 8 (Self Validation) - one entry per item that was flagged as weakly-supported/high-
+  // deviation/heavily-extrapolated and automatically re-evaluated via Progressive Matching before
+  // the BOQ was finalized. Kept for debugging/audit and future UI use, per the "explainability"
+  // requirement - never itself read by pricing or export logic. See server.ts's self-validation
+  // second pass, right after Project Calibration.
+  selfValidationReport?: {
+    itemId: string;
+    rowNum: number;
+    reasons: string[];
+    adopted: boolean;
+    detail: string;
+  }[];
 }
 
 export interface RFQItem {
@@ -342,7 +355,7 @@ export interface RFQItem {
   // above is overwritten with the engineering-adjusted estimate rather than a flat catalog guess.
   engineeringAdjustment?: {
     applied: boolean;
-    mathematicalModel: "Linear Interpolation" | "Linear Extrapolation" | "Area Scaling" | "Historical Regression" | "None";
+    mathematicalModel: "Linear Interpolation" | "Linear Extrapolation" | "Area Scaling" | "Volume Scaling" | "Historical Regression" | "None";
     engineeringParameters: { name: string; value: number; unit: string }[];
     familyKey: string;
     historicalReferencesUsed: { description: string; dimensionValue: number; rate: number }[];
@@ -373,24 +386,47 @@ export interface RFQItem {
   engineeringConfidence?: number;
   historicalConfidence?: number;
   overallConfidence?: number;
+  // Historical evidence outcome for this item (src/ProjectCalibrationEngine.ts's
+  // MarketRateStatistics) - a filtered, selected piece of engineering evidence, never a
+  // statistical distribution. Field/interface names kept for minimal churn even though nothing
+  // here is a statistic - see that file's header comment.
   marketRateStatistics?: {
     min: number;
     max: number;
-    median: number;
-    weightedMedian: number;
-    weightedMean: number;
-    standardDeviation: number;
-    q1: number;
-    q3: number;
-    iqr: number;
     referenceCount: number;
+    selectedRate: number;
     representativeRate: number;
-    outliersRemoved: number;
-    outlierBreakdown: { reason: string; count: number }[];
-    averageSimilarityScore: number;
+    corroboratingCount: number;
+    secondBestRateDeviationPercent: number | null;
+    selectedMatchScore: number;
+    rejectedCount: number;
+    rejectedBreakdown: { reason: string; count: number }[];
+    learningAdjustmentPercent?: number | null;
+    learningReason?: string | null;
+    // Explainability: one row per historical project that survived filtering - `selected` marks
+    // the single observation the recommendation was taken from; the rest are shown only as
+    // corroborating evidence, never blended into the rate.
+    historicalEvidence?: {
+      projectName: string;
+      projectSimilarity: number;
+      itemSimilarity: number;
+      specificationSimilarity: number;
+      historicalRate: number;
+      selected: boolean;
+      corroborating: boolean;
+      section: string;
+      historicalDate: string;
+    }[];
+    // Which historical items were discarded, and why (Step 7 explainability) - combines
+    // HistoricalRetrievalEngine's retrieval-time rejections with this engine's own pre-filters.
+    rejectedEvidence?: { standardDescription: string; projectName: string; reason: string }[];
   };
   calibrationApplied?: boolean;
   calibrationReason?: string;
+  // Step 7 (Explainability): historical items considered but discarded during retrieval (semantic/
+  // UOM/commercial-equivalence gates), before market-rate selection even runs. See
+  // src/HistoricalRetrievalEngine.ts's rejectedCandidates.
+  rejectedHistoricalCandidates?: { standardDescription: string; projectName: string; reason: string }[];
 
   // Historical Retrieval redesign (additive - see src/HistoricalRetrievalEngine.ts). Ranked list
   // of historical candidates surviving Domain/Item Family/UOM filtering and multi-factor
@@ -430,6 +466,12 @@ export interface RFQItem {
 
   // Enterprise Intelligence Fields
   itemDecomposition?: ItemDecomposition;
+
+  // Progressive Relaxation Matching (src/ProgressiveMatchingEngine.ts) - set only for items with
+  // no direct historical match, labelling which relaxed tier produced the estimate (e.g.
+  // "Material Match") so the dashboard can show a genuinely new/unseen item was estimated via
+  // broader market inference rather than a direct historical hit.
+  matchTier?: "Specification Match" | "Material Match" | "Functional Match" | "Market Estimation";
   uomTrace?: string[];
   rateStats?: {
     min: number;
@@ -445,15 +487,18 @@ export interface RFQItem {
     finalRecommended: number;
     calculationsLog: string;
   };
+  // Task 5 (Commercial Validation) - real per-item pass/fail checks, computed in server.ts's
+  // buildItemValidationResults from data the recommendation pipeline already produced (market
+  // statistics, confidence profile, engineering adjustment, UOM compatibility). Shape matches
+  // exactly what src/components/RecommendationsTab.tsx's Self-Validation Auditor drawer renders.
   validationResults?: {
-    engineering: boolean;
-    specification: boolean;
-    commercial: boolean;
-    uom: boolean;
-    historical: boolean;
-    workbook: boolean;
-    regression: boolean;
-    details: string[];
+    engineeringValidation: { pass: boolean; details: string };
+    specificationValidation: { pass: boolean; details: string };
+    commercialValidation: { pass: boolean; details: string };
+    uomValidation: { pass: boolean; details: string };
+    historicalValidation: { pass: boolean; details: string };
+    workbookValidation: { pass: boolean; details: string };
+    regressionValidation: { pass: boolean; details: string };
   };
   manualReviewRequired?: boolean;
   recommendationTrace?: {
@@ -465,7 +510,6 @@ export interface RFQItem {
     historicalCell: string;
     historicalUnitRate: number;
     recommendedUnitRate: number;
-    replayMode: "Yes" | "No";
     matchType?: string;
     explanation?: string;
     historicalProjectCost?: number;

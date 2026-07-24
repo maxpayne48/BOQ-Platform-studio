@@ -75,6 +75,37 @@ html.dark {
   background: #475569;
 }
 
+/* Thin, unobtrusive scrollbar for dense scroll areas (e.g. the Recommendations table) - modern
+   look in both Firefox (scrollbar-width/color) and WebKit/Chromium (::-webkit-scrollbar-*),
+   layered on top of the dark-mode overrides above rather than replacing them. */
+.thin-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+.thin-scrollbar::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+.thin-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.thin-scrollbar::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 8px;
+}
+.thin-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+.dark .thin-scrollbar {
+  scrollbar-color: #334155 transparent;
+}
+.dark .thin-scrollbar::-webkit-scrollbar-thumb {
+  background: #334155;
+}
+.dark .thin-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
 /* ---------------------------------------------------------------------------
    Auto-generated color overrides. Every bg-/text-/border-/divide-/ring-/
    from-/via-/to-/placeholder-/decoration- color utility class actually used

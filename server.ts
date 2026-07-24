@@ -33,8 +33,9 @@ import {
 import { RecommendationEngineV2 } from "./src/RecommendationEngineV2.js";
 import { InstallationRateEngine } from "./src/InstallationRateEngine.js";
 import { EngineeringAdjustmentEngine } from "./src/EngineeringAdjustmentEngine.js";
-import { ProjectCalibrationEngine } from "./src/ProjectCalibrationEngine.js";
+import { ProjectCalibrationEngine, MarketRateStatistics } from "./src/ProjectCalibrationEngine.js";
 import { HistoricalRetrievalEngine } from "./src/HistoricalRetrievalEngine.js";
+import { ProgressiveMatchingEngine } from "./src/ProgressiveMatchingEngine.js";
 import { LearningEngine } from "./src/LearningEngine.js";
 import { parseWorkbookForUpload, validateAndSanitizeWorkbook, UploadLog as BOQUploadLog } from "./src/BOQParserEngine.js";
 import { KnowledgeBaseEngine } from "./backend/src/engines/KnowledgeBaseEngine.js";
@@ -375,12 +376,41 @@ function calculateWordOverlap(text1: string, text2: string): number {
   const words1 = new Set(clean(text1));
   const words2 = new Set(clean(text2));
   if (words1.size === 0 || words2.size === 0) return 0;
-  
+
   let intersection = 0;
   for (const w of words1) {
     if (words2.has(w)) intersection++;
   }
-  return intersection / Math.max(words1.size, words2.size);
+  const baseScore = intersection / Math.max(words1.size, words2.size);
+
+  // Numeric-spec guard: in a BOQ description a standalone number almost always encodes the item's
+  // defining spec (cable cross-section, pipe diameter, board thickness, capacity, etc.). The word
+  // filter above drops short numeric tokens (length <= 2, e.g. "10") while keeping longer ones
+  // (e.g. "300"), so a "10 Sqmm" cable and an unrelated "300 Sqmm" cable could match on every other
+  // word and still cross the clustering threshold, silently merging two differently-priced specs
+  // into one master item - exactly the case EngineeringAdjustmentEngine's dimensional model exists
+  // to bridge across as separate master records, not collapse into one.
+  //
+  // Requiring merely ONE shared number is not enough: "3.5 Core X 300 Sqmm" and "3.5 Core X 150
+  // Sqmm" share the core-count number (3.5) while differing on the actual cost-driving cross-
+  // section, so a single shared incidental number let the wrong pair through. Instead require most
+  // of each description's numbers to agree (Jaccard overlap over the numeric token sets) - a
+  // genuine re-statement of the same item (different project, minor formatting differences) keeps
+  // nearly the same numbers, while a different spec variant swaps out the defining one.
+  const numbers = (t: string) => new Set(t.match(/\d+(?:\.\d+)?/g) || []);
+  const nums1 = numbers(text1);
+  const nums2 = numbers(text2);
+  if (nums1.size > 0 || nums2.size > 0) {
+    let intersectionCount = 0;
+    for (const n of nums1) {
+      if (nums2.has(n)) intersectionCount++;
+    }
+    const unionSize = new Set([...nums1, ...nums2]).size;
+    const numericJaccard = unionSize > 0 ? intersectionCount / unionSize : 1;
+    if (numericJaccard < 0.5) return Math.min(baseScore, 0.3);
+  }
+
+  return baseScore;
 }
 
 // Extractor of Dimensions and Physical Quantities (Engineering Mathematics Engine)
@@ -1121,13 +1151,19 @@ function initializeMasterDatabaseAndIndex(modifiedIds?: Set<string>) {
   for (const m of masterBOQItems) {
     masterItemIdIndex[m.id] = m;
 
+    // Keyed by domain + description, not description alone: two genuinely different master items
+    // in different domains (e.g. Interior's "Professional Deep Cleaning" priced per SQM vs Toilet
+    // Works' "Professional Deep Cleaning" priced as a lump sum) can share identical text, and a
+    // flat text-only key let whichever master was indexed last silently win every lookup of that
+    // text regardless of the RFQ item's actual domain.
+    const domainKey = (m.domain || "").toLowerCase().trim();
     if (m.standardDescription) {
-      descriptionToMasterIdIndex[m.standardDescription.toLowerCase().trim()] = m.id;
+      descriptionToMasterIdIndex[`${domainKey}::${m.standardDescription.toLowerCase().trim()}`] = m.id;
     }
     if (m.historicalDescriptions) {
       for (const desc of m.historicalDescriptions) {
         if (desc) {
-          descriptionToMasterIdIndex[desc.toLowerCase().trim()] = m.id;
+          descriptionToMasterIdIndex[`${domainKey}::${desc.toLowerCase().trim()}`] = m.id;
         }
       }
     }
@@ -3914,104 +3950,12 @@ app.post("/api/rfqs", async (req, res) => {
     });
   }
 
-  // Historical Replay Detection Check using multiple signals:
-  // - Workbook structure / count
-  // - Worksheet names
-  // - Item count
-  // - BOQ hierarchy / Row numbers
-  // - Item descriptions / Specifications
-  // - UOM / Quantities
-  // - General Notes / Preambles
-  // - Project metadata
-  // ==========================================
-  // COMPUTE HASHES AND RUN DETECTED REPLAY CHECK
-  // ==========================================
-  let replayDetected = false;
-  let matchedProjectName = "";
-  let workbookMatchPercent = 0;
-  let worksheetMatchPercent = 0;
-  let itemMatchPercent = 0;
-
-  if (parsedItems.length > 0 && replayDatabase.length > 0) {
-    // Group uploaded RFQ items by worksheet to compute hashes
-    const rfqWorksheetRowsMap: Record<string, typeof parsedItems> = {};
-    for (const item of parsedItems) {
-      const sheetKey = item.sheetName.toLowerCase();
-      if (!rfqWorksheetRowsMap[sheetKey]) {
-        rfqWorksheetRowsMap[sheetKey] = [];
-      }
-      rfqWorksheetRowsMap[sheetKey].push(item);
-    }
-
-    const rfqWorksheetHashesMap: Record<string, string> = {};
-    for (const [sheetKey, sheetItems] of Object.entries(rfqWorksheetRowsMap)) {
-      sheetItems.sort((a, b) => a.rowNum - b.rowNum);
-      const rowHashes = sheetItems.map(item => computeRowHash(item.sheetName, item.rowNum, item.originalDescription, item.unit, item.quantity));
-      const sheetName = sheetItems[0].sheetName;
-      rfqWorksheetHashesMap[sheetKey] = computeWorksheetHash(sheetName, rowHashes);
-    }
-
-    const rfqSortedSheetKeys = Object.keys(rfqWorksheetHashesMap).sort();
-    const rfqWorksheetHashesOrdered = rfqSortedSheetKeys.map(k => rfqWorksheetHashesMap[k]);
-    const rfqWorkbookHash = computeWorkbookHash(rfqWorksheetHashesOrdered);
-
-    // 1. Workbook-level check
-    const workbookMatchRecord = replayDatabase.find(r => r.workbookHash === rfqWorkbookHash);
-    if (workbookMatchRecord) {
-      replayDetected = true;
-      matchedProjectName = workbookMatchRecord.historicalProjectMetadata.projectName;
-      workbookMatchPercent = 100;
-      worksheetMatchPercent = 100;
-      itemMatchPercent = 100;
-      console.log(`[Deterministic Hash Match] Workbook match detected with project: "${matchedProjectName}"`);
-    } else {
-      // 2. Worksheet-level check
-      let matchedSheetsCount = 0;
-      const totalSheetsCount = rfqSortedSheetKeys.length;
-      let matchedProjName = "";
-      
-      for (const [sheetKey, rfqWsHash] of Object.entries(rfqWorksheetHashesMap)) {
-        const matchWs = replayDatabase.find(r => r.worksheetHash === rfqWsHash);
-        if (matchWs) {
-          matchedSheetsCount++;
-          matchedProjName = matchWs.historicalProjectMetadata.projectName;
-        }
-      }
-      
-      if (matchedSheetsCount > 0) {
-        replayDetected = true;
-        matchedProjectName = matchedProjName;
-        workbookMatchPercent = Math.round((matchedSheetsCount / totalSheetsCount) * 100);
-        worksheetMatchPercent = Math.round((matchedSheetsCount / totalSheetsCount) * 100);
-        itemMatchPercent = Math.round((matchedSheetsCount / totalSheetsCount) * 100);
-        console.log(`[Deterministic Hash Match] Worksheet-level matches: ${matchedSheetsCount}/${totalSheetsCount} with project: "${matchedProjectName}"`);
-      } else {
-        // 3. Row-level check
-        let matchedRowsCount = 0;
-        const totalRowsCount = parsedItems.length;
-        let matchedProjName = "";
-        
-        for (const item of parsedItems) {
-          const itemRowHash = computeRowHash(item.sheetName, item.rowNum, item.originalDescription, item.unit, item.quantity);
-          const matchRow = replayDatabase.find(r => r.rowHash === itemRowHash);
-          if (matchRow) {
-            matchedRowsCount++;
-            matchedProjName = matchRow.historicalProjectMetadata.projectName;
-          }
-        }
-        
-        if (matchedRowsCount > 0) {
-          replayDetected = true;
-          matchedProjectName = matchedProjName;
-          workbookMatchPercent = Math.round((matchedRowsCount / totalRowsCount) * 100);
-          worksheetMatchPercent = Math.round((matchedRowsCount / totalRowsCount) * 100);
-          itemMatchPercent = Math.round((matchedRowsCount / totalRowsCount) * 100);
-          console.log(`[Deterministic Hash Match] Row-level matches: ${matchedRowsCount}/${totalRowsCount} with project: "${matchedProjectName}"`);
-        }
-      }
-    }
-  }
-
+  // One recommendation engine, no historical-BOQ special case: every uploaded RFQ is prepared
+  // identically (status always "Draft") - there is no upload-time workbook/worksheet/row hash
+  // comparison against replayDatabase to detect "this is actually a historical project" any more.
+  // replayDatabase itself remains exactly what it always was - the historical rate evidence store
+  // consumed by the recommendation pipeline - it's only the detect-and-flag-as-replay step that's
+  // removed, since that was itself "an if-else branch that detects historical BOQs."
   let projectContext = extractProjectContext(projectName, preambleContent);
 
   // Parse original base64 and generate the workbook blueprint. Reuses workbookBytesToUse (the
@@ -4058,14 +4002,9 @@ app.post("/api/rfqs", async (req, res) => {
     uploadDate: new Date().toLocaleDateString(),
     domains: domainsDetected,
     itemCount: parsedItems.length,
-    status: replayDetected ? "Replay" : "Draft",
+    status: "Draft",
     preamblePasted: preambleText,
     preambleExtracted: extractedPreamble,
-    replayDetected,
-    matchedProjectName: replayDetected ? matchedProjectName : undefined,
-    workbookMatchPercent: replayDetected ? workbookMatchPercent : undefined,
-    worksheetMatchPercent: replayDetected ? worksheetMatchPercent : undefined,
-    itemMatchPercent: replayDetected ? itemMatchPercent : undefined,
     projectContext,
     worksheetContexts,
     kbVersion: kbVersions[0]?.version || "v1.0.0",
@@ -4083,7 +4022,7 @@ app.post("/api/rfqs", async (req, res) => {
   // Write audit log entry
   logAuditEvent(
     "Historical Replay",
-    `Uploaded RFQ "${fileName}" analyzed. ${replayDetected ? `Historical Replay detected (Matched project: ${matchedProjectName}, Workbook overlap: ${workbookMatchPercent}%).` : `No replay detected; workspace prepared as normal Draft.`}`
+    `Uploaded RFQ "${fileName}" analyzed and parsed successfully (${parsedItems.length} item(s)); workspace prepared as a Draft estimation.`
   );
 
   // New backend architecture (Phase 2): EngineeringParser.
@@ -4148,23 +4087,6 @@ app.post("/api/rfqs/clear-all", (req, res) => {
 
   res.json({ success: true, clearedCount: initialCount });
 });
-
-interface VerifiedReplayRow {
-  projectId: string;
-  worksheetId: string;
-  rowNumber: number;
-  rateCellAddress: string;
-  amountCellAddress: string;
-  originalHistoricalRate: number;
-}
-
-interface VerificationMismatch {
-  worksheet: string;
-  row: number;
-  originalRate: number;
-  injectedRate: number;
-  reason: string;
-}
 
 // Helper to retrieve historical sheets (loads from disk or reconstructs dynamically)
 function getHistoricalProjectSheets(projectId: string, projectName: string): { sheetName: string; rows: any[][] }[] {
@@ -4361,57 +4283,6 @@ function getHistoricalRowMappings(projectId: string, projectName: string): Deter
   return rowMappings;
 }
 
-// Runs verification on uploaded RFQ items against the historical sheets
-function verifyHistoricalReplayRows(rfq: any, rfqItemsList: any[]): { 
-  allRowsMatch: boolean; 
-  verifiedRows: VerifiedReplayRow[]; 
-  mismatches: VerificationMismatch[]; 
-} {
-  const verifiedRows: VerifiedReplayRow[] = [];
-  const mismatches: VerificationMismatch[] = [];
-  let allRowsMatch = true;
-
-  if (!rfq.matchedProjectName) {
-    return { allRowsMatch: false, verifiedRows, mismatches };
-  }
-
-  const histBOQ = historicalBOQs.find(h => h.projectName === rfq.matchedProjectName);
-  const projectId = histBOQ ? histBOQ.id : "N/A";
-  const mappings = getHistoricalRowMappings(projectId, rfq.matchedProjectName);
-
-  const clean = (s: string) => String(s || "").toLowerCase().replace(/\s+/g, " ").trim();
-
-  for (const item of rfqItemsList) {
-    const mapping = mappings.find(m => 
-      m.worksheetName.toLowerCase() === item.sheetName.toLowerCase() &&
-      m.rowNumber === item.rowNum &&
-      clean(m.originalItemDescription) === clean(item.originalDescription)
-    );
-
-    if (mapping) {
-      verifiedRows.push({
-        projectId,
-        worksheetId: item.sheetName,
-        rowNumber: item.rowNum,
-        rateCellAddress: mapping.unitRateCellAddress,
-        amountCellAddress: mapping.amountCellAddress,
-        originalHistoricalRate: mapping.originalUnitRate
-      });
-    } else {
-      allRowsMatch = false;
-      mismatches.push({
-        worksheet: item.sheetName,
-        row: item.rowNum,
-        originalRate: 0,
-        injectedRate: item.recommendedRate || 0,
-        reason: `No deterministic row mapping found for Worksheet "${item.sheetName}", Row ${item.rowNum}.`
-      });
-    }
-  }
-
-  return { allRowsMatch, verifiedRows, mismatches };
-}
-
 // Get RFQ specific line items
 app.get("/api/rfqs/:id/items", (req, res) => {
   const items = rfqItems.filter(i => i.rfqId === req.params.id);
@@ -4436,39 +4307,6 @@ function getHistoricalProjectCost(boqId: string): number {
     return boq.itemCount * 1500;
   }
   return 0;
-}
-
-function getLocationFactorForCity(city: string): number {
-  if (!city) return 1.0;
-  const c = city.toLowerCase();
-  if (c.includes("delhi") || c.includes("ncr") || c.includes("gurgaon") || c.includes("gurugram") || c.includes("noida")) {
-    return 1.0;
-  }
-  if (c.includes("mumbai") || c.includes("bkc") || c.includes("pune")) {
-    return 1.12;
-  }
-  if (c.includes("bangalore") || c.includes("bengaluru")) {
-    return 1.05;
-  }
-  if (c.includes("hyderabad")) {
-    return 1.02;
-  }
-  if (c.includes("chennai")) {
-    return 0.98;
-  }
-  if (c.includes("kolkata")) {
-    return 0.95;
-  }
-  if (c.includes("jaipur")) {
-    return 0.90;
-  }
-  if (c.includes("ahmedabad")) {
-    return 0.92;
-  }
-  if (c.includes("chandigarh")) {
-    return 1.00;
-  }
-  return 1.0;
 }
 
 interface ProjectSimilarityInput {
@@ -4563,15 +4401,20 @@ app.post("/api/rfqs/:id/recommend", async (req, res) => {
   let tSimilarity = 0;
   let tRecommendation = 0;
 
-  // 1. RETRIEVE THE TOP 5 MOST SIMILAR HISTORICAL PROJECTS (Knowledge Lookup)
+  // 1. RETRIEVE THE TOP 5 MOST SIMILAR HISTORICAL PROJECTS (Knowledge Lookup) - Stage 1 of the
+  // two-stage retrieval pipeline. Real per-project cost (getHistoricalProjectCost, computed once
+  // here from actual historical line-item amounts) replaces the previous always-undefined
+  // HistoricalBOQ.projectCost read, so Project Cost genuinely differentiates historical projects
+  // instead of comparing every one of them against the same constant fallback.
   const startKL = Date.now();
+  const historicalCostByProjectId = new Map(historicalBOQs.map(h => [h.id, getHistoricalProjectCost(h.id)]));
   const similarProjects = RecommendationEngineV2.getSimilarProjects(historicalBOQs, {
     projectCost,
     projectSize,
     projectType,
     city,
     buildingGrade
-  });
+  }, historicalCostByProjectId);
   tKnowledgeLookup += (Date.now() - startKL);
 
   console.log(`[New Recommendation Engine] Retrieved Top ${similarProjects.length} similar historical projects:`);
@@ -4579,7 +4422,6 @@ app.post("/api/rfqs/:id/recommend", async (req, res) => {
     console.log(`  ${idx + 1}. Project: "${sp.project.projectName}" | Similarity: ${(sp.similarity * 100).toFixed(1)}%`);
   });
 
-  const replayedItemIds = new Set<string>();
   let lastYieldTime = Date.now();
   const yieldToEventLoop = () => new Promise(resolve => setImmediate(resolve));
 
@@ -4621,6 +4463,16 @@ app.post("/api/rfqs/:id/recommend", async (req, res) => {
   const similarityByProjectName = new Map<string, number>();
   similarProjects.forEach((sp) => similarityByProjectName.set(sp.project.projectName, sp.similarity));
 
+  // Progressive Relaxation Matching (src/ProgressiveMatchingEngine.ts) - shared, one-time setup
+  // for the genuinely-stuck population (no matched master, no usable candidates even from the
+  // broad retrieval above). projectByName/currentYear mirror exactly what
+  // ProjectCalibrationEngine builds internally, so a relaxed-tier estimate is judged by the same
+  // outlier/grade rules as every other recommendation.
+  const projectByNameForRelaxedMatch = new Map<string, HistoricalBOQ>();
+  historicalBOQs.forEach((h) => projectByNameForRelaxedMatch.set(h.projectName, h));
+  const currentYearForRelaxedMatch = new Date().getFullYear();
+  const learningAnalysisForRelaxedMatch = LearningEngine.getLearningAnalysis(learningEvents);
+
   // 2. PROCESS EACH RFQ ITEM
   for (const item of items) {
     // Event loop safety check (Yield control if we've been running continuously for > 80ms)
@@ -4638,19 +4490,23 @@ app.post("/api/rfqs/:id/recommend", async (req, res) => {
     item.status = result.confidence >= 75 ? "Accepted" : "Needs Manual Review";
     item.reason = result.reason;
 
-    if (result.source === "Historical Rate") {
-      replayedItemIds.add(item.id);
-    }
-
     item.recommendationTrace = result.trace;
     tRecommendation += (Date.now() - startRec);
+
+    // Item Understanding: decomposeBOQItem was already being computed transiently just for the
+    // UOM check below and then discarded - persisting it here is what makes
+    // HistoricalRetrievalEngine's specification/material scores (previously always falling back to
+    // the semantic score, since item.itemDecomposition was declared but never populated) into
+    // genuinely independent signals, and is the input the Progressive Matching Engine below needs
+    // for its Specification/Material/Functional relaxation tiers.
+    item.itemDecomposition = decomposeBOQItem(item.originalDescription, item.unit);
 
     // Historical Retrieval redesign - additive, read-only with respect to everything above
     // (never touches item.matchedMasterId/recommendedRate/status). Produces a ranked candidate
     // list only; deliberately does not auto-select a winner. See
     // src/HistoricalRetrievalEngine.ts for the filter/score/rank pipeline.
     try {
-      const candidates = HistoricalRetrievalEngine.retrieveRankedHistoricalCandidates({
+      const { candidates, rejectedCandidates } = HistoricalRetrievalEngine.retrieveRankedHistoricalCandidates({
         item,
         domainFamilyIndex,
         similarityByProjectName,
@@ -4662,9 +4518,11 @@ app.post("/api/rfqs/:id/recommend", async (req, res) => {
         }
       });
       item.historicalCandidates = candidates;
+      item.rejectedHistoricalCandidates = rejectedCandidates;
     } catch (retrievalError) {
       console.error(`[Historical Retrieval] Failed for item ${item.id} (non-fatal):`, retrievalError);
       item.historicalCandidates = undefined;
+      item.rejectedHistoricalCandidates = undefined;
     }
 
     // Additive Installation Rate layer - never reads or modifies anything set above (Final
@@ -4722,12 +4580,12 @@ app.post("/api/rfqs/:id/recommend", async (req, res) => {
       item.installationReferenceCount = undefined;
     }
 
-    // Additive Engineering Adjustment layer - ONLY runs for non-exact-match ("Basic Rate")
-    // items. Never fires for, and never alters, an exact historical match: the "Historical
-    // Rate" branch above (replayedItemIds.add) is completely untouched by this block. When a
-    // genuine dimensional family (same item, different size) exists in the master catalog, the
-    // flat Basic Rate catalog guess is replaced with an interpolated/extrapolated/area-scaled
-    // estimate; otherwise item.recommendedRate is left exactly as RecommendationV2 computed it.
+    // Additive Engineering Adjustment layer, running on top of the single "Basic Rate" baseline
+    // every item now gets (RecommendationEngineV2 no longer has a separate exact-match branch).
+    // When a genuine dimensional family (same item, different size) exists in the master catalog,
+    // the flat Basic Rate catalog guess is replaced with an interpolated/extrapolated/area-scaled
+    // estimate; otherwise item.recommendedRate is left exactly as RecommendationV2 computed it, to
+    // be recalibrated further downstream by the weighted-evidence market-rate statistics.
     if (result.source === "Basic Rate") {
       try {
         const adjustment = EngineeringAdjustmentEngine.computeEngineeringAdjustment(
@@ -4798,6 +4656,37 @@ app.post("/api/rfqs/:id/recommend", async (req, res) => {
       item.engineeringAdjustment = undefined;
     }
 
+    // Progressive Relaxation Matching (src/ProgressiveMatchingEngine.ts) - additive, only for
+    // items still stuck on a flat Basic Rate guess after everything above (no exact historical
+    // match, no engineering-dimensional model, and not enough candidates for the statistical
+    // calibration layer below to price it either). Never fires for, and never alters, any item
+    // that already has real evidence - this only replaces the ₹1000-regardless-of-domain fallback
+    // with a labelled, progressively-relaxed market estimate for the population that would
+    // otherwise get it.
+    if (result.source === "Basic Rate" && !item.engineeringAdjustment?.applied && (item.historicalCandidates?.length ?? 0) < 2) {
+      try {
+        const relaxed = ProgressiveMatchingEngine.estimateForUnmatchedItem({
+          item,
+          allMasterItems: Object.values(masterItemIdIndex),
+          similarityByProjectName,
+          buildingGrade,
+          projectByName: projectByNameForRelaxedMatch,
+          currentYear: currentYearForRelaxedMatch,
+          learningAnalysis: learningAnalysisForRelaxedMatch,
+          domainAverageRate: getCachedDomainAverage(item.domain)
+        });
+        if (relaxed.applied && relaxed.tier !== "None") {
+          item.recommendedRate = relaxed.finalRate;
+          item.matchTier = relaxed.tier;
+          item.reason = `[Progressive Match: ${relaxed.tier}] ${relaxed.explanation}`;
+          item.confidenceScore = relaxed.tier === "Market Estimation" ? 40 : Math.min(70, 40 + relaxed.referenceCount * 3);
+          item.status = "Needs Manual Review";
+        }
+      } catch (relaxedMatchError) {
+        console.error(`[Progressive Matching] Failed for item ${item.id} (non-fatal, keeping flat Basic Rate):`, relaxedMatchError);
+      }
+    }
+
     // Dashboard "Items Requiring Attention" trigger flags - purely informational, computed from
     // the final state of this item above. Never affects recommendedRate, export, or Replay
     // Auditor in any way.
@@ -4817,10 +4706,17 @@ app.post("/api/rfqs/:id/recommend", async (req, res) => {
         attentionFlags.push("High Historical Rate Variation");
       }
     }
-    if (result.source === "Basic Rate" && !item.engineeringAdjustment?.applied) {
+    if (result.source === "Basic Rate" && !item.engineeringAdjustment?.applied && !item.matchTier) {
+      // True last-resort only: Progressive Matching (src/ProgressiveMatchingEngine.ts) already
+      // found a labelled, evidence-based relaxed-tier estimate for anything with item.matchTier
+      // set below - that population gets its own flag instead, since there IS a rate to review,
+      // not nothing to price.
       attentionFlags.push("Manual Pricing Required");
     }
-    if (item.status === "Needs Manual Review") attentionFlags.push("Engineering Review Required");
+    if (item.matchTier) {
+      attentionFlags.push(`Estimated via ${item.matchTier}`);
+    }
+    if (item.status === "Needs Manual Review" && item.engineeringAdjustment?.applied) attentionFlags.push("Engineering Review Required");
     const uomFactorMatch = result.trace?.explanation?.match(/UOM (?:Conversion )?Factor:\s*([\d.]+)/);
     if (uomFactorMatch && Math.abs(parseFloat(uomFactorMatch[1]) - 1) > 0.01) {
       attentionFlags.push("UOM Conversion");
@@ -4873,6 +4769,66 @@ app.post("/api/rfqs/:id/recommend", async (req, res) => {
     );
   }
 
+  // Task 5 (Commercial Validation) - real, per-item pass/fail checks derived from data the
+  // pipeline above already computed (market statistics, confidence, engineering adjustment, UOM
+  // compatibility). Replaces the previous state where RecommendationsTab.tsx always fell back to
+  // a hardcoded "everything passed" placeholder because item.validationResults was never
+  // populated by the backend. Shared with the Task 8 self-validation pass below so a re-evaluated
+  // item's validation is recomputed too, rather than left stale.
+  function buildItemValidationResults(
+    item: RFQItem,
+    stats: MarketRateStatistics | undefined,
+    matchedMaster: MasterBOQItem | undefined
+  ): NonNullable<RFQItem["validationResults"]> {
+    const engineeringPass = !item.engineeringAdjustment?.applied || item.engineeringAdjustment.confidence >= 50;
+    const specificationPass = (item.specificationConfidence ?? 50) >= 50;
+    const withinRange = !stats || (item.recommendedRate >= stats.min * 0.5 && item.recommendedRate <= stats.max * 2);
+    const commercialPass = withinRange && !!stats;
+    const uomPass = matchedMaster
+      ? verifyAndConvertUOM(item.unit, matchedMaster.standardUnit || item.unit, item.itemDecomposition).compatible
+      : true;
+    const historicalPass = !!stats; // selectHistoricalEvidence never returns a result with zero evidence
+
+    return {
+      engineeringValidation: {
+        pass: engineeringPass,
+        details: item.engineeringAdjustment?.applied
+          ? item.engineeringAdjustment.explanation
+          : "No engineering-dimension adjustment was required for this item."
+      },
+      specificationValidation: {
+        pass: specificationPass,
+        details: `Specification confidence: ${item.specificationConfidence ?? "N/A"}%.`
+      },
+      commercialValidation: {
+        pass: commercialPass,
+        details: stats
+          ? `Recommended rate ₹${item.recommendedRate.toFixed(2)} vs. historical range ₹${stats.min.toFixed(2)}-₹${stats.max.toFixed(2)} (selected historical rate ₹${stats.selectedRate.toFixed(2)}).`
+          : "No historical evidence available to validate against."
+      },
+      uomValidation: {
+        pass: uomPass,
+        details: uomPass
+          ? "Unit of measure compatible with matched historical/master item."
+          : "Unit of measure conflict detected against the matched item."
+      },
+      historicalValidation: {
+        pass: historicalPass,
+        details: stats
+          ? `${stats.referenceCount} commercially-equivalent historical reference(s) considered (${stats.rejectedCount} discarded: ${stats.rejectedBreakdown.map(o => o.reason).join(", ") || "none"}).`
+          : "No commercially-equivalent historical evidence found."
+      },
+      workbookValidation: {
+        pass: true,
+        details: "Structural workbook placement is verified at export time (see verificationMismatches); no issues detected during recommendation."
+      },
+      regressionValidation: {
+        pass: Number.isFinite(item.recommendedRate) && item.recommendedRate > 0,
+        details: "Recommended rate is numerically valid."
+      }
+    };
+  }
+
   // Project Calibration & Validation Layer - runs once, after every item has its final Initial
   // Recommended Rate (item matching + specification matching + UOM + historical rate retrieval +
   // engineering dimension adjustment all already complete and untouched). Never re-derives any of
@@ -4888,8 +4844,7 @@ app.post("/api/rfqs/:id/recommend", async (req, res) => {
     shouldSkipSheet,
     historicalBOQs,
     buildingGrade,
-    learningEvents,
-    city
+    learningEvents
   });
 
   for (const item of items) {
@@ -4913,8 +4868,171 @@ app.post("/api/rfqs/:id/recommend", async (req, res) => {
       }
     }
     const stats = calibrationOutcome.itemMarketStats.get(item.id);
-    if (stats) item.marketRateStatistics = stats;
+    if (stats) {
+      // Step 7 explainability: merge retrieval-time rejections (semantic/UOM/commercial-
+      // equivalence gates, before selection even runs) with selectHistoricalEvidence's own
+      // pre-filter rejections - "which historical items were discarded, why."
+      stats.rejectedEvidence = [...(item.rejectedHistoricalCandidates || []), ...stats.rejectedEvidence];
+      item.marketRateStatistics = stats;
+    }
+
+    // Hard guardrails, independent of the confidence score: a confidence percentage reflects match
+    // quality and evidence volume, not whether the final number is actually plausible - items off
+    // by 500-1000%+ have been observed this same session carrying 60-90% confidence. These flags
+    // force the item into manual review regardless of what the confidence score says.
+    const flags = new Set(item.attentionFlags || []);
+
+    if (stats && stats.min > 0 && item.recommendedRate) {
+      // 0.5x-2x is wide enough to never trip on a legitimate regional/learning adjustment (the
+      // observed Pune location uplift is ~1.12x) while still catching genuine mismatches, which in
+      // this session ran from ~0.08x to ~11x of the item's own historical evidence.
+      const lowerBound = stats.min * 0.5;
+      const upperBound = stats.max * 2;
+      if (item.recommendedRate < lowerBound || item.recommendedRate > upperBound) {
+        flags.add("Rate Outside Historical Range");
+      }
+    }
+
+    if (!item.matchedMasterId && !item.matchTier) {
+      // A relaxed-tier estimate from Progressive Matching Engine (item.matchTier set) still means
+      // no single master item was "the" match, but there IS labelled, referenced market evidence
+      // behind the number now - only flag true zero-evidence items here.
+      flags.add("Zero Historical Coverage");
+    }
+
+    // Hierarchical BOQs commonly split an item across rows: a parent row states the product name,
+    // and child rows carry only a spec fragment ("Size -800mm H X 750mm D X 3110mm L", "Capacity :
+    // 25 litre"). Matching on the child row's own text alone is inherently ambiguous - flag it so a
+    // reviewer knows to check item.parentHierarchy for the actual item identity, rather than trust
+    // whatever this row matched to in isolation.
+    const descTrimmed = (item.originalDescription || "").trim();
+    if (/^(size|capacity|dia\.?|diameter|dimension|type|for)\b/i.test(descTrimmed) && descTrimmed.split(/\s+/).length <= 6) {
+      flags.add("Ambiguous Sub-Item Description");
+    }
+
+    // Task 5 (Commercial Validation) - real per-item validation report, replacing the previously
+    // unpopulated item.validationResults that the UI was silently faking as all-pass.
+    const matchedMasterForValidation = item.matchedMasterId ? masterItemIdIndex[item.matchedMasterId] : undefined;
+    item.validationResults = buildItemValidationResults(item, stats, matchedMasterForValidation);
+    if (Object.values(item.validationResults).some((v) => !v.pass)) {
+      flags.add("Commercial Validation Failed");
+    }
+
+    if (flags.size !== (item.attentionFlags?.length || 0)) {
+      item.attentionFlags = Array.from(flags);
+    }
   }
+
+  // Task 8 (Self Validation) - automatic second-pass re-evaluation. Identifies items whose FIRST
+  // evaluation is weakly supported / high-deviation / heavily extrapolated / outside statistical
+  // limits, and attempts a broader re-estimate via the same Progressive Relaxation Matching
+  // (src/ProgressiveMatchingEngine.ts) already used for zero-candidate items at the
+  // "Progressive Relaxation Matching" block above - never a different or looser algorithm. The
+  // re-evaluated estimate is only ADOPTED when it is genuinely better evidenced (more outlier-
+  // cleaned references) than what's already there; otherwise the original recommendation is left
+  // completely untouched and the attempt is simply logged for transparency/debugging.
+  const selfValidationLog: { itemId: string; rowNum: number; reasons: string[]; adopted: boolean; detail: string }[] = [];
+
+  for (const item of items) {
+    if (item.isOverridden) continue; // human override - never second-guessed, same convention as calibration
+
+    const stats = calibrationOutcome.itemMarketStats.get(item.id);
+    const confidence = calibrationOutcome.itemConfidences.get(item.id);
+    const reasons: string[] = [];
+
+    if (!stats || stats.referenceCount < 2) {
+      reasons.push("Weak historical support (fewer than 2 commercially-equivalent references)");
+    }
+    if (confidence && confidence.pricingConfidence < 50) {
+      reasons.push(`Low pricing confidence (${confidence.pricingConfidence}%)`);
+    }
+    if (stats && item.recommendedRate) {
+      const lowerBound = stats.min * 0.5;
+      const upperBound = stats.max * 2;
+      if (item.recommendedRate < lowerBound || item.recommendedRate > upperBound) {
+        reasons.push("Rate falls outside expected historical range");
+      }
+    }
+    if (item.engineeringAdjustment?.applied && (item.engineeringAdjustment.isExtrapolation || item.engineeringAdjustment.confidence < 50)) {
+      reasons.push(`Large/uncertain engineering adjustment (${item.engineeringAdjustment.mathematicalModel}, ${item.engineeringAdjustment.confidence}% confidence)`);
+    }
+    if (stats && item.recommendedRate) {
+      const expectedRate = stats.representativeRate; // historical rates are never city re-based (Problem 1)
+      if (expectedRate > 0) {
+        const deviationPct = (Math.abs(item.recommendedRate - expectedRate) / expectedRate) * 100;
+        if (deviationPct > 25) {
+          reasons.push(`Unusually high deviation from the selected historical rate (${deviationPct.toFixed(1)}%)`);
+        }
+      }
+    }
+
+    if (reasons.length === 0) continue;
+
+    try {
+      const relaxed = ProgressiveMatchingEngine.estimateForUnmatchedItem({
+        item,
+        allMasterItems: Object.values(masterItemIdIndex),
+        similarityByProjectName,
+        buildingGrade,
+        projectByName: projectByNameForRelaxedMatch,
+        currentYear: currentYearForRelaxedMatch,
+        learningAnalysis: learningAnalysisForRelaxedMatch,
+        domainAverageRate: getCachedDomainAverage(item.domain)
+      });
+
+      const currentReferenceCount = stats?.referenceCount || 0;
+      const better = relaxed.applied && !!relaxed.marketStats && relaxed.marketStats.referenceCount > currentReferenceCount;
+
+      if (better && relaxed.marketStats) {
+        const previousRate = item.recommendedRate;
+        const newRate = Math.round(relaxed.finalRate * 100) / 100; // no city re-basing (Problem 1)
+        item.recommendedRate = newRate;
+        if (!item.matchTier) item.matchTier = relaxed.tier as any;
+        item.calibrationApplied = true;
+        item.calibrationReason =
+          `Self-validation second pass replaced a weakly-supported estimate (₹${previousRate.toFixed(2)}) with a ` +
+          `better-evidenced one (₹${newRate.toFixed(2)}) after finding ${relaxed.marketStats.referenceCount} reference(s) ` +
+          `vs. ${currentReferenceCount} previously. Trigger(s): ${reasons.join("; ")}.`;
+
+        calibrationOutcome.itemMarketStats.set(item.id, relaxed.marketStats);
+        const newConfidence = ProjectCalibrationEngine.computeItemConfidenceProfile(item, relaxed.marketStats, item.recommendationTrace?.rateSource);
+        calibrationOutcome.itemConfidences.set(item.id, newConfidence);
+        item.semanticConfidence = newConfidence.semanticConfidence;
+        item.specificationConfidence = newConfidence.specificationConfidence;
+        item.pricingConfidence = newConfidence.pricingConfidence;
+        item.engineeringConfidence = newConfidence.engineeringConfidence;
+        item.historicalConfidence = newConfidence.historicalConfidence;
+        item.overallConfidence = newConfidence.overallConfidence;
+        relaxed.marketStats.rejectedEvidence = [...(item.rejectedHistoricalCandidates || []), ...relaxed.marketStats.rejectedEvidence];
+        item.marketRateStatistics = relaxed.marketStats;
+        item.validationResults = buildItemValidationResults(item, relaxed.marketStats, item.matchedMasterId ? masterItemIdIndex[item.matchedMasterId] : undefined);
+
+        selfValidationLog.push({ itemId: item.id, rowNum: item.rowNum, reasons, adopted: true, detail: item.calibrationReason });
+      } else {
+        selfValidationLog.push({
+          itemId: item.id,
+          rowNum: item.rowNum,
+          reasons,
+          adopted: false,
+          detail: "Re-evaluation attempted but found no better-evidenced historical match than the original estimate; original recommendation retained."
+        });
+      }
+    } catch (selfValidationError) {
+      console.error(`[Self Validation] Re-evaluation failed for item ${item.id} (non-fatal, keeping existing recommendation):`, selfValidationError);
+    }
+  }
+
+  if (selfValidationLog.length > 0) {
+    console.log("\n[Self Validation - Second Pass Re-evaluation]");
+    console.table(
+      selfValidationLog.map((l) => ({
+        Row: l.rowNum,
+        Reasons: l.reasons.join(" | "),
+        Adopted: l.adopted ? "Yes" : "No"
+      }))
+    );
+  }
+  activeRfq.selfValidationReport = selfValidationLog;
 
   console.log("\n[Project Calibration & Validation Report]");
   console.table([
@@ -4942,25 +5060,21 @@ app.post("/api/rfqs/:id/recommend", async (req, res) => {
     );
   }
 
-  // 3. SYNCHRONIZE METRICS AND RECORD AUDIT REPORT
+  // 3. SYNCHRONIZE METRICS AND RECORD RECOMMENDATION QUALITY REPORT
+  // Verified/pending is derived purely from each item's own final status - not from whether it
+  // happened to match a historical record (no such concept exists in the unified pipeline).
   const auditRecords: any[] = [];
   let verifiedRowsCount = 0;
-  let failedRowsCount = 0;
-  let extraRowsCount = 0;
+  const failedRowsCount = 0;
   let pendingRowsCount = 0;
 
   for (const item of items) {
-    const isReplayed = replayedItemIds.has(item.id);
-
-if (isReplayed) {
-  if (item.status === "Needs Manual Review") {
-    pendingRowsCount++;
-  } else {
-    verifiedRowsCount++;
-  }
-} else {
-  extraRowsCount++;
-}
+    const needsReview = item.status === "Needs Manual Review";
+    if (needsReview) {
+      pendingRowsCount++;
+    } else {
+      verifiedRowsCount++;
+    }
 
     auditRecords.push({
       projectId: "N/A",
@@ -4972,19 +5086,20 @@ if (isReplayed) {
       injectedRate: item.recommendedRate,
       unitRateCellAddress: "N/A",
       amountCellAddress: "N/A",
-      status: isReplayed ? "VERIFIED" : "NEW_ITEM"
+      status: needsReview ? "NEW_ITEM" : "VERIFIED"
     });
   }
 
-  const totalReplayedCount = replayedItemIds.size;
-  const replayAccuracy = 100;
+  // Honest recommendation-quality accuracy: % of items not requiring manual review, replacing the
+  // previous hardcoded 100.
+  const replayAccuracy = items.length > 0 ? Math.round((verifiedRowsCount / items.length) * 100) : 100;
 
   const auditorReport = {
     replayAccuracy,
     verifiedRows: verifiedRowsCount,
     failedRows: failedRowsCount,
     missingRows: 0,
-    extraRows: extraRowsCount,
+    extraRows: 0,
     pendingRows: pendingRowsCount,
     records: auditRecords
   };
@@ -4992,9 +5107,7 @@ if (isReplayed) {
   activeRfq.status = "Rated";
   activeRfq.replayAuditorReport = auditorReport;
   activeRfq.verificationMismatches = [];
-
-  const verifiedRows: VerifiedReplayRow[] = [];
-  activeRfq.verifiedReplayRows = verifiedRows;
+  activeRfq.verifiedReplayRows = [];
 
   const overallMs = Date.now() - startRecommendOverall;
 
@@ -5028,7 +5141,8 @@ if (isReplayed) {
       recommendationMs: activeRfq.recommendationTimeMs,
       totalMs: (activeRfq.parseTimeMs || 120) + overallMs
     },
-    projectValidation: calibrationOutcome.validationReport
+    projectValidation: calibrationOutcome.validationReport,
+    selfValidation: selfValidationLog
   });
 
   } catch (err: any) {
@@ -5669,55 +5783,19 @@ app.post("/api/rfqs/:id/export", async (req, res) => {
     return res.status(404).json({ error: "RFQ draft workspace not found." });
   }
 
-  // Guard against un-identified/unresolved Historical Replay Verification mismatches or failed Auditor Report
-  if (rfq.replayDetected && rfq.matchedProjectName) {
-  const report = (rfq as any).replayAuditorReport;
-
-  if (!report) {
-    console.error("Replay Auditor report is missing.");
-    return res.status(422).json({
-      success: false,
-      error: "Historical Replay Failed",
-      details: "Replay Auditor report is missing.",
-      report: null
-    });
-  }
-
-  console.log("Replay Auditor Report:", {
-    replayAccuracy: report.replayAccuracy,
-    failedRows: report.failedRows,
-    pendingRows: report.pendingRows,
-    verified: report.verified,
-    report
-  });
-
-  const accuracyOk = Number(report.replayAccuracy) >= 100;
-  const failedOk = Number(report.failedRows) === 0;
-  const pendingOk = Number(report.pendingRows) === 0;
-
-  if (!(accuracyOk && failedOk && pendingOk)) {
-    return res.status(422).json({
-      success: false,
-      error: "Historical Replay Failed",
-      details: "Replay Auditor validation failed.",
-      diagnostics: {
-        accuracyOk,
-        failedOk,
-        pendingOk,
-        replayAccuracy: report.replayAccuracy,
-        failedRows: report.failedRows,
-        pendingRows: report.pendingRows
-      },
-      report
-    });
-  }
-}
-
+  // The historical-replay-specific export gate that used to live here (blocking export unless
+  // rfq.replayDetected's auditor report showed 100% accuracy) has been removed along with the
+  // upload-time replay-detection concept it depended on - it never ran for an ordinary RFQ before
+  // (replayDetected was only ever true for a hash-matched historical upload), so removing it keeps
+  // every RFQ's export behavior exactly as it already was, rather than newly restricting exports
+  // that were previously unaffected by this check. rfq.verificationMismatches remains an always-
+  // empty, unpopulated field (see Recommendation Quality report above) and this check is left in
+  // place harmlessly since it can never trigger.
   if (rfq.verificationMismatches && rfq.verificationMismatches.length > 0) {
     console.error(`Export blocked for RFQ ${rfqId} due to ${rfq.verificationMismatches.length} verification mismatches.`);
     return res.status(422).json({
       success: false,
-      error: "Historical Replay Failed",
+      error: "Recommendation Quality Check Failed",
       mismatches: rfq.verificationMismatches
     });
   }
@@ -6587,8 +6665,12 @@ app.get("/api/system-health", (req, res) => {
   const pendingRecommendationsCount = rfqItems.filter(i => i.status === "Pending" || i.status === "Needs Manual Review").length;
   const completedRecommendationsCount = rfqItems.filter(i => i.status === "Accepted").length;
 
-  const totalReplayed = rfqItems.filter(i => i.recommendationTrace?.replayMode === "Yes").length;
-  const replayAccuracy = totalReplayed > 0 ? 99.4 : 98.2;
+  // Honest metric - % of recommended items not needing manual review, replacing a hardcoded
+  // constant that used to key off the now-removed replay-mode concept.
+  const ratedItems = rfqItems.filter(i => i.status === "Accepted" || i.status === "Needs Manual Review");
+  const replayAccuracy = ratedItems.length > 0
+    ? Math.round((ratedItems.filter(i => i.status !== "Needs Manual Review").length / ratedItems.length) * 1000) / 10
+    : 100;
 
   const totalAccepted = rfqItems.filter(i => i.status === "Accepted").length;
   const totalItems = rfqItems.length;

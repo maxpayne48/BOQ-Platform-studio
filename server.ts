@@ -4697,8 +4697,20 @@ app.post("/api/rfqs/:id/recommend", async (req, res) => {
         domainAverageRate: getCachedDomainAverage(item.domain)
       });
 
+      // Audit 0002 fix 1 (Root Cause D): adoption is decided by evidence QUALITY, not pool
+      // size. The old rule ("more references wins") let 16 loosely-related relaxed-tier
+      // observations displace a single exact historical match - the mechanism behind the
+      // ₹3,500 → ₹0.15 substitutions. A relaxed-tier estimate (synthetic score ≤70, scaled
+      // down by project similarity) now only replaces the current evidence when its selected
+      // match genuinely outscores the current selected match; reference count is only the
+      // tiebreak between equal-quality pools.
       const currentReferenceCount = stats?.referenceCount || 0;
-      const better = relaxed.applied && !!relaxed.marketStats && relaxed.marketStats.referenceCount > currentReferenceCount;
+      const currentMatchScore = stats?.selectedMatchScore ?? 0;
+      const better = relaxed.applied && !!relaxed.marketStats && (
+        relaxed.marketStats.selectedMatchScore > currentMatchScore ||
+        (relaxed.marketStats.selectedMatchScore === currentMatchScore &&
+          relaxed.marketStats.referenceCount > currentReferenceCount)
+      );
 
       if (better && relaxed.marketStats) {
         const previousRate = item.recommendedRate;
@@ -4708,8 +4720,9 @@ app.post("/api/rfqs/:id/recommend", async (req, res) => {
         item.calibrationApplied = true;
         item.calibrationReason =
           `Self-validation second pass replaced a weakly-supported estimate (₹${previousRate.toFixed(2)}) with a ` +
-          `better-evidenced one (₹${newRate.toFixed(2)}) after finding ${relaxed.marketStats.referenceCount} reference(s) ` +
-          `vs. ${currentReferenceCount} previously. Trigger(s): ${reasons.join("; ")}.`;
+          `better-matched one (₹${newRate.toFixed(2)}): selected match score ${relaxed.marketStats.selectedMatchScore}% ` +
+          `vs. ${currentMatchScore}% previously (${relaxed.marketStats.referenceCount} vs. ${currentReferenceCount} reference(s)). ` +
+          `Trigger(s): ${reasons.join("; ")}.`;
 
         calibrationOutcome.itemMarketStats.set(item.id, relaxed.marketStats);
         const newConfidence = ProjectCalibrationEngine.computeItemConfidenceProfile(item, relaxed.marketStats, item.recommendationTrace?.rateSource);

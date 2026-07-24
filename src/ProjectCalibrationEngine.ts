@@ -200,6 +200,22 @@ const FALLBACK_ITEM_SIMILARITY = 70;
 //    inconsistent when it leaks into a standard-grade estimate.
 // No statistical outlier detection here (no IQR/Z-score/MAD) - there is no distribution to detect
 // outliers from once the goal is selecting the single closest match, not blending a set of prices.
+// Data-integrity gate (Audit 0002 §3): how far a rate may sit from the median of its own
+// evidence pool before it is treated as corrupted data rather than a legitimate price.
+// This is a sanity filter on individual observations (e.g. ₹0.165 recorded for tile
+// cladding among ₹2,646-₹4,000 siblings - 4-5 orders of magnitude off), NOT statistical
+// price blending: the median is never used as a price, only as an anchor for spotting
+// physically-impossible outliers. Anchoring to the pool median instead of the top-ranked
+// candidate means a corrupted value can never protect itself by out-ranking the guard.
+const IMPLAUSIBLE_RATE_RATIO = 5;
+const MIN_POOL_FOR_PLAUSIBILITY = 3;
+
+function medianOf(values: number[]): number {
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
+}
+
 function filterHistoricalEvidence(
   candidates: EvidenceRecord[],
   currentGrade: string,
@@ -212,11 +228,24 @@ function filterHistoricalEvidence(
     currentGrade.toLowerCase().includes("luxury") ||
     currentGrade.toLowerCase().includes("grade a");
 
+  // Plausibility anchor: with fewer than MIN_POOL_FOR_PLAUSIBILITY observations there is
+  // no basis to say which of two disagreeing rates is the corrupted one - skip the gate.
+  const finiteRates = candidates.filter((c) => Number.isFinite(c.rate) && c.rate > 0).map((c) => c.rate);
+  const plausibilityMedian = finiteRates.length >= MIN_POOL_FOR_PLAUSIBILITY ? medianOf(finiteRates) : null;
+
   const survivors: EvidenceRecord[] = [];
   for (const c of candidates) {
     if (!Number.isFinite(c.rate) || c.rate <= 0) {
       flag("Incorrect Rate");
       continue;
+    }
+
+    if (plausibilityMedian !== null && plausibilityMedian > 0) {
+      const ratio = c.rate / plausibilityMedian;
+      if (ratio > IMPLAUSIBLE_RATE_RATIO || ratio < 1 / IMPLAUSIBLE_RATE_RATIO) {
+        flag("Implausible Rate (order-of-magnitude outlier vs sibling evidence)");
+        continue;
+      }
     }
 
     const project = projectByName.get(c.projectName);
@@ -284,6 +313,12 @@ function selectHistoricalEvidence(
     // Stage 2 boundary (Problem 2 fix): same as HistoricalRetrievalEngine - only rates from
     // projects inside the Stage 1 shortlist count as evidence here, never "anyone in the whole
     // catalog at a discount".
+    // Gating note (Audit 0002 fix 1): this fallback pool is the SAME master item's own rates
+    // across projects, so the Item-Family / UOM / commercial-equivalence gates are inherently
+    // satisfied (the RFQ item was already matched to this master by the recommendation engine).
+    // What it was missing was protection against a corrupted sibling rate - that is now closed
+    // by filterHistoricalEvidence's Implausible-Rate gate below, which applies to every pool
+    // this function selects from (primary candidates, this fallback, and relaxed-tier pools).
     rawCandidates = matchedMaster.historicalRates
       .map((r, i) => ({ rate: r, projectName: projectsForRates[i], section: worksheetsForRates[i] }))
       .filter((c) => Number.isFinite(c.rate) && c.rate > 0 && c.projectName && similarityByProjectName.has(c.projectName))

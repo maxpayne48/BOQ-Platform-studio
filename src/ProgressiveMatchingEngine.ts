@@ -46,9 +46,18 @@ const TIER_SYNTHETIC_SCORE: Record<Exclude<MatchTier, "Market Estimation" | "Non
   "Functional Match": 50
 };
 
+// Audit 0002 fix 1: relaxed-tier pools are now (a) bounded to the Stage-1 project
+// shortlist - the same two-stage boundary every other evidence path already enforces,
+// instead of quietly pooling rates from every project in the catalog - and (b) ranked by
+// the synthetic tier score SCALED by the originating project's Stage-1 similarity,
+// mirroring how a real HistoricalRetrievalEngine candidate's overallMatchScore already
+// multiplies in its project factor. Before this, every tier candidate carried an
+// identical flat score, so "selection" among them degenerated to array order - which is
+// exactly how a corrupted ₹0.15 rate beat three legitimate ₹2,646-₹4,000 observations.
 function buildCandidatesFromMasters(
   masters: MasterBOQItem[],
-  syntheticScore: number
+  syntheticScore: number,
+  similarityByProjectName: Map<string, number>
 ): { rate: number; overallMatchScore: number; projectName: string }[] {
   const candidates: { rate: number; overallMatchScore: number; projectName: string }[] = [];
   for (const m of masters) {
@@ -57,7 +66,14 @@ function buildCandidatesFromMasters(
     for (let i = 0; i < rates.length; i++) {
       const rate = rates[i];
       if (!Number.isFinite(rate) || rate <= 0) continue;
-      candidates.push({ rate, overallMatchScore: syntheticScore, projectName: projects[i] || "Unknown Project" });
+      const projectName = projects[i];
+      if (!projectName || !similarityByProjectName.has(projectName)) continue; // outside Stage-1 shortlist
+      const projectSimilarity = similarityByProjectName.get(projectName) as number;
+      candidates.push({
+        rate,
+        overallMatchScore: Math.round(syntheticScore * projectSimilarity),
+        projectName
+      });
     }
   }
   return candidates;
@@ -80,7 +96,7 @@ export const ProgressiveMatchingEngine = {
 
     const tryTier = (masters: MasterBOQItem[], tier: Exclude<MatchTier, "Market Estimation" | "None">): ProgressiveMatchResult | null => {
       if (masters.length === 0) return null;
-      const candidates = buildCandidatesFromMasters(masters, TIER_SYNTHETIC_SCORE[tier]);
+      const candidates = buildCandidatesFromMasters(masters, TIER_SYNTHETIC_SCORE[tier], similarityByProjectName);
       const stats = ProjectCalibrationEngine.selectHistoricalEvidence(
         undefined,
         similarityByProjectName,

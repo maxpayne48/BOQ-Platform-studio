@@ -1,5 +1,29 @@
 [
   {
+    "id": "log_8gozqrqr9",
+    "timestamp": "2026-07-24 15:21:55 UTC",
+    "user": "Estimator Admin",
+    "action": "Export",
+    "details": "Exported fully priced Excel workbook \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" for project \"Copy of KOHLER PUNE FS 16TH JUNE\" with formatting preserved. Mode: AI Hybrid. Replay: false.",
+    "status": "Success"
+  },
+  {
+    "id": "log_ayffl1llt",
+    "timestamp": "2026-07-24 15:21:54 UTC",
+    "user": "Estimator Admin",
+    "action": "Export",
+    "details": "High-fidelity rated RFQ \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" successfully exported with formatted rate injection. Preserving original layout and styles.",
+    "status": "Success"
+  },
+  {
+    "id": "log_ffqznuium",
+    "timestamp": "2026-07-24 15:15:52 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of KOHLER PUNE FS 16TH JUNE\" in 9391ms.",
+    "status": "Success"
+  },
+  {
     "id": "log_wbljc9ang",
     "timestamp": "2026-07-24 15:08:21 UTC",
     "user": "Estimator Admin",

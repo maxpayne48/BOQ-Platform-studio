@@ -40,7 +40,7 @@
       "industry": "Corporate Real Estate",
       "client": "Copy Of KOHLER PUNE FS 16TH JUNE",
       "location": "Pune, India",
-      "projectSize": "6,91,250 sq ft",
+      "projectSize": "15,000 sq ft",
       "buildingType": "Grade A Multi-Tenant Building",
       "fitoutType": "Modern High-Spec Corporate Office",
       "constructionType": "Interior Fitout & Refurbishment",
@@ -52,7 +52,7 @@
         "CPWD Engineering Specifications 2019",
         "National Building Code of India"
       ],
-      "projectCost": "₹5,32,24,302"
+      "projectCost": "₹6,56,29,440"
     },
     "worksheetContexts": {
       "Civil Works": {
@@ -23095,6 +23095,7 @@
         "rowNum": 7,
         "reasons": [
           "Weak historical support (fewer than 2 commercially-equivalent references)",
+          "Low pricing confidence (48%)",
           "Unusually high deviation from the selected historical rate (46.7%)"
         ],
         "adopted": false,
@@ -23104,7 +23105,7 @@
         "itemId": "rfqit_arvjv4zai",
         "rowNum": 11,
         "reasons": [
-          "Low pricing confidence (47%)"
+          "Low pricing confidence (44%)"
         ],
         "adopted": false,
         "detail": "Re-evaluation attempted but found no better-evidenced historical match than the original estimate; original recommendation retained."
@@ -23276,7 +23277,7 @@
         "itemId": "rfqit_evin4mscf",
         "rowNum": 140,
         "reasons": [
-          "Low pricing confidence (42%)"
+          "Low pricing confidence (38%)"
         ],
         "adopted": false,
         "detail": "Re-evaluation attempted but found no better-evidenced historical match than the original estimate; original recommendation retained."
@@ -23285,11 +23286,11 @@
         "itemId": "rfqit_807x4ziqx",
         "rowNum": 141,
         "reasons": [
-          "Low pricing confidence (35%)",
+          "Low pricing confidence (32%)",
           "Unusually high deviation from the selected historical rate (29.1%)"
         ],
-        "adopted": true,
-        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹102854.40) with a better-matched one (₹145000.00): selected match score 67% vs. 63% previously (2 vs. 2 reference(s)). Trigger(s): Low pricing confidence (35%); Unusually high deviation from the selected historical rate (29.1%)."
+        "adopted": false,
+        "detail": "Re-evaluation attempted but found no better-evidenced historical match than the original estimate; original recommendation retained."
       },
       {
         "itemId": "rfqit_rt5ecv50j",
@@ -23318,6 +23319,15 @@
         ],
         "adopted": false,
         "detail": "Re-evaluation attempted but found no better-evidenced historical match than the original estimate; original recommendation retained."
+      },
+      {
+        "itemId": "rfqit_n2zr1go2e",
+        "rowNum": 198,
+        "reasons": [
+          "Low pricing confidence (49%)"
+        ],
+        "adopted": true,
+        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹550.00) with a better-matched one (₹550.00): selected match score 50% vs. 43% previously (2 vs. 2 reference(s)). Trigger(s): Low pricing confidence (49%)."
       },
       {
         "itemId": "rfqit_nk6w9se2e",
@@ -23350,8 +23360,17 @@
         "itemId": "rfqit_2117zjg6e",
         "rowNum": 10,
         "reasons": [
-          "Low pricing confidence (48%)",
+          "Low pricing confidence (44%)",
           "Unusually high deviation from the selected historical rate (38.8%)"
+        ],
+        "adopted": false,
+        "detail": "Re-evaluation attempted but found no better-evidenced historical match than the original estimate; original recommendation retained."
+      },
+      {
+        "itemId": "rfqit_vqw0e3v34",
+        "rowNum": 11,
+        "reasons": [
+          "Low pricing confidence (46%)"
         ],
         "adopted": false,
         "detail": "Re-evaluation attempted but found no better-evidenced historical match than the original estimate; original recommendation retained."
@@ -23410,30 +23429,21 @@
           "Unusually high deviation from the selected historical rate (63.6%)"
         ],
         "adopted": true,
-        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹4550.00) with a better-matched one (₹3000.00): selected match score 67% vs. 57% previously (4 vs. 3 reference(s)). Trigger(s): Rate falls outside expected historical range; Large/uncertain engineering adjustment (Linear Extrapolation, 30% confidence); Unusually high deviation from the selected historical rate (63.6%)."
+        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹4550.00) with a better-matched one (₹3000.00): selected match score 50% vs. 46% previously (4 vs. 3 reference(s)). Trigger(s): Rate falls outside expected historical range; Large/uncertain engineering adjustment (Linear Extrapolation, 30% confidence); Unusually high deviation from the selected historical rate (63.6%)."
       },
       {
         "itemId": "rfqit_imtqyhtbg",
         "rowNum": 36,
         "reasons": [
-          "Low pricing confidence (43%)",
+          "Low pricing confidence (40%)",
           "Large/uncertain engineering adjustment (Linear Extrapolation, 48% confidence)"
         ],
         "adopted": true,
-        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹7700.00) with a better-matched one (₹9750.00): selected match score 67% vs. 57% previously (2 vs. 2 reference(s)). Trigger(s): Low pricing confidence (43%); Large/uncertain engineering adjustment (Linear Extrapolation, 48% confidence)."
+        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹7700.00) with a better-matched one (₹9750.00): selected match score 50% vs. 46% previously (3 vs. 2 reference(s)). Trigger(s): Low pricing confidence (40%); Large/uncertain engineering adjustment (Linear Extrapolation, 48% confidence)."
       },
       {
         "itemId": "rfqit_a3ar5vz2k",
         "rowNum": 6,
-        "reasons": [
-          "Weak historical support (fewer than 2 commercially-equivalent references)"
-        ],
-        "adopted": false,
-        "detail": "Re-evaluation attempted but found no better-evidenced historical match than the original estimate; original recommendation retained."
-      },
-      {
-        "itemId": "rfqit_ytudk9zs4",
-        "rowNum": 7,
         "reasons": [
           "Weak historical support (fewer than 2 commercially-equivalent references)"
         ],
@@ -23516,10 +23526,10 @@
         "itemId": "rfqit_d69wu7b84",
         "rowNum": 30,
         "reasons": [
-          "Low pricing confidence (49%)"
+          "Low pricing confidence (47%)"
         ],
-        "adopted": true,
-        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹9500.00) with a better-matched one (₹12000.00): selected match score 67% vs. 63% previously (7 vs. 2 reference(s)). Trigger(s): Low pricing confidence (49%)."
+        "adopted": false,
+        "detail": "Re-evaluation attempted but found no better-evidenced historical match than the original estimate; original recommendation retained."
       },
       {
         "itemId": "rfqit_nu692tozx",
@@ -23546,7 +23556,7 @@
           "Unusually high deviation from the selected historical rate (36.4%)"
         ],
         "adopted": true,
-        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹826.88) with a better-matched one (₹615.00): selected match score 67% vs. 58% previously (15 vs. 10 reference(s)). Trigger(s): Unusually high deviation from the selected historical rate (36.4%)."
+        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹826.88) with a better-matched one (₹615.00): selected match score 50% vs. 47% previously (10 vs. 8 reference(s)). Trigger(s): Unusually high deviation from the selected historical rate (36.4%)."
       },
       {
         "itemId": "rfqit_59lfxw8pe",
@@ -23565,7 +23575,7 @@
           "Low pricing confidence (30%)"
         ],
         "adopted": true,
-        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹5200.00) with a better-matched one (₹5200.00): selected match score 57% vs. 0% previously (77 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
+        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹7000.00) with a better-matched one (₹7000.00): selected match score 43% vs. 0% previously (63 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
       },
       {
         "itemId": "rfqit_i65ib16gv",
@@ -23600,8 +23610,8 @@
         "reasons": [
           "Unusually high deviation from the selected historical rate (35.6%)"
         ],
-        "adopted": true,
-        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹3321.45) with a better-matched one (₹2450.00): selected match score 67% vs. 63% previously (6 vs. 6 reference(s)). Trigger(s): Unusually high deviation from the selected historical rate (35.6%)."
+        "adopted": false,
+        "detail": "Re-evaluation attempted but found no better-evidenced historical match than the original estimate; original recommendation retained."
       },
       {
         "itemId": "rfqit_457xgk08c",
@@ -23609,8 +23619,8 @@
         "reasons": [
           "Unusually high deviation from the selected historical rate (40.4%)"
         ],
-        "adopted": true,
-        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹2316.30) with a better-matched one (₹1650.00): selected match score 67% vs. 63% previously (5 vs. 5 reference(s)). Trigger(s): Unusually high deviation from the selected historical rate (40.4%)."
+        "adopted": false,
+        "detail": "Re-evaluation attempted but found no better-evidenced historical match than the original estimate; original recommendation retained."
       },
       {
         "itemId": "rfqit_kwqdi350h",
@@ -23619,13 +23629,14 @@
           "Rate falls outside expected historical range",
           "Unusually high deviation from the selected historical rate (641.6%)"
         ],
-        "adopted": true,
-        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹9789.75) with a better-matched one (₹1320.00): selected match score 67% vs. 63% previously (7 vs. 7 reference(s)). Trigger(s): Rate falls outside expected historical range; Unusually high deviation from the selected historical rate (641.6%)."
+        "adopted": false,
+        "detail": "Re-evaluation attempted but found no better-evidenced historical match than the original estimate; original recommendation retained."
       },
       {
         "itemId": "rfqit_l06aluqmh",
         "rowNum": 585,
         "reasons": [
+          "Low pricing confidence (47%)",
           "Unusually high deviation from the selected historical rate (56.4%)"
         ],
         "adopted": false,
@@ -23635,6 +23646,7 @@
         "itemId": "rfqit_k9afi6ecw",
         "rowNum": 589,
         "reasons": [
+          "Low pricing confidence (47%)",
           "Unusually high deviation from the selected historical rate (25.9%)"
         ],
         "adopted": false,
@@ -23653,6 +23665,7 @@
         "itemId": "rfqit_yjodr7z51",
         "rowNum": 598,
         "reasons": [
+          "Low pricing confidence (45%)",
           "Unusually high deviation from the selected historical rate (29.8%)"
         ],
         "adopted": false,
@@ -23671,6 +23684,7 @@
         "itemId": "rfqit_lqy0fldcl",
         "rowNum": 604,
         "reasons": [
+          "Low pricing confidence (45%)",
           "Unusually high deviation from the selected historical rate (32.3%)"
         ],
         "adopted": false,
@@ -23707,6 +23721,7 @@
         "itemId": "rfqit_rwq98lpyw",
         "rowNum": 614,
         "reasons": [
+          "Rate falls outside expected historical range",
           "Unusually high deviation from the selected historical rate (105.2%)"
         ],
         "adopted": false,
@@ -23738,7 +23753,7 @@
           "Low pricing confidence (30%)"
         ],
         "adopted": true,
-        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹3500.00) with a better-matched one (₹3500.00): selected match score 48% vs. 0% previously (10 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
+        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹3500.00) with a better-matched one (₹3500.00): selected match score 36% vs. 0% previously (10 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
       },
       {
         "itemId": "rfqit_4vz3g8vsn",
@@ -23748,7 +23763,7 @@
           "Low pricing confidence (30%)"
         ],
         "adopted": true,
-        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹3800.00) with a better-matched one (₹3800.00): selected match score 48% vs. 0% previously (2 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
+        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹3800.00) with a better-matched one (₹3800.00): selected match score 36% vs. 0% previously (2 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
       },
       {
         "itemId": "rfqit_ybzu23mkd",
@@ -23925,7 +23940,7 @@
           "Low pricing confidence (30%)"
         ],
         "adopted": true,
-        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹819.00) with a better-matched one (₹819.00): selected match score 48% vs. 0% previously (17 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
+        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹819.00) with a better-matched one (₹819.00): selected match score 36% vs. 0% previously (17 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
       },
       {
         "itemId": "rfqit_r5soheux5",
@@ -23935,7 +23950,7 @@
           "Low pricing confidence (30%)"
         ],
         "adopted": true,
-        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹819.00) with a better-matched one (₹819.00): selected match score 48% vs. 0% previously (17 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
+        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹819.00) with a better-matched one (₹819.00): selected match score 36% vs. 0% previously (17 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
       },
       {
         "itemId": "rfqit_1q92amgdm",
@@ -23945,7 +23960,7 @@
           "Low pricing confidence (30%)"
         ],
         "adopted": true,
-        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹819.00) with a better-matched one (₹819.00): selected match score 48% vs. 0% previously (17 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
+        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹819.00) with a better-matched one (₹819.00): selected match score 36% vs. 0% previously (17 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
       },
       {
         "itemId": "rfqit_7t86h22dp",
@@ -23955,7 +23970,7 @@
           "Low pricing confidence (30%)"
         ],
         "adopted": true,
-        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹819.00) with a better-matched one (₹819.00): selected match score 48% vs. 0% previously (17 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
+        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹819.00) with a better-matched one (₹819.00): selected match score 36% vs. 0% previously (17 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
       },
       {
         "itemId": "rfqit_1ol4lkl14",
@@ -23965,7 +23980,7 @@
           "Low pricing confidence (30%)"
         ],
         "adopted": true,
-        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹819.00) with a better-matched one (₹819.00): selected match score 48% vs. 0% previously (17 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
+        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹819.00) with a better-matched one (₹819.00): selected match score 36% vs. 0% previously (17 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
       },
       {
         "itemId": "rfqit_7yoa1kxew",
@@ -24242,7 +24257,7 @@
           "Low pricing confidence (30%)"
         ],
         "adopted": true,
-        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹387.00) with a better-matched one (₹387.00): selected match score 47% vs. 0% previously (4 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
+        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹100.00) with a better-matched one (₹100.00): selected match score 38% vs. 0% previously (4 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
       },
       {
         "itemId": "rfqit_41fs83iev",
@@ -24298,7 +24313,7 @@
           "Large/uncertain engineering adjustment (Area Scaling, 30% confidence)"
         ],
         "adopted": true,
-        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹175.10) with a better-matched one (₹330.00): selected match score 48% vs. 0% previously (10 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%); Large/uncertain engineering adjustment (Area Scaling, 30% confidence)."
+        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹175.10) with a better-matched one (₹330.00): selected match score 36% vs. 0% previously (10 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%); Large/uncertain engineering adjustment (Area Scaling, 30% confidence)."
       },
       {
         "itemId": "rfqit_o2bs4q9yb",
@@ -24309,7 +24324,7 @@
           "Large/uncertain engineering adjustment (Area Scaling, 30% confidence)"
         ],
         "adopted": true,
-        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹139.05) with a better-matched one (₹330.00): selected match score 48% vs. 0% previously (10 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%); Large/uncertain engineering adjustment (Area Scaling, 30% confidence)."
+        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹139.05) with a better-matched one (₹330.00): selected match score 36% vs. 0% previously (10 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%); Large/uncertain engineering adjustment (Area Scaling, 30% confidence)."
       },
       {
         "itemId": "rfqit_41t243qq8",
@@ -24338,7 +24353,7 @@
           "Large/uncertain engineering adjustment (Area Scaling, 46% confidence)"
         ],
         "adopted": true,
-        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹59.03) with a better-matched one (₹330.00): selected match score 48% vs. 0% previously (10 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%); Large/uncertain engineering adjustment (Area Scaling, 46% confidence)."
+        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹59.03) with a better-matched one (₹330.00): selected match score 36% vs. 0% previously (10 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%); Large/uncertain engineering adjustment (Area Scaling, 46% confidence)."
       },
       {
         "itemId": "rfqit_5vkdfnpk0",
@@ -24404,7 +24419,7 @@
           "Low pricing confidence (30%)"
         ],
         "adopted": true,
-        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹1535.00) with a better-matched one (₹1535.00): selected match score 57% vs. 0% previously (4 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
+        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹1535.00) with a better-matched one (₹1535.00): selected match score 43% vs. 0% previously (4 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
       },
       {
         "itemId": "rfqit_3fvu48wg6",
@@ -24414,7 +24429,7 @@
           "Low pricing confidence (30%)"
         ],
         "adopted": true,
-        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹1535.00) with a better-matched one (₹1535.00): selected match score 57% vs. 0% previously (4 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
+        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹1535.00) with a better-matched one (₹1535.00): selected match score 43% vs. 0% previously (4 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
       },
       {
         "itemId": "rfqit_sg2s28awb",
@@ -24522,7 +24537,7 @@
           "Low pricing confidence (30%)"
         ],
         "adopted": true,
-        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹200.00) with a better-matched one (₹200.00): selected match score 47% vs. 0% previously (2 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
+        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹264.00) with a better-matched one (₹264.00): selected match score 38% vs. 0% previously (2 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
       },
       {
         "itemId": "rfqit_4flowyme6",
@@ -24532,7 +24547,7 @@
           "Low pricing confidence (30%)"
         ],
         "adopted": true,
-        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹461.00) with a better-matched one (₹461.00): selected match score 67% vs. 0% previously (3 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
+        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹461.00) with a better-matched one (₹461.00): selected match score 50% vs. 0% previously (3 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
       },
       {
         "itemId": "rfqit_8sbl7jxw1",
@@ -24562,7 +24577,7 @@
           "Low pricing confidence (30%)"
         ],
         "adopted": true,
-        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹200.00) with a better-matched one (₹200.00): selected match score 47% vs. 0% previously (2 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
+        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹264.00) with a better-matched one (₹264.00): selected match score 38% vs. 0% previously (2 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
       },
       {
         "itemId": "rfqit_olzg4fpbv",
@@ -24572,7 +24587,7 @@
           "Low pricing confidence (30%)"
         ],
         "adopted": true,
-        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹461.00) with a better-matched one (₹461.00): selected match score 67% vs. 0% previously (3 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
+        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹461.00) with a better-matched one (₹461.00): selected match score 50% vs. 0% previously (3 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
       },
       {
         "itemId": "rfqit_rhnwfzn7q",
@@ -24582,7 +24597,7 @@
           "Low pricing confidence (30%)"
         ],
         "adopted": true,
-        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹100.00) with a better-matched one (₹100.00): selected match score 47% vs. 0% previously (4 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
+        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹132.00) with a better-matched one (₹132.00): selected match score 38% vs. 0% previously (4 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
       },
       {
         "itemId": "rfqit_urxwikvmz",
@@ -24602,7 +24617,7 @@
           "Low pricing confidence (30%)"
         ],
         "adopted": true,
-        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹100.00) with a better-matched one (₹100.00): selected match score 47% vs. 0% previously (3 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
+        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹66.00) with a better-matched one (₹66.00): selected match score 38% vs. 0% previously (3 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
       },
       {
         "itemId": "rfqit_tsrf5yp4x",
@@ -24612,7 +24627,7 @@
           "Low pricing confidence (30%)"
         ],
         "adopted": true,
-        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹100.00) with a better-matched one (₹100.00): selected match score 47% vs. 0% previously (3 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
+        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹66.00) with a better-matched one (₹66.00): selected match score 38% vs. 0% previously (3 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
       },
       {
         "itemId": "rfqit_xqms4jmu7",
@@ -24629,8 +24644,8 @@
         "reasons": [
           "Weak historical support (fewer than 2 commercially-equivalent references)"
         ],
-        "adopted": true,
-        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹512.00) with a better-matched one (₹512.00): selected match score 48% vs. 48% previously (3 vs. 1 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references)."
+        "adopted": false,
+        "detail": "Re-evaluation attempted but found no better-evidenced historical match than the original estimate; original recommendation retained."
       },
       {
         "itemId": "rfqit_t5c43hi1f",
@@ -24658,7 +24673,7 @@
           "Low pricing confidence (30%)"
         ],
         "adopted": true,
-        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹512.00) with a better-matched one (₹512.00): selected match score 48% vs. 0% previously (3 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
+        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹512.00) with a better-matched one (₹512.00): selected match score 36% vs. 0% previously (3 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
       },
       {
         "itemId": "rfqit_zgfa6rle4",
@@ -24714,7 +24729,7 @@
           "Low pricing confidence (30%)"
         ],
         "adopted": true,
-        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹340.10) with a better-matched one (₹500.00): selected match score 47% vs. 0% previously (4 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
+        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹340.10) with a better-matched one (₹660.00): selected match score 38% vs. 0% previously (4 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
       },
       {
         "itemId": "rfqit_ph71h428k",
@@ -24762,7 +24777,7 @@
           "Low pricing confidence (30%)"
         ],
         "adopted": true,
-        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹500.00) with a better-matched one (₹500.00): selected match score 47% vs. 0% previously (2 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
+        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹660.00) with a better-matched one (₹660.00): selected match score 38% vs. 0% previously (2 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
       },
       {
         "itemId": "rfqit_q0c6176uy",
@@ -24781,7 +24796,7 @@
           "Low pricing confidence (30%)"
         ],
         "adopted": true,
-        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹100.00) with a better-matched one (₹100.00): selected match score 47% vs. 0% previously (3 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
+        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹66.00) with a better-matched one (₹66.00): selected match score 38% vs. 0% previously (3 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
       },
       {
         "itemId": "rfqit_3ggsw4klc",
@@ -24827,6 +24842,7 @@
         "rowNum": 274,
         "reasons": [
           "Weak historical support (fewer than 2 commercially-equivalent references)",
+          "Low pricing confidence (48%)",
           "Rate falls outside expected historical range",
           "Unusually high deviation from the selected historical rate (194.7%)"
         ],
@@ -24842,7 +24858,7 @@
           "Large/uncertain engineering adjustment (Area Scaling, 54% confidence)"
         ],
         "adopted": true,
-        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹675.02) with a better-matched one (₹275.00): selected match score 67% vs. 0% previously (2 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%); Large/uncertain engineering adjustment (Area Scaling, 54% confidence)."
+        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹675.02) with a better-matched one (₹275.00): selected match score 50% vs. 0% previously (2 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%); Large/uncertain engineering adjustment (Area Scaling, 54% confidence)."
       },
       {
         "itemId": "rfqit_xi2b0f93z",
@@ -24861,7 +24877,7 @@
           "Low pricing confidence (30%)"
         ],
         "adopted": true,
-        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹580.00) with a better-matched one (₹282.00): selected match score 67% vs. 0% previously (3 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
+        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹580.00) with a better-matched one (₹282.00): selected match score 50% vs. 0% previously (3 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
       },
       {
         "itemId": "rfqit_d3nppznx0",
@@ -24890,7 +24906,7 @@
           "Low pricing confidence (30%)"
         ],
         "adopted": true,
-        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹819.00) with a better-matched one (₹819.00): selected match score 48% vs. 0% previously (17 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
+        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹819.00) with a better-matched one (₹819.00): selected match score 36% vs. 0% previously (17 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
       },
       {
         "itemId": "rfqit_ql824gkjc",
@@ -24900,7 +24916,7 @@
           "Low pricing confidence (30%)"
         ],
         "adopted": true,
-        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹500.00) with a better-matched one (₹500.00): selected match score 34% vs. 0% previously (8 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
+        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹660.00) with a better-matched one (₹660.00): selected match score 27% vs. 0% previously (8 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
       },
       {
         "itemId": "rfqit_l2txaydch",
@@ -24920,7 +24936,7 @@
           "Low pricing confidence (30%)"
         ],
         "adopted": true,
-        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹25575.00) with a better-matched one (₹25575.00): selected match score 48% vs. 0% previously (12 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
+        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹25575.00) with a better-matched one (₹25575.00): selected match score 36% vs. 0% previously (12 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
       },
       {
         "itemId": "rfqit_dt6x4mr82",
@@ -25069,7 +25085,7 @@
           "Low pricing confidence (30%)"
         ],
         "adopted": true,
-        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹300.00) with a better-matched one (₹300.00): selected match score 40% vs. 0% previously (4 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
+        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹396.00) with a better-matched one (₹396.00): selected match score 33% vs. 0% previously (4 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
       },
       {
         "itemId": "rfqit_l8kqhsl7f",
@@ -25079,7 +25095,7 @@
           "Low pricing confidence (30%)"
         ],
         "adopted": true,
-        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹25575.00) with a better-matched one (₹25575.00): selected match score 48% vs. 0% previously (12 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
+        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹25575.00) with a better-matched one (₹25575.00): selected match score 36% vs. 0% previously (12 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
       },
       {
         "itemId": "rfqit_r1ehsxkwe",
@@ -25135,7 +25151,7 @@
           "Low pricing confidence (30%)"
         ],
         "adopted": true,
-        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹819.00) with a better-matched one (₹819.00): selected match score 48% vs. 0% previously (17 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
+        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹819.00) with a better-matched one (₹819.00): selected match score 36% vs. 0% previously (17 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
       },
       {
         "itemId": "rfqit_wu0cwkuxt",
@@ -25151,7 +25167,8 @@
         "itemId": "rfqit_y12baja4q",
         "rowNum": 25,
         "reasons": [
-          "Weak historical support (fewer than 2 commercially-equivalent references)"
+          "Weak historical support (fewer than 2 commercially-equivalent references)",
+          "Low pricing confidence (49%)"
         ],
         "adopted": false,
         "detail": "Re-evaluation attempted but found no better-evidenced historical match than the original estimate; original recommendation retained."
@@ -25234,7 +25251,7 @@
           "Low pricing confidence (30%)"
         ],
         "adopted": true,
-        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹19200.00) with a better-matched one (₹19200.00): selected match score 48% vs. 0% previously (4 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
+        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹19200.00) with a better-matched one (₹19200.00): selected match score 36% vs. 0% previously (4 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
       },
       {
         "itemId": "rfqit_vqquajvh8",
@@ -25271,7 +25288,7 @@
           "Low pricing confidence (30%)"
         ],
         "adopted": true,
-        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹540.00) with a better-matched one (₹540.00): selected match score 48% vs. 0% previously (2 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
+        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹540.00) with a better-matched one (₹540.00): selected match score 36% vs. 0% previously (2 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
       },
       {
         "itemId": "rfqit_yhn57l4bc",
@@ -25408,7 +25425,7 @@
           "Weak historical support (fewer than 2 commercially-equivalent references)"
         ],
         "adopted": true,
-        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹362.00) with a better-matched one (₹362.00): selected match score 67% vs. 29% previously (3 vs. 1 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references)."
+        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹362.00) with a better-matched one (₹362.00): selected match score 50% vs. 23% previously (3 vs. 1 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references)."
       },
       {
         "itemId": "rfqit_5imuvqiuu",
@@ -25645,7 +25662,7 @@
           "Low pricing confidence (30%)"
         ],
         "adopted": true,
-        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹120.00) with a better-matched one (₹120.00): selected match score 48% vs. 0% previously (4 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
+        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹120.00) with a better-matched one (₹120.00): selected match score 36% vs. 0% previously (4 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
       },
       {
         "itemId": "rfqit_e6s14s8if",
@@ -25775,7 +25792,7 @@
           "Low pricing confidence (30%)"
         ],
         "adopted": true,
-        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹420.00) with a better-matched one (₹420.00): selected match score 48% vs. 0% previously (3 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
+        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹420.00) with a better-matched one (₹420.00): selected match score 36% vs. 0% previously (3 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
       },
       {
         "itemId": "rfqit_clk5jv80e",
@@ -25886,7 +25903,7 @@
           "Low pricing confidence (30%)"
         ],
         "adopted": true,
-        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹1750.00) with a better-matched one (₹1750.00): selected match score 48% vs. 0% previously (23 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
+        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹1750.00) with a better-matched one (₹1750.00): selected match score 36% vs. 0% previously (23 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
       },
       {
         "itemId": "rfqit_9vho80puy",
@@ -25906,7 +25923,7 @@
           "Low pricing confidence (30%)"
         ],
         "adopted": true,
-        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹750.00) with a better-matched one (₹750.00): selected match score 67% vs. 0% previously (3 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
+        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹750.00) with a better-matched one (₹750.00): selected match score 50% vs. 0% previously (3 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
       },
       {
         "itemId": "rfqit_2p865vz59",
@@ -25916,7 +25933,7 @@
           "Low pricing confidence (30%)"
         ],
         "adopted": true,
-        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹1934.00) with a better-matched one (₹1934.00): selected match score 44% vs. 0% previously (2 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
+        "detail": "Self-validation second pass replaced a weakly-supported estimate (₹1934.00) with a better-matched one (₹1934.00): selected match score 38% vs. 0% previously (2 vs. 0 reference(s)). Trigger(s): Weak historical support (fewer than 2 commercially-equivalent references); Low pricing confidence (30%)."
       },
       {
         "itemId": "rfqit_xits5sczd",
@@ -25954,13 +25971,22 @@
         ],
         "adopted": false,
         "detail": "Re-evaluation attempted but found no better-evidenced historical match than the original estimate; original recommendation retained."
+      },
+      {
+        "itemId": "rfqit_2zlqgv07z",
+        "rowNum": 125,
+        "reasons": [
+          "Low pricing confidence (48%)"
+        ],
+        "adopted": false,
+        "detail": "Re-evaluation attempted but found no better-evidenced historical match than the original estimate; original recommendation retained."
       }
     ],
     "recommendationAuditReport": {
-      "approvalAccuracy": 65,
+      "approvalAccuracy": 58.8,
       "totalRows": 672,
-      "autoApprovedRows": 437,
-      "needsReviewRows": 161,
+      "autoApprovedRows": 395,
+      "needsReviewRows": 203,
       "manualPricingRows": 74,
       "records": [
         {
@@ -26302,8 +26328,8 @@
           "originalDescription": "Acoustic Panelling",
           "masterItemId": "mstr_5471bmhhw",
           "recommendedRate": 3900,
-          "approvalStatus": "Auto Approved",
-          "reasonCode": "APPROVED"
+          "approvalStatus": "Needs Review",
+          "reasonCode": "LOW_CONFIDENCE"
         },
         {
           "worksheetName": "Interior Works",
@@ -26490,7 +26516,7 @@
           "rowNumber": 141,
           "originalDescription": "Size -800mm H X 750mm D X 1050mm L",
           "masterItemId": "mstr_m019bm9j3",
-          "recommendedRate": 145000,
+          "recommendedRate": 102854.4,
           "approvalStatus": "Needs Review",
           "reasonCode": "LOW_CONFIDENCE"
         },
@@ -26509,8 +26535,8 @@
           "originalDescription": "High Table",
           "masterItemId": "mstr_1am0ymtld",
           "recommendedRate": 125000,
-          "approvalStatus": "Auto Approved",
-          "reasonCode": "APPROVED"
+          "approvalStatus": "Needs Review",
+          "reasonCode": "LOW_CONFIDENCE"
         },
         {
           "worksheetName": "Interior Works",
@@ -26554,8 +26580,8 @@
           "originalDescription": "Table top finish with veneer plus polish with corian finish bottom",
           "masterItemId": "mstr_ree647wli",
           "recommendedRate": 135000,
-          "approvalStatus": "Auto Approved",
-          "reasonCode": "APPROVED"
+          "approvalStatus": "Needs Review",
+          "reasonCode": "LOW_CONFIDENCE"
         },
         {
           "worksheetName": "Interior Works",
@@ -26573,7 +26599,7 @@
           "masterItemId": "mstr_ms849jsl5",
           "recommendedRate": 2225,
           "approvalStatus": "Needs Review",
-          "reasonCode": "VALIDATION_FAILED"
+          "reasonCode": "LOW_CONFIDENCE_AND_VALIDATION_FAILED"
         },
         {
           "worksheetName": "Interior Works",
@@ -26581,8 +26607,8 @@
           "originalDescription": "Size -450X 450mm",
           "masterItemId": "mstr_gmd1hxi8e",
           "recommendedRate": 4099.5,
-          "approvalStatus": "Auto Approved",
-          "reasonCode": "APPROVED"
+          "approvalStatus": "Needs Review",
+          "reasonCode": "LOW_CONFIDENCE"
         },
         {
           "worksheetName": "Interior Works",
@@ -26815,8 +26841,8 @@
           "originalDescription": "Door Type  - D1\n1500mm x 2400mm Double Leaf  Single Glazed Door.",
           "masterItemId": "mstr_w9bdi2nno",
           "recommendedRate": 85800,
-          "approvalStatus": "Auto Approved",
-          "reasonCode": "APPROVED"
+          "approvalStatus": "Needs Review",
+          "reasonCode": "LOW_CONFIDENCE"
         },
         {
           "worksheetName": "Modular Glass Partition & Doors",
@@ -26824,8 +26850,8 @@
           "originalDescription": "Door Type  - D2\n1000mm x 2400mm Single Leaf  Single Glazed Door.",
           "masterItemId": "mstr_vdxia2mp1",
           "recommendedRate": 32000,
-          "approvalStatus": "Auto Approved",
-          "reasonCode": "APPROVED"
+          "approvalStatus": "Needs Review",
+          "reasonCode": "LOW_CONFIDENCE"
         },
         {
           "worksheetName": "Modular Glass Partition & Doors",
@@ -27085,8 +27111,8 @@
           "originalDescription": "Type 02-1800mm x 800mm  x 750mm",
           "masterItemId": "mstr_57041htqr",
           "recommendedRate": 19000,
-          "approvalStatus": "Auto Approved",
-          "reasonCode": "APPROVED"
+          "approvalStatus": "Needs Review",
+          "reasonCode": "LOW_CONFIDENCE"
         },
         {
           "worksheetName": "Modular Furniture",
@@ -27202,8 +27228,8 @@
           "originalDescription": "Chair Cafeteria",
           "masterItemId": "mstr_azhd8zf8h",
           "recommendedRate": 3500,
-          "approvalStatus": "Auto Approved",
-          "reasonCode": "APPROVED"
+          "approvalStatus": "Needs Review",
+          "reasonCode": "LOW_CONFIDENCE"
         },
         {
           "worksheetName": "Loose Furniture & Chairs",
@@ -27264,9 +27290,9 @@
           "rowNumber": 30,
           "originalDescription": "HoD Cabin Main chair",
           "masterItemId": "mstr_d0rpw9jqn",
-          "recommendedRate": 12000,
-          "approvalStatus": "Auto Approved",
-          "reasonCode": "APPROVED"
+          "recommendedRate": 9500,
+          "approvalStatus": "Needs Review",
+          "reasonCode": "LOW_CONFIDENCE"
         },
         {
           "worksheetName": "Loose Furniture & Chairs",
@@ -27274,8 +27300,8 @@
           "originalDescription": "HoD Cabin visitor chair",
           "masterItemId": "mstr_jgx9ubfbz",
           "recommendedRate": 9500,
-          "approvalStatus": "Auto Approved",
-          "reasonCode": "APPROVED"
+          "approvalStatus": "Needs Review",
+          "reasonCode": "LOW_CONFIDENCE"
         },
         {
           "worksheetName": "Loose Furniture & Chairs",
@@ -27868,8 +27894,8 @@
           "originalDescription": "FLOOR UPS O/P DB",
           "masterItemId": "mstr_pwghenp42",
           "recommendedRate": 25000,
-          "approvalStatus": "Auto Approved",
-          "reasonCode": "APPROVED"
+          "approvalStatus": "Needs Review",
+          "reasonCode": "LOW_CONFIDENCE"
         },
         {
           "worksheetName": "Electrical Works",
@@ -28101,7 +28127,7 @@
           "rowNumber": 423,
           "originalDescription": "Readymade floor mounted Junction box with provision to locate 2 set of  2x6/16A socket controlled by 16A switch and provision to mount 2Data outlets - Box to be of height adjustable type and match to false floor floor height of 100-200mm. Top of the floor box to be flushed with the floor level / carpet finish . Box to exclude cost of sockets. (However the box height should match as per the site condition. No extra cost shall be paid for any deviation on the dimension)",
           "masterItemId": "",
-          "recommendedRate": 5200,
+          "recommendedRate": 7000,
           "approvalStatus": "Needs Review",
           "reasonCode": "LOW_CONFIDENCE_AND_VALIDATION_FAILED"
         },
@@ -28309,8 +28335,8 @@
           "originalDescription": "600 x 200mm Size",
           "masterItemId": "mstr_4lcgp0kng",
           "recommendedRate": 2627.5,
-          "approvalStatus": "Auto Approved",
-          "reasonCode": "APPROVED"
+          "approvalStatus": "Needs Review",
+          "reasonCode": "LOW_CONFIDENCE"
         },
         {
           "worksheetName": "Electrical Works",
@@ -28335,7 +28361,7 @@
           "rowNumber": 571,
           "originalDescription": "450 x 60mm Size",
           "masterItemId": "mstr_won6wtufn",
-          "recommendedRate": 2450,
+          "recommendedRate": 3321.45,
           "approvalStatus": "Needs Review",
           "reasonCode": "LOW_CONFIDENCE"
         },
@@ -28344,7 +28370,7 @@
           "rowNumber": 573,
           "originalDescription": "300 x 60mm Size",
           "masterItemId": "mstr_i037ipfzi",
-          "recommendedRate": 1650,
+          "recommendedRate": 2316.3,
           "approvalStatus": "Needs Review",
           "reasonCode": "LOW_CONFIDENCE"
         },
@@ -28371,9 +28397,9 @@
           "rowNumber": 581,
           "originalDescription": "100 x 60mm Size",
           "masterItemId": "mstr_9qss5b4r4",
-          "recommendedRate": 1320,
-          "approvalStatus": "Auto Approved",
-          "reasonCode": "APPROVED"
+          "recommendedRate": 9789.75,
+          "approvalStatus": "Needs Review",
+          "reasonCode": "LOW_CONFIDENCE_AND_VALIDATION_FAILED"
         },
         {
           "worksheetName": "Electrical Works",
@@ -28381,8 +28407,8 @@
           "originalDescription": "450 x 100mm Size",
           "masterItemId": "mstr_pp54jsizu",
           "recommendedRate": 2640,
-          "approvalStatus": "Auto Approved",
-          "reasonCode": "APPROVED"
+          "approvalStatus": "Needs Review",
+          "reasonCode": "LOW_CONFIDENCE"
         },
         {
           "worksheetName": "Electrical Works",
@@ -28408,8 +28434,8 @@
           "originalDescription": "500 x 500 x 100mm Size",
           "masterItemId": "mstr_nw8l072cb",
           "recommendedRate": 3366,
-          "approvalStatus": "Auto Approved",
-          "reasonCode": "APPROVED"
+          "approvalStatus": "Needs Review",
+          "reasonCode": "LOW_CONFIDENCE"
         },
         {
           "worksheetName": "Electrical Works",
@@ -28417,8 +28443,8 @@
           "originalDescription": "350 x 350 x 100mm Size",
           "masterItemId": "mstr_aze8vsjsx",
           "recommendedRate": 2042.28,
-          "approvalStatus": "Auto Approved",
-          "reasonCode": "APPROVED"
+          "approvalStatus": "Needs Review",
+          "reasonCode": "LOW_CONFIDENCE"
         },
         {
           "worksheetName": "Electrical Works",
@@ -28435,8 +28461,8 @@
           "originalDescription": "250 x 250 x 100mm Size",
           "masterItemId": "mstr_811g2lu0l",
           "recommendedRate": 2081.57,
-          "approvalStatus": "Auto Approved",
-          "reasonCode": "APPROVED"
+          "approvalStatus": "Needs Review",
+          "reasonCode": "LOW_CONFIDENCE"
         },
         {
           "worksheetName": "Electrical Works",
@@ -28444,8 +28470,8 @@
           "originalDescription": "200 x 200 x 100mm Size",
           "masterItemId": "mstr_mtsxf4ofr",
           "recommendedRate": 2750,
-          "approvalStatus": "Auto Approved",
-          "reasonCode": "APPROVED"
+          "approvalStatus": "Needs Review",
+          "reasonCode": "LOW_CONFIDENCE"
         },
         {
           "worksheetName": "Electrical Works",
@@ -28462,8 +28488,8 @@
           "originalDescription": "500 x 500 x 50mm Size",
           "masterItemId": "mstr_9u0t23w6i",
           "recommendedRate": 1980,
-          "approvalStatus": "Auto Approved",
-          "reasonCode": "APPROVED"
+          "approvalStatus": "Needs Review",
+          "reasonCode": "LOW_CONFIDENCE"
         },
         {
           "worksheetName": "Electrical Works",
@@ -28471,8 +28497,8 @@
           "originalDescription": "350 x 350 x 50mm Size",
           "masterItemId": "mstr_jeqygsv9t",
           "recommendedRate": 2280,
-          "approvalStatus": "Auto Approved",
-          "reasonCode": "APPROVED"
+          "approvalStatus": "Needs Review",
+          "reasonCode": "LOW_CONFIDENCE"
         },
         {
           "worksheetName": "Electrical Works",
@@ -28480,8 +28506,8 @@
           "originalDescription": "300 x 300 x 50mm Size",
           "masterItemId": "mstr_8wx2vtwjh",
           "recommendedRate": 1703.33,
-          "approvalStatus": "Auto Approved",
-          "reasonCode": "APPROVED"
+          "approvalStatus": "Needs Review",
+          "reasonCode": "LOW_CONFIDENCE"
         },
         {
           "worksheetName": "Electrical Works",
@@ -28489,8 +28515,8 @@
           "originalDescription": "250 x 250 x 50mm Size",
           "masterItemId": "mstr_tu0slrhxg",
           "recommendedRate": 1510,
-          "approvalStatus": "Auto Approved",
-          "reasonCode": "APPROVED"
+          "approvalStatus": "Needs Review",
+          "reasonCode": "LOW_CONFIDENCE"
         },
         {
           "worksheetName": "Electrical Works",
@@ -28499,7 +28525,7 @@
           "masterItemId": "mstr_lonfjuip6",
           "recommendedRate": 2144.11,
           "approvalStatus": "Needs Review",
-          "reasonCode": "VALIDATION_FAILED"
+          "reasonCode": "LOW_CONFIDENCE_AND_VALIDATION_FAILED"
         },
         {
           "worksheetName": "Electrical Works",
@@ -28507,8 +28533,8 @@
           "originalDescription": "150 x 150 x 50mm Size",
           "masterItemId": "mstr_xu8hcnd86",
           "recommendedRate": 1060,
-          "approvalStatus": "Auto Approved",
-          "reasonCode": "APPROVED"
+          "approvalStatus": "Needs Review",
+          "reasonCode": "LOW_CONFIDENCE"
         },
         {
           "worksheetName": "Electrical Works",
@@ -28516,8 +28542,8 @@
           "originalDescription": "110 x 110 x 50mm Size",
           "masterItemId": "mstr_0pkymc7du",
           "recommendedRate": 870,
-          "approvalStatus": "Auto Approved",
-          "reasonCode": "APPROVED"
+          "approvalStatus": "Needs Review",
+          "reasonCode": "LOW_CONFIDENCE"
         },
         {
           "worksheetName": "Electrical Works",
@@ -28912,8 +28938,8 @@
           "originalDescription": "1.59 TR 4-Way/Round Flow Cassette",
           "masterItemId": "mstr_gni2nakq5",
           "recommendedRate": 5126.78,
-          "approvalStatus": "Auto Approved",
-          "reasonCode": "APPROVED"
+          "approvalStatus": "Needs Review",
+          "reasonCode": "LOW_CONFIDENCE"
         },
         {
           "worksheetName": "HVAC",
@@ -28921,8 +28947,8 @@
           "originalDescription": "2.05 TR 4-Way/Round Flow Cassette",
           "masterItemId": "mstr_rore7c8pz",
           "recommendedRate": 5385.07,
-          "approvalStatus": "Auto Approved",
-          "reasonCode": "APPROVED"
+          "approvalStatus": "Needs Review",
+          "reasonCode": "LOW_CONFIDENCE"
         },
         {
           "worksheetName": "HVAC",
@@ -28939,8 +28965,8 @@
           "originalDescription": "3.2 TR 4-Way/Round Flow Cassette",
           "masterItemId": "mstr_x0plub8or",
           "recommendedRate": 6067.82,
-          "approvalStatus": "Auto Approved",
-          "reasonCode": "APPROVED"
+          "approvalStatus": "Needs Review",
+          "reasonCode": "LOW_CONFIDENCE"
         },
         {
           "worksheetName": "HVAC",
@@ -28948,8 +28974,8 @@
           "originalDescription": "3.95 TR 4-Way/Round Flow Cassette",
           "masterItemId": "mstr_v3bq4vp0d",
           "recommendedRate": 6440.33,
-          "approvalStatus": "Auto Approved",
-          "reasonCode": "APPROVED"
+          "approvalStatus": "Needs Review",
+          "reasonCode": "LOW_CONFIDENCE"
         },
         {
           "worksheetName": "HVAC",
@@ -29253,7 +29279,7 @@
           "rowNumber": 123,
           "originalDescription": "50mm dia.",
           "masterItemId": "",
-          "recommendedRate": 387,
+          "recommendedRate": 100,
           "approvalStatus": "Needs Review",
           "reasonCode": "LOW_CONFIDENCE_AND_VALIDATION_FAILED"
         },
@@ -29541,7 +29567,7 @@
           "rowNumber": 193,
           "originalDescription": "350 mm dia",
           "masterItemId": "",
-          "recommendedRate": 200,
+          "recommendedRate": 264,
           "approvalStatus": "Needs Review",
           "reasonCode": "LOW_CONFIDENCE_AND_VALIDATION_FAILED"
         },
@@ -29579,7 +29605,7 @@
           "masterItemId": "mstr_hppnd916g",
           "recommendedRate": 87,
           "approvalStatus": "Needs Review",
-          "reasonCode": "VALIDATION_FAILED"
+          "reasonCode": "LOW_CONFIDENCE_AND_VALIDATION_FAILED"
         },
         {
           "worksheetName": "HVAC",
@@ -29604,7 +29630,7 @@
           "rowNumber": 203,
           "originalDescription": "350 mm dia",
           "masterItemId": "",
-          "recommendedRate": 200,
+          "recommendedRate": 264,
           "approvalStatus": "Needs Review",
           "reasonCode": "LOW_CONFIDENCE_AND_VALIDATION_FAILED"
         },
@@ -29631,7 +29657,7 @@
           "rowNumber": 206,
           "originalDescription": "175mm/200 mm dia",
           "masterItemId": "",
-          "recommendedRate": 100,
+          "recommendedRate": 132,
           "approvalStatus": "Needs Review",
           "reasonCode": "LOW_CONFIDENCE_AND_VALIDATION_FAILED"
         },
@@ -29642,7 +29668,7 @@
           "masterItemId": "mstr_hppnd916g",
           "recommendedRate": 87,
           "approvalStatus": "Needs Review",
-          "reasonCode": "VALIDATION_FAILED"
+          "reasonCode": "LOW_CONFIDENCE_AND_VALIDATION_FAILED"
         },
         {
           "worksheetName": "HVAC",
@@ -29658,7 +29684,7 @@
           "rowNumber": 211,
           "originalDescription": "450mm X 250 mm",
           "masterItemId": "",
-          "recommendedRate": 100,
+          "recommendedRate": 66,
           "approvalStatus": "Needs Review",
           "reasonCode": "LOW_CONFIDENCE_AND_VALIDATION_FAILED"
         },
@@ -29667,7 +29693,7 @@
           "rowNumber": 212,
           "originalDescription": "650mm X 250 mm",
           "masterItemId": "",
-          "recommendedRate": 100,
+          "recommendedRate": 66,
           "approvalStatus": "Needs Review",
           "reasonCode": "LOW_CONFIDENCE_AND_VALIDATION_FAILED"
         },
@@ -29766,7 +29792,7 @@
           "rowNumber": 240,
           "originalDescription": "225 Dia Overall size 350 MM",
           "masterItemId": "",
-          "recommendedRate": 500,
+          "recommendedRate": 660,
           "approvalStatus": "Needs Review",
           "reasonCode": "LOW_CONFIDENCE"
         },
@@ -29811,7 +29837,7 @@
           "rowNumber": 247,
           "originalDescription": "Grill Size 300 x 150 MM",
           "masterItemId": "",
-          "recommendedRate": 500,
+          "recommendedRate": 660,
           "approvalStatus": "Needs Review",
           "reasonCode": "LOW_CONFIDENCE_AND_VALIDATION_FAILED"
         },
@@ -29829,7 +29855,7 @@
           "rowNumber": 251,
           "originalDescription": "600 X 600- 250 MM Dia with Plenum",
           "masterItemId": "",
-          "recommendedRate": 100,
+          "recommendedRate": 66,
           "approvalStatus": "Needs Review",
           "reasonCode": "LOW_CONFIDENCE_AND_VALIDATION_FAILED"
         },
@@ -29847,7 +29873,7 @@
           "rowNumber": 259,
           "originalDescription": "250 mm Dia",
           "masterItemId": "mstr_8o353jhyz",
-          "recommendedRate": 100,
+          "recommendedRate": 66,
           "approvalStatus": "Auto Approved",
           "reasonCode": "APPROVED"
         },
@@ -29955,7 +29981,7 @@
           "rowNumber": 301,
           "originalDescription": "Supply, installation in SERVER room floor & ceiling of Thermal insulation with 19mm thick closed cell nitrile rubber with Micro Ban coating  - Class 0 fixed with low VOC adhesive (Pidilite SH 998) as recommended by manufacturer.",
           "masterItemId": "",
-          "recommendedRate": 500,
+          "recommendedRate": 660,
           "approvalStatus": "Needs Review",
           "reasonCode": "LOW_CONFIDENCE_AND_VALIDATION_FAILED"
         },
@@ -30108,7 +30134,7 @@
           "rowNumber": 354,
           "originalDescription": "Supply, installation,Testing and Commissioning of Internal FR cabling between Indoor to Outdoor power cabling in PVC conduits",
           "masterItemId": "",
-          "recommendedRate": 300,
+          "recommendedRate": 396,
           "approvalStatus": "Needs Review",
           "reasonCode": "LOW_CONFIDENCE_AND_VALIDATION_FAILED"
         },
@@ -30316,8 +30342,8 @@
           "originalDescription": "High Density Vertical Cable Organiser/12 inch/Front &Back/42U/Black",
           "masterItemId": "mstr_ccmrvmefp",
           "recommendedRate": 9112.5,
-          "approvalStatus": "Auto Approved",
-          "reasonCode": "APPROVED"
+          "approvalStatus": "Needs Review",
+          "reasonCode": "LOW_CONFIDENCE"
         },
         {
           "worksheetName": "Passive Networking",
@@ -30325,8 +30351,8 @@
           "originalDescription": "High Density Vertical Cable Organiser/8 inch/Front &Back/42U/Black",
           "masterItemId": "mstr_4syggv6ws",
           "recommendedRate": 7897.5,
-          "approvalStatus": "Auto Approved",
-          "reasonCode": "APPROVED"
+          "approvalStatus": "Needs Review",
+          "reasonCode": "LOW_CONFIDENCE"
         },
         {
           "worksheetName": "Passive Networking",
@@ -30388,8 +30414,8 @@
           "originalDescription": "Patchcord Labels",
           "masterItemId": "mstr_0hstnlt36",
           "recommendedRate": 21450,
-          "approvalStatus": "Auto Approved",
-          "reasonCode": "APPROVED"
+          "approvalStatus": "Needs Review",
+          "reasonCode": "LOW_CONFIDENCE"
         },
         {
           "worksheetName": "Passive Networking",
@@ -30397,8 +30423,8 @@
           "originalDescription": "Consumables",
           "masterItemId": "mstr_2dlmsjqev",
           "recommendedRate": 14300,
-          "approvalStatus": "Auto Approved",
-          "reasonCode": "APPROVED"
+          "approvalStatus": "Needs Review",
+          "reasonCode": "LOW_CONFIDENCE"
         },
         {
           "worksheetName": "Passive Networking",
@@ -30559,8 +30585,8 @@
           "originalDescription": "Lifting Station  -  pre-fabricated package unit, 1.5 kW, vertical lift up to 7 m\n\nMake: Sulzer / Wilo / Grundfos / Saner Greywater\nPre-fabricated polyethylene tank with built-in pump + check valve + control panel\nCapacity: ~50 L holding + 1.5 kW pump @ 2.5 m³/hr\nFloat-switch auto operation, dry-run protection, alarm + visual indicator\nInlet 110 mm UPVC SWR, Outlet 50 / 75 mm pressurised line to stack\n230V single-phase, with control panel + cabling\nINCLUDES: tank + pump + check valve + control panel + alarm + connections",
           "masterItemId": "mstr_24tbhnik0",
           "recommendedRate": 150000,
-          "approvalStatus": "Auto Approved",
-          "reasonCode": "APPROVED"
+          "approvalStatus": "Needs Review",
+          "reasonCode": "LOW_CONFIDENCE"
         },
         {
           "worksheetName": "PHE",
@@ -30568,8 +30594,8 @@
           "originalDescription": "Lifting Station Outlet Pressurised Line  -  CPVC / GI to nearest stack inlet\n50 mm CPVC / GI pressurised pipe, ~10 m run with check valve + isolation",
           "masterItemId": "mstr_9q6ql114s",
           "recommendedRate": 30000,
-          "approvalStatus": "Auto Approved",
-          "reasonCode": "APPROVED"
+          "approvalStatus": "Needs Review",
+          "reasonCode": "LOW_CONFIDENCE"
         },
         {
           "worksheetName": "PHE",
@@ -30577,8 +30603,8 @@
           "originalDescription": "Lifting Station Power + Alarm Wiring  -  to LV / Plumbing DB\n230V single-phase supply + alarm relay to BMS / monitoring",
           "masterItemId": "mstr_ji9dv4zqz",
           "recommendedRate": 12500,
-          "approvalStatus": "Auto Approved",
-          "reasonCode": "APPROVED"
+          "approvalStatus": "Needs Review",
+          "reasonCode": "LOW_CONFIDENCE"
         },
         {
           "worksheetName": "PHE",
@@ -30659,7 +30685,7 @@
           "masterItemId": "mstr_076h5tm15",
           "recommendedRate": 162,
           "approvalStatus": "Needs Review",
-          "reasonCode": "VALIDATION_FAILED"
+          "reasonCode": "LOW_CONFIDENCE_AND_VALIDATION_FAILED"
         },
         {
           "worksheetName": "FLSS Works",
@@ -31072,8 +31098,8 @@
           "originalDescription": "GI Perforated Cable trays -50x 25",
           "masterItemId": "mstr_tvpsnfezo",
           "recommendedRate": 60,
-          "approvalStatus": "Auto Approved",
-          "reasonCode": "APPROVED"
+          "approvalStatus": "Needs Review",
+          "reasonCode": "LOW_CONFIDENCE"
         },
         {
           "worksheetName": "FLSS Works",
@@ -31162,8 +31188,8 @@
           "originalDescription": "GI Perforated Cable trays -50x 25",
           "masterItemId": "mstr_tvpsnfezo",
           "recommendedRate": 60,
-          "approvalStatus": "Auto Approved",
-          "reasonCode": "APPROVED"
+          "approvalStatus": "Needs Review",
+          "reasonCode": "LOW_CONFIDENCE"
         },
         {
           "worksheetName": "FLSS Works",
@@ -31253,7 +31279,7 @@
           "masterItemId": "mstr_fg0gdzg0s",
           "recommendedRate": 7000,
           "approvalStatus": "Needs Review",
-          "reasonCode": "LOW_CONFIDENCE_AND_VALIDATION_FAILED"
+          "reasonCode": "VALIDATION_FAILED"
         },
         {
           "worksheetName": "Light Fixtures",
@@ -31396,8 +31422,8 @@
           "originalDescription": "Tile Cladding (Size: 1200mm X 1200mm)",
           "masterItemId": "mstr_opbybsd99",
           "recommendedRate": 3000,
-          "approvalStatus": "Auto Approved",
-          "reasonCode": "APPROVED"
+          "approvalStatus": "Needs Review",
+          "reasonCode": "LOW_CONFIDENCE"
         },
         {
           "worksheetName": "TOILET WORKS",
@@ -31432,8 +31458,8 @@
           "originalDescription": "TOILET CUBICLES - 1350MM(L) X 1000MM(W)",
           "masterItemId": "mstr_t6a1cj2ja",
           "recommendedRate": 24500,
-          "approvalStatus": "Auto Approved",
-          "reasonCode": "APPROVED"
+          "approvalStatus": "Needs Review",
+          "reasonCode": "LOW_CONFIDENCE"
         },
         {
           "worksheetName": "TOILET WORKS",
@@ -31486,8 +31512,8 @@
           "originalDescription": "Full Height Storages (800mm x 450 mm x 2100mm)",
           "masterItemId": "mstr_sg2woxa3v",
           "recommendedRate": 24500,
-          "approvalStatus": "Auto Approved",
-          "reasonCode": "APPROVED"
+          "approvalStatus": "Needs Review",
+          "reasonCode": "LOW_CONFIDENCE"
         },
         {
           "worksheetName": "TOILET WORKS",
@@ -31693,8 +31719,8 @@
           "originalDescription": "Hand Dryer (Touch-Free Infrared – Wall Mounted) – Kohler\nInstallation, testing and commissioning of touch-free infrared sensor-operated hand dryer (Kohler Nuovo Dual Flow /  Jet or approved equivalent), suitable for wall mounting, with high-speed drying mechanism and hygienic operation.\nUnit to be complete with built-in sensor, motor, air filtration system, and all necessary mounting accessories, electrical connections, testing, commissioning, and handover as per manufacturer specifications.",
           "masterItemId": "mstr_qd4jnv7tb",
           "recommendedRate": 3500,
-          "approvalStatus": "Auto Approved",
-          "reasonCode": "APPROVED"
+          "approvalStatus": "Needs Review",
+          "reasonCode": "LOW_CONFIDENCE"
         },
         {
           "worksheetName": "TOILET WORKS",
@@ -31756,8 +31782,8 @@
           "originalDescription": "for handicapped toilets - Fixed Type",
           "masterItemId": "mstr_vz25973lb",
           "recommendedRate": 900,
-          "approvalStatus": "Auto Approved",
-          "reasonCode": "APPROVED"
+          "approvalStatus": "Needs Review",
+          "reasonCode": "LOW_CONFIDENCE"
         },
         {
           "worksheetName": "TOILET WORKS",
@@ -32013,7 +32039,7 @@
         }
       ]
     },
-    "retrievalTimeMs": 1,
-    "recommendationTimeMs": 44
+    "retrievalTimeMs": 4,
+    "recommendationTimeMs": 91
   }
 ]

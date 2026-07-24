@@ -32,7 +32,7 @@ import {
 } from "./src/types.js";
 import { RecommendationEngineV2 } from "./src/RecommendationEngineV2.js";
 import { InstallationRateEngine } from "./src/InstallationRateEngine.js";
-import { EngineeringAdjustmentEngine } from "./src/EngineeringAdjustmentEngine.js";
+import { EngineeringAdjustmentEngine, isCommerciallyEquivalent } from "./src/EngineeringAdjustmentEngine.js";
 import { ProjectCalibrationEngine, MarketRateStatistics } from "./src/ProjectCalibrationEngine.js";
 import { HistoricalRetrievalEngine } from "./src/HistoricalRetrievalEngine.js";
 import { ProgressiveMatchingEngine } from "./src/ProgressiveMatchingEngine.js";
@@ -379,10 +379,21 @@ function calculateWordOverlap(text1: string, text2: string): number {
   //
   // Requiring merely ONE shared number is not enough: "3.5 Core X 300 Sqmm" and "3.5 Core X 150
   // Sqmm" share the core-count number (3.5) while differing on the actual cost-driving cross-
-  // section, so a single shared incidental number let the wrong pair through. Instead require most
-  // of each description's numbers to agree (Jaccard overlap over the numeric token sets) - a
-  // genuine re-statement of the same item (different project, minor formatting differences) keeps
-  // nearly the same numbers, while a different spec variant swaps out the defining one.
+  // section, so a single shared incidental number let the wrong pair through.
+  //
+  // A partial-Jaccard bypass (e.g. "most numbers agree") is ALSO not enough once a description
+  // carries several structural numbers, as multi-axis dimension callouts do (an item code plus
+  // H/W/D/L measurements). Two rows can share 3 of 4 numbers - item code + two of three axes -
+  // while differing only in the one axis that actually drives price (e.g. a counter's length),
+  // giving a Jaccard around 0.6: comfortably "mostly agreeing" yet describing two differently
+  // priced items (discovered via a Counter Size 01-850mm-H-750mm-D item where a 1500mm-L row and
+  // a 3290mm-L row, priced ₹55,000 vs ₹85,000, were clustered into one master catalog record).
+  // Master-catalog clustering must never fuse two rows whose numeric tokens differ AT ALL - any
+  // numeric difference in a BOQ description is assumed to encode a genuine spec/dimension
+  // difference; bridging genuinely-related-but-differently-sized items across master records is
+  // EngineeringAdjustmentEngine's job (interpolation/extrapolation across a family), not this
+  // clustering step's. So the numeric guard now requires an EXACT numeric-token match
+  // (Jaccard === 1) to pass through unfiltered.
   const numbers = (t: string) => new Set(t.match(/\d+(?:\.\d+)?/g) || []);
   const nums1 = numbers(text1);
   const nums2 = numbers(text2);
@@ -393,7 +404,7 @@ function calculateWordOverlap(text1: string, text2: string): number {
     }
     const unionSize = new Set([...nums1, ...nums2]).size;
     const numericJaccard = unionSize > 0 ? intersectionCount / unionSize : 1;
-    if (numericJaccard < 0.5) return Math.min(baseScore, 0.3);
+    if (numericJaccard < 1) return Math.min(baseScore, 0.3);
   }
 
   return baseScore;
@@ -2287,6 +2298,14 @@ app.post("/api/historical-boqs", (req, res) => {
 
       for (const master of masterBOQItems) {
         if (master.domain !== domain) continue;
+        // Commercial-equivalence gate (mirrors the same gate already enforced at retrieval time
+        // in HistoricalRetrievalEngine): word-overlap alone can't tell "Curve Single Glazed
+        // Partition" (₹12,500 - curved glazing is a materially different, pricier fabrication)
+        // from "Single Glazed Partition" (₹5,500) apart, since they share 3 of 4 words. Without
+        // this gate, clustering silently destroys the distinction before any downstream scoring
+        // ever runs - no gate later in the pipeline can recover a qualifier word once two
+        // distinct-rate historical rows have been fused into one master item's identity.
+        if (!isCommerciallyEquivalent(rawDesc, master.standardDescription).equivalent) continue;
         const sim = calculateWordOverlap(rawDesc, master.standardDescription);
         if (sim > highestSimilarity) {
           highestSimilarity = sim;
@@ -2685,6 +2704,7 @@ app.post("/api/master/load-standard", (req, res) => {
     const matchingCompanies: string[] = [];
 
     for (const hBOQ of masterBOQItems) {
+      if (!isCommerciallyEquivalent(template.standardDescription, hBOQ.standardDescription).equivalent) continue;
       const similarity = calculateWordOverlap(template.standardDescription, hBOQ.standardDescription);
       if (similarity > 0.65) {
         matchingRates.push(...hBOQ.historicalRates);

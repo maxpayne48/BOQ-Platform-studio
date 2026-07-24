@@ -63,7 +63,17 @@ function extractDescriptor(description: string): ExtractedDescriptor {
   // same height/depth but different length) were falling through to Tier 4 and being extracted as
   // an identical single "800mm" dimension, making genuinely different-sized items indistinguishable.
   const dim3DRegex = /(\d+(?:\.\d+)?)\s*(mm|cm|m|inch|in)?\s*[HWDLT]?\s*[x×]\s*(\d+(?:\.\d+)?)\s*(mm|cm|m|inch|in)?\s*[HWDLT]?\s*[x×]\s*(\d+(?:\.\d+)?)\s*(mm|cm|m|inch|in)?\s*[HWDLT]?\b/i;
-  const dim3DMatch = text.match(dim3DRegex);
+  // Tier 0b: the same three-axis callout but written WITHOUT an "x"/"×" separator - e.g.
+  // "850mm H 750mm D 1500mm L" (each number's own axis-letter suffix is the only thing separating
+  // it from the next). Without this, such text falls all the way through to Tier 4 below, which
+  // only grabs the FIRST numeric+unit token in the string (here, always the H value) - so two
+  // items differing only in their L (length) axis extract as an IDENTICAL primaryDimension and
+  // become indistinguishable to dimension-based scoring/interpolation, even though the L axis is
+  // the one actually driving a different price. The axis letter is REQUIRED (not optional, unlike
+  // the "x"-separated tier above) since it is the only signal distinguishing a genuine 3-axis
+  // callout from three unrelated numbers appearing near each other in free text.
+  const dim3DAxisRegex = /(\d+(?:\.\d+)?)\s*(mm|cm|m|inch|in)?\s*[HWDLT]\s+(\d+(?:\.\d+)?)\s*(mm|cm|m|inch|in)?\s*[HWDLT]\s+(\d+(?:\.\d+)?)\s*(mm|cm|m|inch|in)?\s*[HWDLT]\b/i;
+  const dim3DMatch = text.match(dim3DRegex) || text.match(dim3DAxisRegex);
   if (dim3DMatch) {
     primaryDimension = parseFloat(dim3DMatch[1]);
     secondaryDimension = parseFloat(dim3DMatch[3]);
@@ -164,7 +174,16 @@ const DISTINGUISHING_QUALIFIERS: string[] = [
   "galvanized", "galvanised", "stainless", "powder coated", "anodized", "anodised",
   "blast resistant", "bullet resistant", "ballistic",
   "termite proof", "termite-proof",
-  "food grade", "marine grade"
+  "food grade", "marine grade",
+  // Fabrication/shape qualifiers - a curved/circular/cylindrical fabrication is a materially
+  // different (typically pricier) manufacturing process than its straight/flat/rectangular
+  // counterpart of the same base product (e.g. "Curve Single Glazed Partition" vs "Single
+  // Glazed Partition", ₹12,500 vs ₹5,500 - curved glazing requires specialized bending/framing,
+  // not a cosmetic description variant). Generic across domains (furniture, glazing, cladding,
+  // partitions, lighting), not specific to glass partitions.
+  "curved", "curve", "radius", "radiused", "bent", "segmented",
+  "circular", "cylindrical",
+  "straight", "flat", "flush", "rectangular"
 ];
 
 export function isCommerciallyEquivalent(descA: string, descB: string): { equivalent: boolean; reason?: string } {

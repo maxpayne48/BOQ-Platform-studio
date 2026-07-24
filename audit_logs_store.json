@@ -1,5 +1,197 @@
 [
   {
+    "id": "log_vy09x03lq",
+    "timestamp": "2026-07-24 20:02:40 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of Keppel Final BOQ   30 Dec 2025 8\" in 2279ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_fywj6s7i4",
+    "timestamp": "2026-07-24 19:46:10 UTC",
+    "user": "Estimator Admin",
+    "action": "Export",
+    "details": "Exported fully priced Excel workbook \"Copy of Keppel Final BOQ - 30 Dec 2025_8.75Cr.xlsx\" for project \"Copy of Keppel Final BOQ   30 Dec 2025 8\" with formatting preserved. Mode: AI Hybrid. Replay: false.",
+    "status": "Success"
+  },
+  {
+    "id": "log_cg8bhpukq",
+    "timestamp": "2026-07-24 19:46:10 UTC",
+    "user": "Estimator Admin",
+    "action": "Export",
+    "details": "High-fidelity rated RFQ \"Copy of Keppel Final BOQ - 30 Dec 2025_8.75Cr.xlsx\" successfully exported with formatted rate injection. Preserving original layout and styles.",
+    "status": "Success"
+  },
+  {
+    "id": "log_25d2tjmyf",
+    "timestamp": "2026-07-24 19:44:50 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of Keppel Final BOQ   30 Dec 2025 8\" in 2229ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_ucjvogbmn",
+    "timestamp": "2026-07-24 19:42:20 UTC",
+    "user": "Estimator Admin",
+    "action": "RFQ Upload",
+    "details": "Uploaded RFQ \"Copy of Keppel Final BOQ - 30 Dec 2025_8.75Cr.xlsx\" analyzed and parsed successfully (485 item(s)); workspace prepared as a Draft estimation.",
+    "status": "Success"
+  },
+  {
+    "id": "log_qfvg3cj0q",
+    "timestamp": "2026-07-24 19:34:25 UTC",
+    "user": "Estimator Admin",
+    "action": "Export",
+    "details": "Exported fully priced Excel workbook \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" for project \"Copy of KOHLER PUNE FS 16TH JUNE\" with formatting preserved. Mode: AI Hybrid. Replay: false.",
+    "status": "Success"
+  },
+  {
+    "id": "log_js9aj3ecl",
+    "timestamp": "2026-07-24 19:34:24 UTC",
+    "user": "Estimator Admin",
+    "action": "Export",
+    "details": "High-fidelity rated RFQ \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" successfully exported with formatted rate injection. Preserving original layout and styles.",
+    "status": "Success"
+  },
+  {
+    "id": "log_gfol3lg69",
+    "timestamp": "2026-07-24 19:33:26 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of KOHLER PUNE FS 16TH JUNE\" in 2627ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_zd4psn29f",
+    "timestamp": "2026-07-24 19:32:58 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of KOHLER PUNE FS 16TH JUNE\" in 2811ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_l56zprlnd",
+    "timestamp": "2026-07-24 19:30:49 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of KOHLER PUNE FS 16TH JUNE\" in 1690ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_g80mejmit",
+    "timestamp": "2026-07-24 19:26:01 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of KOHLER PUNE FS 16TH JUNE\" in 2486ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_odmykw81h",
+    "timestamp": "2026-07-24 19:25:59 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of KOHLER PUNE FS 16TH JUNE\" in 1740ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_hdrmtlnkv",
+    "timestamp": "2026-07-24 19:23:31 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of KOHLER PUNE FS 16TH JUNE\" in 1684ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_citymy6wz",
+    "timestamp": "2026-07-24 19:19:59 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of KOHLER PUNE FS 16TH JUNE\" in 2701ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_qaskjboak",
+    "timestamp": "2026-07-24 18:58:15 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of KOHLER PUNE FS 16TH JUNE\" in 2907ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_tzbe2ivcp",
+    "timestamp": "2026-07-24 18:56:18 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of KOHLER PUNE FS 16TH JUNE\" in 3040ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_ixvt7u5fv",
+    "timestamp": "2026-07-24 18:52:34 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of KOHLER PUNE FS 16TH JUNE\" in 1895ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_na83m221q",
+    "timestamp": "2026-07-24 18:35:50 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of KOHLER PUNE FS 16TH JUNE\" in 2873ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_3x66n50k6",
+    "timestamp": "2026-07-24 18:26:22 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of KOHLER PUNE FS 16TH JUNE\" in 12132ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_0zfup16oc",
+    "timestamp": "2026-07-24 17:38:06 UTC",
+    "user": "Estimator Admin",
+    "action": "Export",
+    "details": "Exported fully priced Excel workbook \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" for project \"Copy of KOHLER PUNE FS 16TH JUNE\" with formatting preserved. Mode: AI Hybrid. Replay: false.",
+    "status": "Success"
+  },
+  {
+    "id": "log_0gz6eh04r",
+    "timestamp": "2026-07-24 17:38:06 UTC",
+    "user": "Estimator Admin",
+    "action": "Export",
+    "details": "High-fidelity rated RFQ \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" successfully exported with formatted rate injection. Preserving original layout and styles.",
+    "status": "Success"
+  },
+  {
+    "id": "log_08ws7iptj",
+    "timestamp": "2026-07-24 17:30:50 UTC",
+    "user": "Estimator Admin",
+    "action": "Export",
+    "details": "Exported fully priced Excel workbook \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" for project \"Copy of KOHLER PUNE FS 16TH JUNE\" with formatting preserved. Mode: AI Hybrid. Replay: false.",
+    "status": "Success"
+  },
+  {
+    "id": "log_22v0gl578",
+    "timestamp": "2026-07-24 17:30:48 UTC",
+    "user": "Estimator Admin",
+    "action": "Export",
+    "details": "High-fidelity rated RFQ \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" successfully exported with formatted rate injection. Preserving original layout and styles.",
+    "status": "Success"
+  },
+  {
+    "id": "log_czw9xei1q",
+    "timestamp": "2026-07-24 17:24:41 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of KOHLER PUNE FS 16TH JUNE\" in 2934ms.",
+    "status": "Success"
+  },
+  {
     "id": "log_n2qvoawse",
     "timestamp": "2026-07-24 16:29:54 UTC",
     "user": "Estimator Admin",

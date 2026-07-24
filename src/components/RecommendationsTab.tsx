@@ -1,16 +1,16 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
-import { 
-  Building, 
-  Tag, 
-  HelpCircle, 
-  Check, 
-  Download, 
-  RefreshCw, 
-  AlertCircle, 
-  ChevronRight, 
-  ChevronDown, 
-  ChevronUp, 
+import {
+  Building,
+  Tag,
+  HelpCircle,
+  Check,
+  Download,
+  RefreshCw,
+  AlertCircle,
+  ChevronRight,
+  ChevronDown,
+  ChevronUp,
   ArrowLeft,
   DollarSign,
   TrendingUp,
@@ -31,7 +31,11 @@ import {
   Sparkles,
   MapPin,
   User,
-  Calendar
+  Calendar,
+  Search,
+  SlidersHorizontal,
+  Pencil,
+  XCircle
 } from "lucide-react";
 import ExcelJS from "exceljs";
 import * as XLSX from "xlsx";
@@ -86,14 +90,252 @@ export default function RecommendationsTab({
   const [showAttentionPanel, setShowAttentionPanel] = useState(true);
   const [highlightedItemId, setHighlightedItemId] = useState<string | null>(null);
 
-  const scrollToItemRow = (itemId: string) => {
-    const rowEl = document.getElementById(`item-row-${itemId}`);
-    if (rowEl) {
-      rowEl.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
-    setHighlightedItemId(itemId);
-    setTimeout(() => setHighlightedItemId((current) => (current === itemId ? null : current)), 2200);
+  // ==========================================================================
+  // SPREADSHEET VIEW - worksheet tabs, search, filters, virtualization
+  // ==========================================================================
+  // The uploaded RFQ workbook is the source of truth: its worksheet order and its row order
+  // within each worksheet are never re-sorted, grouped, or clustered anywhere below - only
+  // filtered (hidden), which never reorders what remains. See server.ts's upload parse loop
+  // (parseWorkbookForUpload / the legacy per-sheet fallback): both push items strictly in
+  // worksheet-then-row order, and every store/API read since is a pure filter, never a sort -
+  // so `items` here already arrives in exactly that order.
+  const [activeSheet, setActiveSheet] = useState<string>("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showSearchDropdown, setShowSearchDropdown] = useState(false);
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
+  const [pendingFocusItemId, setPendingFocusItemId] = useState<string | null>(null);
+  const tableScrollRef = useRef<HTMLDivElement>(null);
+  const [tableScrollTop, setTableScrollTop] = useState(0);
+
+  interface SheetFilterState {
+    trades: Set<string>;
+    methods: Set<string>;
+    confidence: Set<"high" | "medium" | "low">;
+    validation: Set<"pass" | "fail" | "pending">;
+    decision: Set<string>;
+    engineeringAdjustedOnly: boolean;
+  }
+  const emptyFilters = (): SheetFilterState => ({
+    trades: new Set(),
+    methods: new Set(),
+    confidence: new Set(),
+    validation: new Set(),
+    decision: new Set(),
+    engineeringAdjustedOnly: false
+  });
+  const [filters, setFilters] = useState<SheetFilterState>(emptyFilters());
+
+  const toggleSetFilter = <T,>(key: "trades" | "methods" | "decision", value: T) => {
+    setFilters((prev) => {
+      const next = new Set(prev[key] as Set<T>);
+      if (next.has(value)) next.delete(value);
+      else next.add(value);
+      return { ...prev, [key]: next };
+    });
   };
+  const toggleConfidenceFilter = (v: "high" | "medium" | "low") => {
+    setFilters((prev) => {
+      const next = new Set(prev.confidence);
+      if (next.has(v)) next.delete(v);
+      else next.add(v);
+      return { ...prev, confidence: next };
+    });
+  };
+  const toggleValidationFilter = (v: "pass" | "fail" | "pending") => {
+    setFilters((prev) => {
+      const next = new Set(prev.validation);
+      if (next.has(v)) next.delete(v);
+      else next.add(v);
+      return { ...prev, validation: next };
+    });
+  };
+  const activeFilterCount =
+    filters.trades.size + filters.methods.size + filters.confidence.size +
+    filters.validation.size + filters.decision.size + (filters.engineeringAdjustedOnly ? 1 : 0);
+  const clearAllFilters = () => setFilters(emptyFilters());
+
+  // Recommendation Method classification - a pure READ of which pipeline stage/tier produced
+  // the item's rate (recommendationTrace.rateSource / matchTier / engineeringAdjustment /
+  // isOverridden), never a re-derivation of pricing logic. "Not Yet Rated" covers items still
+  // sitting at approvalStatus "Pending" (recommend has never run for them).
+  const getRecommendationMethod = (item: RFQItem): string => {
+    if (item.isOverridden) return "Estimator Override";
+    if (!item.approvalStatus || item.approvalStatus === "Pending") return "Not Yet Rated";
+    if (item.engineeringAdjustment?.applied) return "Engineering Adjustment";
+    if (item.matchTier) return item.matchTier;
+    if (item.recommendationTrace?.rateSource === "Historical Rate") return "Exact Match";
+    if (item.matchedMasterId) return "AI Estimated";
+    return "Manual Pricing";
+  };
+  const RECOMMENDATION_METHODS = [
+    "Not Yet Rated", "Exact Match", "Engineering Adjustment", "Specification Match",
+    "Material Match", "Functional Match", "AI Estimated", "Manual Pricing", "Estimator Override"
+  ];
+
+  const getValidationStatus = (item: RFQItem): "pass" | "fail" | "pending" => {
+    if (!item.validationResults) return "pending";
+    return Object.values(item.validationResults).some((v: any) => v && v.pass === false) ? "fail" : "pass";
+  };
+
+  // Historical Median/Average - DISPLAY-ONLY reference statistics computed client-side from the
+  // evidence list the backend already returned (marketRateStatistics.historicalEvidence). These
+  // are never fed back into recommendedRate or any pricing decision - the engine selects a single
+  // best-matching historical observation and never averages (see ProjectCalibrationEngine.ts);
+  // this is purely "for reference" triangulation the way an estimator would eyeball a spread of
+  // comparable rates, clearly labelled as such in the column header below.
+  const computeHistoricalStats = (item: RFQItem): { median: number; average: number } | null => {
+    const rates = (item.marketRateStatistics?.historicalEvidence || [])
+      .map((e) => e.historicalRate)
+      .filter((r) => Number.isFinite(r) && r > 0);
+    if (rates.length === 0) return null;
+    const sorted = [...rates].sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    const median = sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+    const average = rates.reduce((a, b) => a + b, 0) / rates.length;
+    return { median, average };
+  };
+
+  // Worksheet grouping - order-preserving. Prefer workbookBlueprint.sheets, which is built by
+  // iterating the real workbook (server.ts's generateWorkbookBlueprint) and therefore includes
+  // EVERY real worksheet - General Notes, Preambles, Summary, etc. - not just the ones that
+  // parsed into payable line items, in the workbook's own tab order. Object key order follows
+  // insertion order for string keys, so Object.keys() here is the true file order. Falls back to
+  // items' own first-occurrence order only if the blueprint hasn't loaded yet. Never sorted,
+  // merged, or renamed either way.
+  const sheetOrder = useMemo(() => {
+    const blueprintSheets = rfqDetails?.workbookBlueprint?.sheets;
+    if (blueprintSheets) return Object.keys(blueprintSheets);
+    const seen = new Set<string>();
+    const order: string[] = [];
+    for (const it of items) {
+      if (!seen.has(it.sheetName)) {
+        seen.add(it.sheetName);
+        order.push(it.sheetName);
+      }
+    }
+    return order;
+  }, [items, rfqDetails?.workbookBlueprint]);
+
+  const itemsBySheet = useMemo(() => {
+    const map = new Map<string, RFQItem[]>();
+    for (const it of items) {
+      if (!map.has(it.sheetName)) map.set(it.sheetName, []);
+      map.get(it.sheetName)!.push(it);
+    }
+    return map;
+  }, [items]);
+
+  useEffect(() => {
+    if (sheetOrder.length > 0 && (!activeSheet || !sheetOrder.includes(activeSheet))) {
+      setActiveSheet(sheetOrder[0]);
+    }
+  }, [sheetOrder]);
+
+  const buildSearchHaystack = (item: RFQItem): string => {
+    const master = masterCatalog.find((m) => m.id === item.matchedMasterId);
+    return [
+      item.originalDescription,
+      item.itemDecomposition?.specification,
+      item.sheetName,
+      master?.standardDescription,
+      item.domain,
+      master?.subcategory,
+      getRecommendationMethod(item)
+    ].filter(Boolean).join(" ").toLowerCase();
+  };
+
+  const matchesFilters = (item: RFQItem): boolean => {
+    if (filters.trades.size > 0 && !filters.trades.has(item.domain)) return false;
+    if (filters.methods.size > 0 && !filters.methods.has(getRecommendationMethod(item))) return false;
+    if (filters.confidence.size > 0) {
+      const c = item.overallConfidence ?? item.confidenceScore ?? 0;
+      const bucket: "high" | "medium" | "low" = c >= 75 ? "high" : c >= 50 ? "medium" : "low";
+      if (!filters.confidence.has(bucket)) return false;
+    }
+    if (filters.validation.size > 0 && !filters.validation.has(getValidationStatus(item))) return false;
+    if (filters.decision.size > 0 && !filters.decision.has(item.approvalStatus || "Pending")) return false;
+    if (filters.engineeringAdjustedOnly && !item.engineeringAdjustment?.applied) return false;
+    if (searchQuery.trim() && !buildSearchHaystack(item).includes(searchQuery.trim().toLowerCase())) return false;
+    return true;
+  };
+
+  // The ACTIVE worksheet's rows, filtered - filtering only hides non-matching rows, it never
+  // reorders the survivors (a plain .filter() call, never .sort()).
+  const currentSheetRows = useMemo(() => {
+    return (itemsBySheet.get(activeSheet) || []).filter(matchesFilters);
+  }, [itemsBySheet, activeSheet, filters, searchQuery, masterCatalog]);
+
+  // Cross-sheet search results for the "find and jump to" dropdown - independent of the other
+  // filters (a global finder), capped for dropdown usability.
+  const globalSearchResults = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return [];
+    const results: RFQItem[] = [];
+    for (const it of items) {
+      if (buildSearchHaystack(it).includes(q)) {
+        results.push(it);
+        if (results.length >= 30) break;
+      }
+    }
+    return results;
+  }, [searchQuery, items, masterCatalog]);
+
+  // Row virtualization - fixed row height, single scrolling container. Sticky header/columns
+  // remain pure CSS (position:sticky against this same scroll container) regardless of how many
+  // rows are actually mounted, so virtualizing never breaks the pinned-column behavior.
+  const ROW_HEIGHT = 30;
+  const TABLE_VIEWPORT_HEIGHT = 690; // ~23 rows visible at once, within the 20-30 row target
+  const VIRTUALIZE_OVERSCAN = 8;
+  const totalRows = currentSheetRows.length;
+  const visibleRowCount = Math.ceil(TABLE_VIEWPORT_HEIGHT / ROW_HEIGHT);
+  const virtualStartIndex = Math.max(0, Math.floor(tableScrollTop / ROW_HEIGHT) - VIRTUALIZE_OVERSCAN);
+  const virtualEndIndex = Math.min(totalRows, virtualStartIndex + visibleRowCount + VIRTUALIZE_OVERSCAN * 2);
+  const visibleSheetRows = currentSheetRows.slice(virtualStartIndex, virtualEndIndex);
+  const topSpacerHeight = virtualStartIndex * ROW_HEIGHT;
+  const bottomSpacerHeight = (totalRows - virtualEndIndex) * ROW_HEIGHT;
+
+  useEffect(() => {
+    // A new active sheet (or a filter/search change) invalidates the previous scroll position -
+    // snap back to the top of the new row set rather than showing a stale offset.
+    setTableScrollTop(0);
+    if (tableScrollRef.current) tableScrollRef.current.scrollTop = 0;
+  }, [activeSheet]);
+
+  const handleTableScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    setTableScrollTop(e.currentTarget.scrollTop);
+  };
+
+  // Jump-to-row navigation - used by both the search results dropdown and the "Items Requiring
+  // Attention" panel. Switches worksheet tab if needed, then (once the target sheet's filtered
+  // row list is available) scrolls the virtualized table directly to that row's computed offset
+  // and pulses a highlight - scrollIntoView doesn't work here since an off-screen virtualized row
+  // may not exist in the DOM at all.
+  const focusItem = (item: RFQItem) => {
+    setShowSearchDropdown(false);
+    if (activeSheet !== item.sheetName) {
+      setActiveSheet(item.sheetName);
+    }
+    setPendingFocusItemId(item.id);
+  };
+
+  useEffect(() => {
+    if (!pendingFocusItemId) return;
+    const idx = currentSheetRows.findIndex((r) => r.id === pendingFocusItemId);
+    if (idx === -1) {
+      // Not in this sheet's currently-filtered row set (e.g. hidden by an active filter) -
+      // nothing to scroll to; give up gracefully rather than jumping to the wrong row.
+      setPendingFocusItemId(null);
+      return;
+    }
+    const targetTop = Math.max(0, idx * ROW_HEIGHT - TABLE_VIEWPORT_HEIGHT / 2 + ROW_HEIGHT / 2);
+    if (tableScrollRef.current) tableScrollRef.current.scrollTop = targetTop;
+    setTableScrollTop(targetTop);
+    const focusedId = pendingFocusItemId;
+    setHighlightedItemId(focusedId);
+    setPendingFocusItemId(null);
+    const t = setTimeout(() => setHighlightedItemId((curr) => (curr === focusedId ? null : curr)), 2200);
+    return () => clearTimeout(t);
+  }, [pendingFocusItemId, currentSheetRows]);
 
   useEffect(() => {
     fetchItemsAndCatalog();
@@ -458,6 +700,230 @@ export default function RecommendationsTab({
     { autoApproved: 0, needsReview: 0, manualPricing: 0 }
   );
   const attentionItems = items.filter((item) => (item.attentionFlags?.length || 0) > 0);
+
+  // Display-only Title Case for worksheet tab labels - the uploaded workbook's own sheet names
+  // are used verbatim as data keys everywhere (activeSheet state, itemsBySheet Map, tooltips'
+  // underlying value), only the rendered label text is reformatted. Domain acronyms that appear
+  // in real BOQ sheet names (HVAC, PHE, FLSS, etc.) are preserved fully uppercase rather than
+  // being title-cased into "Hvac"/"Phe".
+  const TAB_LABEL_ACRONYMS = new Set(["HVAC", "PHE", "FLSS", "MEP", "BOQ", "IT", "AC", "DB", "CCTV", "UPS", "AV", "IBMS"]);
+  const toTitleCaseLabel = (text: string): string =>
+    text.split(" ").map((word) => {
+      if (!word) return word;
+      const upperWord = word.toUpperCase();
+      const alphaOnly = upperWord.replace(/[^A-Z]/g, "");
+      if (alphaOnly.length >= 2 && TAB_LABEL_ACRONYMS.has(alphaOnly)) return upperWord;
+      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+    }).join(" ");
+
+  // Spreadsheet column model - the uploaded RFQ's own columns (Sr No through Amount) followed
+  // by the AI recommendation columns appended to the right, exactly the "open the original RFQ
+  // in Excel, with recommendation columns added" framing. Widths are explicit pixel values (not
+  // Tailwind width classes) so the header row and every body row stay pixel-aligned, which matters
+  // for the two sticky (pinned) columns' `left` offsets to line up exactly between header and body.
+  interface ColumnDef {
+    key: string;
+    label: string;
+    width: number;
+    sticky?: number; // left offset in px if this column is pinned
+    align?: "left" | "right" | "center";
+    group: "original" | "recommendation";
+  }
+  const columns: ColumnDef[] = [
+    { key: "srNo", label: "Sr No", width: 56, sticky: 0, align: "center", group: "original" },
+    { key: "description", label: "Item Description", width: 260, sticky: 56, group: "original" },
+    { key: "specification", label: "Specification", width: 180, group: "original" },
+    { key: "unit", label: "Unit", width: 56, align: "center", group: "original" },
+    { key: "quantity", label: "Quantity", width: 68, align: "right", group: "original" },
+    { key: "supplyRate", label: "Supply Rate (₹)", width: 120, align: "right", group: "original" },
+    { key: "installRate", label: "Installation Rate (₹)", width: 120, align: "right", group: "original" },
+    { key: "totalRate", label: "Total Rate (₹)", width: 120, align: "right", group: "original" },
+    { key: "amount", label: "Amount (₹)", width: 130, align: "right", group: "original" },
+    { key: "recSupply", label: "Recommended Supply Rate", width: 140, align: "right", group: "recommendation" },
+    { key: "recInstall", label: "Recommended Installation Rate", width: 150, align: "right", group: "recommendation" },
+    { key: "recTotal", label: "Recommended Total Rate", width: 140, align: "right", group: "recommendation" },
+    { key: "histMedian", label: "Historical Median", width: 120, align: "right", group: "recommendation" },
+    { key: "histAverage", label: "Historical Average", width: 120, align: "right", group: "recommendation" },
+    { key: "confidence", label: "Confidence", width: 90, align: "center", group: "recommendation" },
+    { key: "method", label: "Recommendation Method", width: 160, align: "center", group: "recommendation" },
+    { key: "decision", label: "Decision", width: 130, align: "center", group: "recommendation" },
+    { key: "evidence", label: "Historical Evidence", width: 100, align: "center", group: "recommendation" },
+    { key: "engNotes", label: "Engineering Notes", width: 130, align: "center", group: "recommendation" },
+    { key: "validation", label: "Validation Status", width: 100, align: "center", group: "recommendation" }
+  ];
+  const totalTableWidth = columns.reduce((sum, c) => sum + c.width, 0);
+
+  // Explicit per-column pixel geometry, shared by header and body cells so the two pinned
+  // (sticky) columns line up exactly between them regardless of which rows are virtualized in.
+  const cellStyle = (col: ColumnDef, isHeader: boolean): React.CSSProperties => {
+    const style: React.CSSProperties = { width: col.width, minWidth: col.width, maxWidth: col.width };
+    if (isHeader) {
+      style.position = "sticky";
+      style.top = 0;
+      style.zIndex = col.sticky !== undefined ? 30 : 20;
+      if (col.sticky !== undefined) style.left = col.sticky;
+    } else if (col.sticky !== undefined) {
+      style.position = "sticky";
+      style.left = col.sticky;
+      style.zIndex = 10;
+    }
+    return style;
+  };
+
+  // Body cell content per column - a pure render of fields already on the item/master; nothing
+  // here computes a rate or a decision, it only displays what the backend already produced.
+  const getCellContent = (item: RFQItem, colKey: string, masterMatch: MasterBOQItem | undefined): React.ReactNode => {
+    const finalRate = item.overriddenRate || item.recommendedRate || 0;
+    const totalRate = finalRate + (item.installationRate || 0);
+    const amount = totalRate * item.quantity;
+    const recTotal = item.recommendedRate + (item.installationRate || 0);
+    const hist = computeHistoricalStats(item);
+    const confidence = item.overallConfidence ?? item.confidenceScore ?? 0;
+    const method = getRecommendationMethod(item);
+    const validationStatus = getValidationStatus(item);
+    const money = (v: number, frac = 2) => `₹${v.toLocaleString(undefined, { maximumFractionDigits: frac })}`;
+
+    switch (colKey) {
+      case "srNo":
+        return (
+          <div className="font-mono leading-tight">
+            <p className="font-bold text-slate-700">{item.itemNo}</p>
+            <p className="text-slate-400 text-[9px]">R{item.rowNum}</p>
+          </div>
+        );
+      case "description":
+        return (
+          <div className="min-w-0 leading-tight">
+            {item.parentHierarchy.length > 0 && (
+              <p className="text-[9px] text-slate-400 truncate" title={item.parentHierarchy.join(" / ")}>
+                {item.parentHierarchy.join(" / ")}
+              </p>
+            )}
+            <p className="text-slate-800 font-medium truncate" title={item.originalDescription}>
+              {item.originalDescription}
+            </p>
+          </div>
+        );
+      case "specification":
+        return (
+          <span className="text-slate-600 truncate block" title={item.itemDecomposition?.specification || undefined}>
+            {item.itemDecomposition?.specification || "—"}
+          </span>
+        );
+      case "unit":
+        return <span className="font-mono text-slate-500">{item.unit}</span>;
+      case "quantity":
+        return <span className="font-mono font-semibold text-slate-700">{item.quantity}</span>;
+      case "supplyRate":
+        return (
+          <span className="inline-flex items-center gap-1 justify-end w-full">
+            <span className={`font-mono font-bold ${item.isOverridden ? "text-amber-600" : "text-slate-800"}`}>
+              {finalRate > 0 ? money(finalRate) : "—"}
+            </span>
+            <button
+              onClick={(e) => { e.stopPropagation(); startOverride(item); setSelectedItemId(item.id); }}
+              className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-indigo-600 transition-opacity cursor-pointer shrink-0"
+              title="Override this rate"
+            >
+              <Pencil className="w-3 h-3" />
+            </button>
+          </span>
+        );
+      case "installRate":
+        return <span className="font-mono text-slate-600">{item.installationRate !== undefined ? money(item.installationRate) : "—"}</span>;
+      case "totalRate":
+        return <span className="font-mono font-semibold text-slate-700">{totalRate > 0 ? money(totalRate) : "—"}</span>;
+      case "amount":
+        return <span className="font-mono font-semibold text-slate-800">{amount > 0 ? money(amount, 0) : "—"}</span>;
+      case "recSupply":
+        return <span className="font-mono font-bold text-indigo-700">{item.recommendedRate > 0 ? money(item.recommendedRate) : "—"}</span>;
+      case "recInstall":
+        return <span className="font-mono text-indigo-600">{item.installationRate !== undefined ? money(item.installationRate) : "—"}</span>;
+      case "recTotal":
+        return <span className="font-mono font-semibold text-indigo-700">{recTotal > 0 ? money(recTotal) : "—"}</span>;
+      case "histMedian":
+        return (
+          <span className="font-mono text-slate-400 italic" title="Informational reference only - the engine selects a single closest historical match and never averages">
+            {hist ? money(hist.median) : "—"}
+          </span>
+        );
+      case "histAverage":
+        return (
+          <span className="font-mono text-slate-400 italic" title="Informational reference only - the engine selects a single closest historical match and never averages">
+            {hist ? money(hist.average) : "—"}
+          </span>
+        );
+      case "confidence":
+        return confidence > 0 ? (
+          <span className={`inline-block px-1.5 py-0.5 rounded-full text-[9px] font-bold font-mono ${
+            confidence >= CONFIDENCE_APPROVAL_THRESHOLD
+              ? "bg-emerald-50 text-emerald-600 border border-emerald-100"
+              : "bg-amber-50 text-amber-600 border border-amber-100"
+          }`}>
+            {confidence}%
+          </span>
+        ) : <span className="text-slate-300 text-[9px] font-bold">—</span>;
+      case "method":
+        return <span className="text-[9px] font-bold uppercase text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded whitespace-nowrap">{method}</span>;
+      case "decision":
+        return (
+          <button
+            onClick={(e) => { e.stopPropagation(); setSelectedItemId(item.id); setActiveDrawerTab("trace"); }}
+            title={item.decision?.decisionSummary || item.reason}
+            className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold cursor-pointer whitespace-nowrap ${
+              item.approvalStatus === "Manual Pricing"
+                ? "bg-red-50 text-red-700 border border-red-100 hover:bg-red-100"
+                : item.approvalStatus === "Needs Review"
+                  ? "bg-amber-50 text-amber-700 border border-amber-100 hover:bg-amber-100"
+                  : item.approvalStatus === "Auto Approved"
+                    ? "bg-emerald-50 text-emerald-700 border border-emerald-100 hover:bg-emerald-100"
+                    : "bg-slate-50 text-slate-400 border border-slate-200"
+            }`}
+          >
+            {item.approvalStatus || "Pending"}
+          </button>
+        );
+      case "evidence": {
+        const count = item.marketRateStatistics?.referenceCount || 0;
+        return (
+          <button
+            onClick={(e) => { e.stopPropagation(); setSelectedItemId(item.id); setActiveDrawerTab("pricing"); }}
+            className="text-[9px] font-bold text-indigo-600 hover:underline cursor-pointer"
+          >
+            {count > 0 ? `${count} ref${count === 1 ? "" : "s"}` : "—"}
+          </button>
+        );
+      }
+      case "engNotes":
+        if (!item.engineeringAdjustment?.applied) return <span className="text-slate-300 text-[9px]">—</span>;
+        return (
+          <button
+            onClick={(e) => { e.stopPropagation(); setSelectedItemId(item.id); setActiveDrawerTab("pricing"); }}
+            title={item.engineeringAdjustment.explanation}
+            className="text-[9px] font-bold uppercase text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded hover:bg-purple-100 cursor-pointer whitespace-nowrap"
+          >
+            {item.engineeringAdjustment.mathematicalModel}
+          </button>
+        );
+      case "validation":
+        return (
+          <button
+            onClick={(e) => { e.stopPropagation(); setSelectedItemId(item.id); setActiveDrawerTab("auditor"); }}
+            className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase border cursor-pointer ${
+              validationStatus === "pass"
+                ? "bg-emerald-50 text-emerald-600 border-emerald-100"
+                : validationStatus === "fail"
+                  ? "bg-red-50 text-red-600 border-red-100"
+                  : "bg-slate-50 text-slate-400 border-slate-200"
+            }`}
+          >
+            {validationStatus}
+          </button>
+        );
+      default:
+        return null;
+    }
+  };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -1022,7 +1488,7 @@ export default function RecommendationsTab({
                   {attentionItems.map((item) => (
                     <div
                       key={item.id}
-                      onClick={() => scrollToItemRow(item.id)}
+                      onClick={() => focusItem(item)}
                       className="p-3 flex items-center justify-between gap-3 hover:bg-amber-50/40 cursor-pointer transition-colors"
                     >
                       <div className="min-w-0 flex-1">
@@ -1045,287 +1511,278 @@ export default function RecommendationsTab({
             </div>
           )}
 
-          <div className="bg-white border border-slate-100 rounded-xl overflow-hidden shadow-3xs">
-          {/* Bounded, independently scrolling viewport (both axes) so the sticky thead/pinned
-              columns below have a well-defined scrollport to stick within - overflow-hidden on the
-              outer wrapper above only clips the rounded corners, it doesn't affect this inner
-              scroll container. thin-scrollbar (src/index.css) keeps the scrollbar modern/unobtrusive
-              in both light and dark mode. */}
-          <div className="overflow-auto thin-scrollbar" style={{ maxHeight: "70vh" }}>
-            <table className="text-left border-collapse text-xs" style={{ minWidth: "max-content" }}>
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-100 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
-                  {/* Pinned columns (Row/Item, Description, Unit) - sticky on both axes at once in
-                      the top-left corner cells, so they stay visible through both vertical AND
-                      horizontal scrolling. Widths are fixed (w-24/w-56/w-14) so the left offsets
-                      below (0, 96px, 320px) line up exactly with the matching body cells. */}
-                  <th className="sticky top-0 left-0 z-30 bg-slate-50 p-2 w-24 text-center">Row / Item</th>
-                  <th className="sticky top-0 left-24 z-30 bg-slate-50 p-2 w-56">Description & parent Category</th>
-                  <th className="sticky top-0 left-[320px] z-30 bg-slate-50 p-2 w-14 text-center">Unit</th>
-                  <th className="sticky top-0 z-20 bg-slate-50 p-2 w-14 text-center">Qty</th>
-                  <th className="sticky top-0 z-20 bg-slate-50 p-3 text-right">Matched Historical averages</th>
-                  <th className="sticky top-0 z-20 bg-indigo-50 p-3 text-right text-indigo-700">Supply Rate (₹)</th>
-                  <th className="sticky top-0 z-20 bg-slate-50 p-3 text-right">Installation Rate (₹)</th>
-                  <th className="sticky top-0 z-20 bg-slate-50 p-3 text-right text-slate-700">Total Installed Rate (₹)</th>
-                  <th className="sticky top-0 z-20 bg-slate-50 p-2 w-16 text-center">Confidence</th>
-                  <th className="sticky top-0 z-20 bg-slate-50 p-2 w-32 text-center">Decision Summary</th>
-                  <th className="sticky top-0 z-20 bg-slate-50 p-2 text-right">Override</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {items.map((item, itemIdx) => {
-                  const masterMatch = masterCatalog.find((m) => m.id === item.matchedMasterId);
-                  const isEditing = editingItemId === item.id;
-                  const finalRate = item.overriddenRate || item.recommendedRate || 0;
-                  // Read-only consumption of the Commercial Decision (ADR-0001) - the row badge
-                  // never re-derives approval from validation/confidence on its own.
-                  const needsAttention = item.approvalStatus === "Needs Review" || item.approvalStatus === "Manual Pricing";
-
-                  // Base row background: highlighted (jumped-to from Attention panel) > selected
-                  // (drawer open for this row) > zebra striping for every other even row > plain.
-                  // Computed once so the pinned/sticky cells below can apply an equivalent color.
-                  const rowBg = highlightedItemId === item.id
-                    ? "bg-amber-50"
-                    : selectedItemId === item.id
-                      ? "bg-indigo-50/15"
-                      : itemIdx % 2 === 1 ? "bg-slate-50/40" : "bg-white";
-                  const rowRing = highlightedItemId === item.id ? "ring-2 ring-inset ring-amber-300" : "";
-                  // Sticky cells need a FULLY OPAQUE background of their own (unlike rowBg above,
-                  // which can safely be translucent since nothing scrolls underneath a normal
-                  // cell) - otherwise the non-pinned columns scrolling horizontally underneath
-                  // bleed through the pinned columns instead of being hidden behind them.
-                  const pinnedBg = highlightedItemId === item.id
-                    ? "bg-amber-50"
-                    : selectedItemId === item.id
-                      ? "bg-indigo-100"
-                      : itemIdx % 2 === 1 ? "bg-slate-50" : "bg-white";
-                  const pinnedCellBase = `sticky z-10 ${pinnedBg} group-hover:bg-slate-100 transition-colors`;
-
-                  return (
-                    <tr
-                      key={item.id}
-                      id={`item-row-${item.id}`}
-                      className={`group hover:bg-slate-50/70 transition-colors ${rowBg} ${rowRing}`}
+          {/* Search + Filter toolbar. A fixed backdrop closes either dropdown on outside click,
+              matching the same pattern used by the drawer/modal overlays elsewhere in this file. */}
+          {(showFilterPanel || showSearchDropdown) && (
+            <div className="fixed inset-0 z-20" onClick={() => { setShowFilterPanel(false); setShowSearchDropdown(false); }} />
+          )}
+          <div className="flex items-center gap-2 p-3 bg-white border border-slate-100 rounded-xl shadow-3xs relative z-30 mb-3 flex-wrap">
+            <div className="relative flex-1 min-w-[240px] max-w-md">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => { setSearchQuery(e.target.value); setShowSearchDropdown(true); }}
+                onFocus={() => setShowSearchDropdown(true)}
+                placeholder="Search description, specification, worksheet, trade, category, method..."
+                className="w-full pl-8 pr-7 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-200"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => { setSearchQuery(""); setShowSearchDropdown(false); }}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500 cursor-pointer"
+                >
+                  <XCircle className="w-3.5 h-3.5" />
+                </button>
+              )}
+              {showSearchDropdown && searchQuery.trim() && (
+                <div className="absolute top-full left-0 mt-1 w-[420px] max-h-80 overflow-y-auto bg-white border border-slate-200 rounded-lg shadow-lg z-40 thin-scrollbar">
+                  {globalSearchResults.length === 0 ? (
+                    <p className="p-3 text-[11px] text-slate-400 italic">No matches in any worksheet.</p>
+                  ) : globalSearchResults.map((r) => (
+                    <button
+                      key={r.id}
+                      onMouseDown={(e) => { e.preventDefault(); focusItem(r); setSearchQuery(""); }}
+                      className="w-full text-left px-3 py-2 hover:bg-indigo-50/60 border-b border-slate-50 last:border-0 flex items-start gap-2 cursor-pointer"
                     >
-                      <td
-                        onClick={() => setSelectedItemId(item.id)}
-                        className={`${pinnedCellBase} left-0 p-2 w-24 text-center cursor-pointer`}
-                      >
-                        <div className="space-y-0.5 font-mono">
-                          <p className="text-slate-400 text-[10px] flex items-center justify-center gap-1">
-                            Row {item.rowNum}
-                            <Info className="w-3 h-3 text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity" />
-                          </p>
-                          <p className="font-bold text-slate-700 underline decoration-dotted decoration-indigo-300">{item.itemNo}</p>
-                        </div>
-                      </td>
+                      <span className="shrink-0 mt-0.5 text-[9px] font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded font-mono">{r.sheetName}</span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-[11px] font-semibold text-slate-800 truncate">Row {r.rowNum} - {r.originalDescription}</span>
+                        <span className="block text-[9px] text-slate-400">{getRecommendationMethod(r)}</span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
 
-                      <td
-                        onClick={() => setSelectedItemId(item.id)}
-                        className={`${pinnedCellBase} left-24 p-2 w-56 cursor-pointer`}
-                      >
-                        <div className="space-y-1.5">
-                          {item.parentHierarchy.length > 0 && (
-                            <div className="flex flex-wrap items-center gap-1">
-                              {item.parentHierarchy.map((lvl, index) => (
-                                <React.Fragment key={index}>
-                                  <span className="text-[9px] font-bold text-slate-400">{lvl}</span>
-                                  {index < item.parentHierarchy.length - 1 && <span className="text-[9px] text-slate-300">/</span>}
-                                </React.Fragment>
-                              ))}
-                            </div>
-                          )}
-                          <div className="flex items-start gap-1.5">
-                            <p className="font-semibold text-slate-800 leading-relaxed group-hover:text-indigo-600 transition-colors">
-                              {item.originalDescription}
-                            </p>
-                          </div>
-                        </div>
-                      </td>
-
-                      <td className={`${pinnedCellBase} left-[320px] p-2 w-14 text-center`}>
-                        <span className="px-1.5 py-0.5 rounded font-mono text-[10px] font-medium text-slate-500 bg-slate-100">
-                          {item.unit}
-                        </span>
-                      </td>
-
-                      <td className="p-2 w-14 text-center font-bold text-slate-700 font-mono tabular-nums">
-                        {item.quantity}
-                      </td>
-
-                      <td className="p-2.5 text-right font-mono text-slate-500 space-y-0.5 tabular-nums">
-                        {masterMatch ? (
-                          <>
-                            <p className="font-bold text-[11px]">Avg: ₹{masterMatch.averageRate.toLocaleString()}</p>
-                            <p className="text-[9px]">Med: ₹{masterMatch.medianRate.toLocaleString()}</p>
-                          </>
-                        ) : (
-                          <span className="text-[10px]">No direct match</span>
-                        )}
-                      </td>
-
-                      <td className="p-2.5 text-right font-mono tabular-nums bg-indigo-50/10 border-x border-indigo-50/10">
-                        {isEditing ? (
-                          <div className="space-y-1">
-                            <input
-                              type="number"
-                              value={overrideValue}
-                              onChange={(e) => setOverrideValue(e.target.value)}
-                              className="w-20 px-1.5 py-1 text-xs border border-indigo-400 bg-white rounded text-slate-700 font-bold focus:outline-none"
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") saveOverride(item.id);
-                              }}
-                              autoFocus
-                            />
-                            <input
-                              type="text"
-                              value={overrideReason}
-                              onChange={(e) => setOverrideReason(e.target.value)}
-                              placeholder="Reason (optional)"
-                              title="Recorded in the Learning Layer to help future recommendations improve"
-                              className="w-32 px-1.5 py-1 text-[10px] border border-slate-200 bg-white rounded text-slate-500 focus:outline-none focus:border-indigo-400"
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") saveOverride(item.id);
-                              }}
-                            />
-                          </div>
-                        ) : (
-                          <div className="space-y-0.5">
-                            <p className={`font-bold text-sm ${item.isOverridden ? "text-amber-600" : "text-indigo-600"}`}>
-                              ₹{finalRate.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </p>
-                            {item.isOverridden && <span className="text-[9px] font-bold text-amber-500 uppercase">Overridden</span>}
-                            {!item.isOverridden && item.engineeringAdjustment?.applied && (
-                              <span
-                                className="text-[8px] font-bold uppercase px-1 rounded bg-purple-50 text-purple-700 block w-fit ml-auto"
-                                title={item.engineeringAdjustment.explanation}
-                              >
-                                AI Estimated · {item.engineeringAdjustment.mathematicalModel}
-                              </span>
-                            )}
-                          </div>
-                        )}
-                      </td>
-
-                      <td className="p-2.5 text-right font-mono tabular-nums">
-                        {item.installationRate !== undefined ? (
-                          <div className="space-y-0.5">
-                            <p className="font-bold text-sm text-slate-700">
-                              ₹{item.installationRate.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </p>
-                            <div className="flex items-center justify-end gap-1">
-                              <span className={`text-[8px] font-bold uppercase px-1 rounded ${
-                                item.installationSource === "Blended"
-                                  ? "bg-emerald-50 text-emerald-700"
-                                  : item.installationSource === "Historical Ignored"
-                                    ? "bg-amber-50 text-amber-700"
-                                    : "bg-slate-100 text-slate-500"
-                              }`}>
-                                {item.installationSource || "Baseline"}
-                              </span>
-                              <span className="text-[9px] text-slate-400">
-                                {((item.installationPercentage || 0) * 100).toFixed(1)}%
-                              </span>
-                            </div>
-                            {item.installationSource === "Blended" && (
-                              <p className="text-[9px] text-slate-400">
-                                {item.installationReferenceCount} ref. project{item.installationReferenceCount === 1 ? "" : "s"}
-                              </p>
-                            )}
-                            {item.installationSource === "Historical Ignored" && (
-                              <p className="text-[9px] text-amber-600" title="Historical data existed but differed from the domain baseline by more than 8pp, so it was discarded">
-                                historical discarded
-                              </p>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-[10px] text-slate-400" title="This sheet has no dedicated Installation Rate column">No Installation Column</span>
-                        )}
-                      </td>
-
-                      <td className="p-2.5 text-right font-mono tabular-nums bg-slate-50/60">
-                        <p className="font-bold text-sm text-slate-800">
-                          ₹{(finalRate + (item.installationRate || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </p>
-                      </td>
-
-                      <td className="p-2 w-16 text-center">
-                        {item.confidenceScore > 0 ? (
-                          <span className={`inline-block px-1.5 py-0.5 rounded-full text-[9px] font-bold font-mono ${
-                            item.confidenceScore >= CONFIDENCE_APPROVAL_THRESHOLD
-                              ? "bg-emerald-50 text-emerald-600 border border-emerald-100"
-                              : "bg-amber-50 text-amber-600 border border-amber-100"
-                          }`}>
-                            {item.confidenceScore}%
-                          </span>
-                        ) : (
-                          <span className="text-slate-400 text-[9px] font-bold uppercase">Pending</span>
-                        )}
-                      </td>
-
-                      {/* Decision Summary - a read-only render of the Commercial Decision
-                          (item.approvalStatus / item.decision). Clicking opens the Specs &
-                          Auditor drawer on its Trace tab, which shows the complete decision
-                          explanation. */}
-                      <td className="p-2 w-32 text-center">
-                        <button
-                          onClick={() => { setSelectedItemId(item.id); setActiveDrawerTab("trace"); }}
-                          title={item.decision?.decisionSummary || item.reason}
-                          className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-[9px] font-bold cursor-pointer transition-colors ${
-                            item.approvalStatus === "Manual Pricing"
-                              ? "bg-red-50 text-red-700 border border-red-100 hover:bg-red-100"
-                              : item.approvalStatus === "Needs Review"
-                                ? "bg-amber-50 text-amber-700 border border-amber-100 hover:bg-amber-100"
-                                : "bg-emerald-50 text-emerald-700 border border-emerald-100 hover:bg-emerald-100"
-                          }`}
-                        >
-                          {needsAttention ? "⚠" : "✔"}{" "}
-                          {item.approvalStatus === "Manual Pricing"
-                            ? "Manual Pricing"
-                            : item.approvalStatus === "Needs Review"
-                              ? "Needs Review"
-                              : item.engineeringAdjustment?.applied
-                                ? "Engineering Adj."
-                                : item.recommendationTrace?.rateSource === "Historical Rate"
-                                  ? "Historical Match"
-                                  : item.matchTier
-                                    ? item.matchTier
-                                    : "Auto Approved"}
+            <div className="relative">
+              <button
+                onClick={() => setShowFilterPanel(!showFilterPanel)}
+                className={`px-3 py-2 rounded-lg border text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer transition-colors ${
+                  activeFilterCount > 0 ? "bg-indigo-50 border-indigo-200 text-indigo-700" : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                <SlidersHorizontal className="w-3.5 h-3.5" />
+                Filters
+                {activeFilterCount > 0 && <span className="px-1.5 rounded-full bg-indigo-600 text-white text-[9px] font-bold">{activeFilterCount}</span>}
+              </button>
+              {showFilterPanel && (
+                <div className="absolute top-full right-0 mt-1 w-80 max-h-[28rem] overflow-y-auto bg-white border border-slate-200 rounded-lg shadow-lg z-40 p-4 space-y-4 thin-scrollbar">
+                  <div>
+                    <span className="text-[10px] font-bold uppercase text-slate-400 block mb-1.5">Trade</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {Array.from(new Set(items.map((i) => i.domain))).map((d) => (
+                        <button key={d} onClick={() => toggleSetFilter("trades", d)} className={`px-2 py-1 rounded text-[10px] font-semibold border cursor-pointer ${filters.trades.has(d) ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"}`}>
+                          {d}
                         </button>
-                      </td>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold uppercase text-slate-400 block mb-1.5">Recommendation Method</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {RECOMMENDATION_METHODS.map((m) => (
+                        <button key={m} onClick={() => toggleSetFilter("methods", m)} className={`px-2 py-1 rounded text-[10px] font-semibold border cursor-pointer ${filters.methods.has(m) ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"}`}>
+                          {m}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold uppercase text-slate-400 block mb-1.5">Confidence</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {([["high", "High (≥75%)"], ["medium", "Medium (50-74%)"], ["low", "Low (<50%)"]] as const).map(([v, l]) => (
+                        <button key={v} onClick={() => toggleConfidenceFilter(v)} className={`px-2 py-1 rounded text-[10px] font-semibold border cursor-pointer ${filters.confidence.has(v) ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"}`}>
+                          {l}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold uppercase text-slate-400 block mb-1.5">Validation Status</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {([["pass", "Pass"], ["fail", "Fail"], ["pending", "Pending"]] as const).map(([v, l]) => (
+                        <button key={v} onClick={() => toggleValidationFilter(v)} className={`px-2 py-1 rounded text-[10px] font-semibold border cursor-pointer ${filters.validation.has(v) ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"}`}>
+                          {l}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold uppercase text-slate-400 block mb-1.5">Decision</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {["Auto Approved", "Needs Review", "Manual Pricing", "Pending"].map((d) => (
+                        <button key={d} onClick={() => toggleSetFilter("decision", d)} className={`px-2 py-1 rounded text-[10px] font-semibold border cursor-pointer ${filters.decision.has(d) ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"}`}>
+                          {d}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={filters.engineeringAdjustedOnly}
+                      onChange={(e) => setFilters((prev) => ({ ...prev, engineeringAdjustedOnly: e.target.checked }))}
+                      className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5 cursor-pointer"
+                    />
+                    <span className="text-[11px] font-semibold text-slate-700">Engineering Adjusted Only</span>
+                  </label>
+                  {activeFilterCount > 0 && (
+                    <button onClick={clearAllFilters} className="w-full text-center py-1.5 text-[10px] font-bold text-red-600 hover:bg-red-50 rounded cursor-pointer">
+                      Clear All Filters
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
 
-                      <td className="p-2.5 text-right shrink-0">
-                        <div className="flex flex-col items-end gap-1.5">
-                          {isEditing ? (
-                            <button
-                              onClick={() => saveOverride(item.id)}
-                              className="px-2 py-1 bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-bold rounded shadow-3xs transition-colors cursor-pointer"
-                            >
-                              Save
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => startOverride(item)}
-                              className="px-2 py-1 bg-slate-100 hover:bg-slate-200 border border-slate-200 text-[10px] font-bold rounded text-slate-600 transition-colors cursor-pointer"
-                            >
-                              Override
-                            </button>
-                          )}
-                          <button
-                            onClick={() => setSelectedItemId(item.id)}
-                            className="px-2 py-0.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[9px] font-semibold rounded cursor-pointer"
-                          >
-                            Specs & Auditor
-                          </button>
-                        </div>
+            {(activeFilterCount > 0 || searchQuery) && (
+              <button onClick={() => { clearAllFilters(); setSearchQuery(""); }} className="text-[10px] font-semibold text-slate-400 hover:text-slate-600 cursor-pointer underline">
+                Reset
+              </button>
+            )}
+
+            <span className="ml-auto text-[10px] text-slate-400 font-medium">
+              Showing <strong className="text-slate-600">{currentSheetRows.length}</strong> of {(itemsBySheet.get(activeSheet) || []).length} rows in <strong className="text-slate-600">{activeSheet}</strong>
+            </span>
+          </div>
+
+          {/* Workbook spreadsheet - worksheet tabs (identical order to the uploaded file) above a
+              single virtualized, sticky-header/sticky-column table. Rows are never reordered,
+              grouped, or clustered - only filtered/searched (hidden), which preserves order. */}
+          <div className="bg-white border border-slate-100 rounded-xl overflow-hidden shadow-3xs">
+            <div className="flex items-end gap-0.5 px-2 pt-2 bg-slate-100/70 border-b border-slate-200 overflow-x-auto thin-scrollbar">
+              {sheetOrder.map((sheetName) => {
+                const sheetItems = itemsBySheet.get(sheetName) || [];
+                const flagged = sheetItems.filter((i) => (i.attentionFlags?.length || 0) > 0).length;
+                const isActive = activeSheet === sheetName;
+                return (
+                  <button
+                    key={sheetName}
+                    onClick={() => setActiveSheet(sheetName)}
+                    className={`shrink-0 px-3 py-2 text-[13px] font-semibold tracking-normal rounded-t-lg border border-b-0 transition-colors cursor-pointer flex items-center gap-1.5 ${
+                      isActive
+                        ? "bg-slate-900 text-white border-slate-900"
+                        : "bg-slate-50 text-slate-700 border-transparent hover:bg-slate-200 hover:text-slate-900"
+                    }`}
+                    title={toTitleCaseLabel(sheetName)}
+                  >
+                    <FileSpreadsheet className="w-3 h-3 shrink-0" />
+                    <span className="max-w-[140px] truncate">{toTitleCaseLabel(sheetName)}</span>
+                    <span className={`text-[9px] font-mono px-1 rounded ${isActive ? "bg-indigo-600 text-white" : "bg-slate-300 text-slate-700"}`}>{sheetItems.length}</span>
+                    {flagged > 0 && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" title={`${flagged} item(s) flagged for review`} />}
+                  </button>
+                );
+              })}
+            </div>
+
+            {(itemsBySheet.get(activeSheet) || []).length === 0 ? (
+              // Non-BOQ worksheet (General Notes, Preambles, Summary, etc.) - it exists in the
+              // uploaded workbook and gets a tab like every other sheet, but has no payable line
+              // items to price, so there is no pricing table to show. Surface what the parser
+              // already extracted about it instead of an empty grid.
+              <div className="p-10 text-center" style={{ minHeight: 200 }}>
+                {(() => {
+                  const sheetInfo = rfqDetails?.workbookBlueprint?.sheets?.[activeSheet];
+                  return (
+                    <>
+                      <FileSpreadsheet className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                      <p className="text-xs font-semibold text-slate-600">
+                        "{activeSheet}" {sheetInfo?.detectedType ? `is classified as ${sheetInfo.detectedType}` : "has no payable line items"}
+                      </p>
+                      <p className="text-[11px] text-slate-400 max-w-md mx-auto mt-1.5 leading-relaxed">
+                        {sheetInfo?.summary || "No BOQ pricing rows were found on this worksheet, so there is nothing to recommend rates for here."}
+                      </p>
+                    </>
+                  );
+                })()}
+              </div>
+            ) : (
+            <div
+              ref={tableScrollRef}
+              onScroll={handleTableScroll}
+              className="overflow-auto thin-scrollbar"
+              style={{ height: TABLE_VIEWPORT_HEIGHT }}
+            >
+              <table className="border-collapse" style={{ tableLayout: "fixed", width: totalTableWidth }}>
+                <colgroup>
+                  {columns.map((col) => <col key={col.key} style={{ width: col.width }} />)}
+                </colgroup>
+                <thead>
+                  <tr>
+                    {columns.map((col) => (
+                      <th
+                        key={col.key}
+                        style={cellStyle(col, true)}
+                        title={col.key === "histMedian" || col.key === "histAverage" ? "Informational reference only - never used in pricing" : col.label}
+                        className={`px-2 py-2 text-[10px] font-bold uppercase tracking-wide border-b border-r border-slate-200 truncate ${
+                          col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : "text-left"
+                        } ${
+                          col.sticky !== undefined
+                            ? "bg-slate-100 text-slate-600"
+                            : col.group === "recommendation" ? "bg-indigo-50/70 text-indigo-700" : "bg-slate-50 text-slate-500"
+                        }`}
+                      >
+                        {col.label}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {currentSheetRows.length === 0 ? (
+                    <tr>
+                      <td colSpan={columns.length} className="p-10 text-center text-xs text-slate-400">
+                        No rows match the current search/filters in "{activeSheet}".
                       </td>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                  ) : (
+                    <>
+                      {topSpacerHeight > 0 && (
+                        <tr style={{ height: topSpacerHeight }} aria-hidden="true">
+                          <td colSpan={columns.length} style={{ padding: 0, border: "none" }} />
+                        </tr>
+                      )}
+                      {visibleSheetRows.map((item, i) => {
+                        const absoluteIdx = virtualStartIndex + i;
+                        const masterMatch = masterCatalog.find((m) => m.id === item.matchedMasterId);
+                        const isHighlighted = highlightedItemId === item.id;
+                        const isSelected = selectedItemId === item.id;
+                        const pinnedBgClass = isHighlighted ? "bg-amber-50" : isSelected ? "bg-indigo-100" : absoluteIdx % 2 === 1 ? "bg-slate-50" : "bg-white";
+                        const rowBgClass = isHighlighted ? "bg-amber-50" : isSelected ? "bg-indigo-50/40" : absoluteIdx % 2 === 1 ? "bg-slate-50/50" : "bg-white";
+                        return (
+                          <tr
+                            key={item.id}
+                            onClick={() => { setSelectedItemId(item.id); setActiveDrawerTab("auditor"); }}
+                            className={`group cursor-pointer hover:bg-indigo-50/20 transition-colors ${rowBgClass} ${isHighlighted ? "ring-2 ring-inset ring-amber-300" : ""}`}
+                            style={{ height: ROW_HEIGHT }}
+                          >
+                            {columns.map((col) => (
+                              <td
+                                key={col.key}
+                                style={cellStyle(col, false)}
+                                className={`px-2 py-1 border-b border-r border-slate-100 overflow-hidden text-[11px] align-middle ${
+                                  col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : "text-left"
+                                } ${col.sticky !== undefined ? `${pinnedBgClass} group-hover:bg-indigo-50/40` : ""}`}
+                              >
+                                {getCellContent(item, col.key, masterMatch)}
+                              </td>
+                            ))}
+                          </tr>
+                        );
+                      })}
+                      {bottomSpacerHeight > 0 && (
+                        <tr style={{ height: bottomSpacerHeight }} aria-hidden="true">
+                          <td colSpan={columns.length} style={{ padding: 0, border: "none" }} />
+                        </tr>
+                      )}
+                    </>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            )}
           </div>
-        </div>
         </>
       )}
 
@@ -1386,12 +1843,66 @@ export default function RecommendationsTab({
                     {selectedItem.originalDescription}
                   </h3>
                 </div>
-                <button 
+                <button
                   onClick={() => setSelectedItemId(null)}
                   className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-all cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
+              </div>
+
+              {/* Override Final Rate - moved here from an inline table edit so every row in the
+                  spreadsheet above can stay a uniform, compact Excel-like height regardless of
+                  edit state. */}
+              <div className="px-6 py-3 bg-white border-b border-slate-100 flex items-center justify-between gap-3">
+                {editingItemId === selectedItem.id ? (
+                  <div className="flex items-center gap-2 flex-1 flex-wrap">
+                    <div className="space-y-0.5">
+                      <label className="text-[9px] font-bold uppercase text-slate-400 block">Final Rate (₹)</label>
+                      <input
+                        type="number"
+                        value={overrideValue}
+                        onChange={(e) => setOverrideValue(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter") saveOverride(selectedItem.id); }}
+                        className="w-28 px-2 py-1.5 text-xs border border-indigo-400 bg-white rounded text-slate-700 font-bold focus:outline-none"
+                        autoFocus
+                      />
+                    </div>
+                    <div className="space-y-0.5 flex-1 min-w-[140px]">
+                      <label className="text-[9px] font-bold uppercase text-slate-400 block">Reason (optional)</label>
+                      <input
+                        type="text"
+                        value={overrideReason}
+                        onChange={(e) => setOverrideReason(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter") saveOverride(selectedItem.id); }}
+                        placeholder="Recorded for the Learning Layer"
+                        className="w-full px-2 py-1.5 text-[11px] border border-slate-200 bg-white rounded text-slate-600 focus:outline-none focus:border-indigo-400"
+                      />
+                    </div>
+                    <button onClick={() => saveOverride(selectedItem.id)} className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-bold rounded cursor-pointer self-end">
+                      Save
+                    </button>
+                    <button onClick={() => setEditingItemId(null)} className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-[11px] font-bold rounded cursor-pointer self-end">
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <div>
+                      <span className="text-[9px] font-bold uppercase text-slate-400 block">Final Rate</span>
+                      <span className={`text-lg font-extrabold font-mono ${selectedItem.isOverridden ? "text-amber-600" : "text-slate-800"}`}>
+                        ₹{finalRate.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                      {selectedItem.isOverridden && <span className="ml-2 text-[9px] font-bold text-amber-500 uppercase">Overridden</span>}
+                    </div>
+                    <button
+                      onClick={() => startOverride(selectedItem)}
+                      className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 border border-slate-200 text-[11px] font-bold rounded text-slate-600 transition-colors cursor-pointer inline-flex items-center gap-1.5"
+                    >
+                      <Pencil className="w-3 h-3" /> Override
+                    </button>
+                  </>
+                )}
               </div>
 
               {/* Tabs list */}
@@ -1467,6 +1978,67 @@ export default function RecommendationsTab({
                         </div>
                       </div>
                     )}
+
+                    {/* Canonical Item - the Master BOQ catalog entry this RFQ item was matched
+                        to, if any. Read-only; the match itself is decided upstream by the
+                        recommendation pipeline, never here. */}
+                    <div>
+                      <h4 className="text-[11px] font-bold uppercase text-slate-400 tracking-wider mb-3">
+                        Canonical Item (Master BOQ Match)
+                      </h4>
+                      {!masterMatch ? (
+                        <p className="text-xs text-slate-400 italic">No master catalog match for this item.</p>
+                      ) : (
+                        <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 space-y-2 text-xs">
+                          <p className="text-slate-800 font-semibold leading-relaxed">{masterMatch.standardDescription}</p>
+                          <div className="flex flex-wrap gap-2 pt-1">
+                            <span className="px-2 py-0.5 rounded bg-white border border-slate-200 text-slate-600 font-bold text-[10px] uppercase">{masterMatch.domain}</span>
+                            <span className="px-2 py-0.5 rounded bg-white border border-slate-200 text-slate-600 font-bold text-[10px] uppercase">{masterMatch.subcategory}</span>
+                            <span className="px-2 py-0.5 rounded bg-white border border-slate-200 text-slate-600 font-mono text-[10px]">{masterMatch.standardUnit}</span>
+                            <span className="px-2 py-0.5 rounded bg-white border border-slate-200 text-slate-600 font-mono text-[10px]">{masterMatch.occurrenceCount} occurrence(s)</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <hr className="border-slate-100" />
+
+                    {/* Confidence Breakdown - the 6-facet profile from
+                        ProjectCalibrationEngine.computeItemConfidenceProfile. overallConfidence is
+                        the one figure the Commercial Decision Engine's approval rule actually uses;
+                        the rest explain WHY it landed where it did. */}
+                    <div>
+                      <h4 className="text-[11px] font-bold uppercase text-slate-400 tracking-wider mb-3">
+                        Confidence Breakdown
+                      </h4>
+                      {selectedItem.overallConfidence === undefined ? (
+                        <p className="text-xs text-slate-400 italic">Confidence profile has not been computed for this item yet.</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {([
+                            ["Semantic", selectedItem.semanticConfidence],
+                            ["Specification", selectedItem.specificationConfidence],
+                            ["Pricing", selectedItem.pricingConfidence],
+                            ["Engineering", selectedItem.engineeringConfidence],
+                            ["Historical", selectedItem.historicalConfidence],
+                            ["Overall", selectedItem.overallConfidence]
+                          ] as [string, number | undefined][]).map(([label, value]) => (
+                            <div key={label} className="flex items-center gap-3">
+                              <span className={`w-20 shrink-0 text-[10px] font-bold uppercase ${label === "Overall" ? "text-indigo-700" : "text-slate-400"}`}>{label}</span>
+                              <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full ${label === "Overall" ? "bg-indigo-500" : (value ?? 0) >= CONFIDENCE_APPROVAL_THRESHOLD ? "bg-emerald-400" : "bg-amber-400"}`}
+                                  style={{ width: `${Math.max(0, Math.min(100, value ?? 0))}%` }}
+                                />
+                              </div>
+                              <span className="w-10 shrink-0 text-right text-[10px] font-mono font-bold text-slate-700">{value ?? "—"}{value !== undefined ? "%" : ""}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <hr className="border-slate-100" />
 
                     {/* Auditor scorecard */}
                     <div>
@@ -1623,6 +2195,134 @@ export default function RecommendationsTab({
                     numbers the backend did not compute. */}
                 {activeDrawerTab === "pricing" && (
                   <div className="space-y-6 animate-fade-in">
+                    {/* Supply Rate Logic - which stage produced the current Supply Rate, and why.
+                        A pure read of decision.rateProvenance/reason - no logic computed here. */}
+                    <div>
+                      <h4 className="text-[11px] font-bold uppercase text-slate-400 tracking-wider mb-3">
+                        Supply Rate Logic
+                      </h4>
+                      <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 text-xs space-y-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] text-slate-400 font-semibold uppercase">Source</span>
+                          <span className="px-2 py-0.5 rounded bg-white border border-slate-200 text-slate-700 font-bold text-[10px]">
+                            {selectedItem.decision?.rateProvenance || "Not yet rated"}
+                          </span>
+                        </div>
+                        <p className="text-slate-600 leading-relaxed">{selectedItem.reason}</p>
+                      </div>
+                    </div>
+
+                    {/* Engineering Adjustment Factors - only rendered when a genuine dimensional
+                        model (interpolation/extrapolation/area/volume scaling) replaced the flat
+                        catalog guess. See src/EngineeringAdjustmentEngine.ts. */}
+                    {selectedItem.engineeringAdjustment?.applied && (
+                      <div>
+                        <h4 className="text-[11px] font-bold uppercase text-slate-400 tracking-wider mb-3">
+                          Engineering Adjustment Factors
+                        </h4>
+                        <div className="bg-purple-50/40 rounded-xl p-4 border border-purple-100 text-xs space-y-3">
+                          <div className="flex flex-wrap gap-3">
+                            <div>
+                              <span className="text-[9px] text-purple-500 font-bold uppercase block">Model</span>
+                              <span className="text-slate-800 font-bold">{selectedItem.engineeringAdjustment.mathematicalModel}</span>
+                            </div>
+                            <div>
+                              <span className="text-[9px] text-purple-500 font-bold uppercase block">Confidence</span>
+                              <span className="text-slate-800 font-bold font-mono">{selectedItem.engineeringAdjustment.confidence}%</span>
+                            </div>
+                            {selectedItem.engineeringAdjustment.isExtrapolation && (
+                              <span className="self-start px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-[9px] font-bold uppercase">Extrapolation</span>
+                            )}
+                          </div>
+                          {selectedItem.engineeringAdjustment.engineeringParameters.length > 0 && (
+                            <div className="overflow-x-auto rounded-lg border border-purple-100 bg-white">
+                              <table className="w-full text-xs">
+                                <thead>
+                                  <tr className="bg-purple-50/70 text-[10px] uppercase text-slate-500">
+                                    <th className="text-left font-semibold px-2.5 py-1.5">Parameter</th>
+                                    <th className="text-right font-semibold px-2.5 py-1.5">Value</th>
+                                    <th className="text-left font-semibold px-2.5 py-1.5">Unit</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {selectedItem.engineeringAdjustment.engineeringParameters.map((p, idx) => (
+                                    <tr key={idx} className="border-t border-purple-50">
+                                      <td className="px-2.5 py-1.5 font-semibold text-slate-700">{p.name}</td>
+                                      <td className="px-2.5 py-1.5 text-right font-mono text-slate-700">{p.value}</td>
+                                      <td className="px-2.5 py-1.5 text-slate-500">{p.unit}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                          {selectedItem.engineeringAdjustment.historicalReferencesUsed.length > 0 && (
+                            <div className="overflow-x-auto rounded-lg border border-purple-100 bg-white">
+                              <table className="w-full text-xs">
+                                <thead>
+                                  <tr className="bg-purple-50/70 text-[10px] uppercase text-slate-500">
+                                    <th className="text-left font-semibold px-2.5 py-1.5">Family Reference</th>
+                                    <th className="text-right font-semibold px-2.5 py-1.5">Dimension Value</th>
+                                    <th className="text-right font-semibold px-2.5 py-1.5">Rate</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {selectedItem.engineeringAdjustment.historicalReferencesUsed.map((r, idx) => (
+                                    <tr key={idx} className="border-t border-purple-50">
+                                      <td className="px-2.5 py-1.5 text-slate-700 break-all">{r.description}</td>
+                                      <td className="px-2.5 py-1.5 text-right font-mono text-slate-600">{r.dimensionValue}</td>
+                                      <td className="px-2.5 py-1.5 text-right font-mono text-slate-700">₹{r.rate.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                          <p className="text-purple-900 font-medium leading-relaxed">{selectedItem.engineeringAdjustment.explanation}</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Installation Rate Logic - baseline-anchored, historical blend within
+                        tolerance. See src/InstallationRateEngine.ts. */}
+                    <div>
+                      <h4 className="text-[11px] font-bold uppercase text-slate-400 tracking-wider mb-3">
+                        Installation Rate Logic
+                      </h4>
+                      {selectedItem.installationRate === undefined ? (
+                        <p className="text-xs text-slate-400 italic">This worksheet has no dedicated Installation Rate column - Supply Rate only.</p>
+                      ) : (
+                        <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 text-xs space-y-2">
+                          <div className="flex flex-wrap gap-3">
+                            <div>
+                              <span className="text-[9px] text-slate-400 font-bold uppercase block">Installation Rate</span>
+                              <span className="text-slate-800 font-bold font-mono">₹{selectedItem.installationRate.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                            </div>
+                            <div>
+                              <span className="text-[9px] text-slate-400 font-bold uppercase block">Basis</span>
+                              <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${
+                                selectedItem.installationSource === "Blended" ? "bg-emerald-50 text-emerald-700"
+                                  : selectedItem.installationSource === "Historical Ignored" ? "bg-amber-50 text-amber-700"
+                                    : "bg-slate-200 text-slate-600"
+                              }`}>{selectedItem.installationSource || "Baseline"}</span>
+                            </div>
+                            <div>
+                              <span className="text-[9px] text-slate-400 font-bold uppercase block">Final Installation %</span>
+                              <span className="text-slate-800 font-bold font-mono">{((selectedItem.installationPercentage || 0) * 100).toFixed(1)}%</span>
+                            </div>
+                          </div>
+                          {selectedItem.installationSource === "Blended" && (
+                            <p className="text-slate-500">Blended with {selectedItem.installationReferenceCount} historical reference project(s), within the ±8pp domain-baseline tolerance.</p>
+                          )}
+                          {selectedItem.installationSource === "Historical Ignored" && (
+                            <p className="text-amber-600">Historical installation data existed but differed from the domain baseline by more than 8pp, so it was discarded in favor of the domain baseline.</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    <hr className="border-slate-100" />
+
                     {!marketStats ? (
                       <div className="text-xs text-slate-500 italic space-y-1">
                         <p>No historical evidence selection exists for this item.</p>

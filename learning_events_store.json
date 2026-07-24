@@ -1,1 +1,18 @@
-[]
+[
+  {
+    "id": "learn_vtan87w8m",
+    "timestamp": "2026-07-24T17:43:47.842Z",
+    "rfqId": "rfq_pl2g9aiph",
+    "itemId": "rfqit_pfozyifqh",
+    "masterId": "mstr_oohkjnna8",
+    "domain": "Interior",
+    "originalRecommendation": 195000,
+    "approvedRate": 145000,
+    "difference": -50000,
+    "differencePercent": -25.6,
+    "projectType": "Commercial Office",
+    "itemDescription": "Counter Size  01-850mm H Standard D 2100mm L",
+    "specification": "Counter Size  01-850mm H Standard D 2100mm L",
+    "material": "Standard Material Group"
+  }
+]

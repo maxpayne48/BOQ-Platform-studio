@@ -14,5 +14,21 @@
     "itemDescription": "Counter Size  01-850mm H Standard D 2100mm L",
     "specification": "Counter Size  01-850mm H Standard D 2100mm L",
     "material": "Standard Material Group"
+  },
+  {
+    "id": "learn_ka4lii8nq",
+    "timestamp": "2026-07-27T16:47:57.635Z",
+    "rfqId": "rfq_rrakmnivq",
+    "itemId": "rfqit_xf9rcgom5",
+    "masterId": "mstr_kyhqyjgku",
+    "domain": "Interior",
+    "originalRecommendation": 175000,
+    "approvedRate": 200000,
+    "difference": 25000,
+    "differencePercent": 14.3,
+    "projectType": "Commercial Space",
+    "itemDescription": "Tuk Shop Wet counter - Size -1050mm H X 750mm D X 1920mm L",
+    "specification": "Tuk Shop Wet counter - Size -1050mm H X 750mm D X 1920mm L",
+    "material": "Standard Material Group"
   }
 ]

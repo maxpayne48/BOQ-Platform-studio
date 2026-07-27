@@ -16,7 +16,11 @@
 // is a reviewable violation of ADR-0001.
 
 import { RFQItem, CommercialDecision, ApprovalStatus, DecisionReasonCode } from "./types.js";
-import { CONFIDENCE_APPROVAL_THRESHOLD } from "./decisionConstants.js";
+import {
+  CONFIDENCE_APPROVAL_THRESHOLD,
+  MIN_SELECTED_MATCH_SCORE_FOR_AUTO_RATE,
+  MIN_PROJECT_SIMILARITY_FOR_AUTO_RATE
+} from "./decisionConstants.js";
 
 export interface ApprovalMetrics {
   totalItems: number;
@@ -106,21 +110,15 @@ export class CommercialDecisionEngine {
       );
     }
 
-    // Zero evidence of any kind: no master-catalog match, no relaxed-tier market
-    // estimate, no engineering dimensional model, no selected historical evidence.
-    // There is nothing behind the number - it must be priced manually.
-    const zeroEvidence =
-      !item.matchedMasterId &&
-      !item.matchTier &&
-      !item.engineeringAdjustment?.applied &&
-      !stats;
-    if (zeroEvidence) {
-      return build(
-        "Manual Pricing",
-        "NO_EVIDENCE",
-        "No commercially-equivalent historical evidence, engineering family, or relaxed-tier market estimate exists for this item. Manual pricing required.",
-        []
-      );
+    // Evidence sufficiency (zero evidence, or evidence that exists but falls below the hard
+    // confidence floor) - shared with finalizeItemDecision, which uses the same rule to decide
+    // whether to clear item.recommendedRate before this decision is even built. See
+    // evaluateEvidenceSufficiency's own comment for the full rationale.
+    const sufficiency = CommercialDecisionEngine.evaluateEvidenceSufficiency(item);
+    if (sufficiency.sufficient === false) {
+      // item.recommendedRate has already been cleared to 0 by finalizeItemDecision, BEFORE trace
+      // reconciliation ran, so build() below and the trace agree - see that function's comment.
+      return build("Manual Pricing", sufficiency.reasonCode, sufficiency.summary, []);
     }
 
     const failedValidations = item.validationResults
@@ -149,6 +147,76 @@ export class CommercialDecisionEngine {
     if (!confidenceOk) parts.push(`confidence ${confidence}% is below the ${CONFIDENCE_APPROVAL_THRESHOLD}% approval threshold`);
     if (!validationOk) parts.push(`validation failed: ${failedValidations.join(", ")}`);
     return build("Needs Review", reasonCode, `Estimator review required - ${parts.join("; ")}.`, failedValidations);
+  }
+
+  /**
+   * The hard confidence floor (Part 2, 2026-07-27, "never fabricate, never guess, always flag").
+   * Two independent gates, both routing to Manual Pricing with no fallback computation of any
+   * kind (no domain average, no nearest-loose-match, no zero-in-name-only, no synthetic
+   * constant):
+   *
+   * 1. Zero evidence of any kind - no master-catalog match, no relaxed-tier market estimate, no
+   *    engineering dimensional model, no selected historical evidence. There is nothing behind
+   *    the number.
+   * 2. Evidence exists but falls below the minimum bar (MIN_SELECTED_MATCH_SCORE_FOR_AUTO_RATE /
+   *    MIN_PROJECT_SIMILARITY_FOR_AUTO_RATE, src/decisionConstants.ts) - a STRICTER, EARLIER gate
+   *    than CONFIDENCE_APPROVAL_THRESHOLD below, which decides Auto Approved vs. Needs Review for
+   *    evidence that already cleared this floor; this gate decides whether there was ever enough
+   *    real signal to price the item at all. Scoped to items whose FINAL rate is not still backed
+   *    by an untouched exact match: `item.matchedMasterId` is written once, by the baseline stage,
+   *    and is NEVER cleared even when a later stage (calibration/self-validation, Progressive
+   *    Matching) completely replaces the rate with different, weaker evidence - confirmed live
+   *    (2026-07-27 mechanism-verification pass, see docs/audit/0002-identity-and-evidence-
+   *    integrity-audit.md "Follow-up Fix 6"): items with `calibrationApplied: true` and a
+   *    `selectedMatchScore` as low as 53 still carried a stale `matchedMasterId` from their
+   *    ORIGINAL baseline match, which a naive `!item.matchedMasterId` check would have wrongly
+   *    read as "still strong" and exempted from this floor entirely - the floor would have been
+   *    dead code. `matchedMasterId` is only trusted here when NOTHING downstream touched the
+   *    rate (`!item.calibrationApplied && !item.matchTier`); the moment calibration or relaxed-
+   *    tier matching takes over, this gate judges the ACTUAL evidence (`stats`) that is actually
+   *    responsible for the number, regardless of what the stale field says.
+   *
+   * Shared by deriveApprovalDecision (which needs the reason text) and finalizeItemDecision
+   * (which needs only the boolean, to clear item.recommendedRate before either this method or
+   * trace reconciliation runs) - kept as one function so the two can never drift apart.
+   */
+  private static evaluateEvidenceSufficiency(
+    item: RFQItem
+  ): { sufficient: true } | { sufficient: false; reasonCode: DecisionReasonCode; summary: string } {
+    if (item.isOverridden) return { sufficient: true };
+    const stats = item.marketRateStatistics;
+
+    const zeroEvidence =
+      !item.matchedMasterId && !item.matchTier && !item.engineeringAdjustment?.applied && !stats;
+    if (zeroEvidence) {
+      return {
+        sufficient: false,
+        reasonCode: "NO_EVIDENCE",
+        summary:
+          "No commercially-equivalent historical evidence, engineering family, or relaxed-tier market estimate exists for this item. Manual pricing required."
+      };
+    }
+
+    const rateStillBackedByUntouchedExactMatch =
+      !!item.matchedMasterId && !item.calibrationApplied && !item.matchTier;
+    const selectedEvidence = stats?.historicalEvidence?.find((e) => e.selected);
+    const belowConfidenceFloor =
+      !rateStillBackedByUntouchedExactMatch &&
+      !!stats &&
+      ((stats.selectedMatchScore ?? 0) < MIN_SELECTED_MATCH_SCORE_FOR_AUTO_RATE ||
+        (selectedEvidence !== undefined && selectedEvidence.projectSimilarity < MIN_PROJECT_SIMILARITY_FOR_AUTO_RATE));
+    if (belowConfidenceFloor) {
+      return {
+        sufficient: false,
+        reasonCode: "NO_EVIDENCE",
+        summary:
+          `Selected evidence falls below the minimum confidence floor (match score ${stats!.selectedMatchScore}%` +
+          (selectedEvidence ? `, source project similarity ${selectedEvidence.projectSimilarity}%` : "") +
+          `) - minimums are ${MIN_SELECTED_MATCH_SCORE_FOR_AUTO_RATE}%/${MIN_PROJECT_SIMILARITY_FOR_AUTO_RATE}%. A low-confidence guess is not an acceptable substitute for real evidence - manual pricing required.`
+      };
+    }
+
+    return { sufficient: true };
   }
 
   /** Which pipeline stage is responsible for the item's FINAL rate. */
@@ -225,6 +293,27 @@ export class CommercialDecisionEngine {
    * override route.
    */
   static finalizeItemDecision(item: RFQItem): CommercialDecision {
+    // Clear a zero-evidence item's rate BEFORE trace reconciliation runs, not after, so the
+    // trace's recommendedUnitRate/explanation and the decision's recommendedRate never disagree
+    // (the same "single writer, reconciled once" principle reconcileRecommendationTrace's own
+    // docstring establishes for the trace itself). item.recommendedRate at this point is still
+    // whatever RecommendationEngineV2's Basic Rate baseline seeded it with - a synthetic domain-
+    // cost-buildup on a flat ₹1000 placeholder, computed BEFORE this engine ever runs so
+    // downstream evidence-based recalibration always had a starting number to potentially
+    // improve on. When that recalibration never ran (zero evidence at every stage - no matched
+    // master, no relaxed-tier match, no engineering model, no selected historical evidence), the
+    // seed is all that's left, and per deriveApprovalDecision's own "there is nothing behind the
+    // number" finding, it must not be exported/displayed as if it were a genuine recommendation.
+    // Confirmed this is exactly how the ₹1,354.82 synthetic constant reached the exported Kohler
+    // sheet for Signages/PHE/Passive Networking/FLSS Works/Toilet Works items - see
+    // docs/audit/0002-identity-and-evidence-integrity-audit.md. The existing UI/export convention
+    // for "no rate" (0 -> "-" in RecommendationsTab; falsy in export's `overriddenRate ||
+    // recommendedRate` cell injection) already handles a cleared 0 correctly, no further changes
+    // needed downstream.
+    // Also covers the Part 2 confidence-floor case (evidence exists but is too weak to trust) -
+    // see evaluateEvidenceSufficiency's own comment.
+    if (!CommercialDecisionEngine.evaluateEvidenceSufficiency(item).sufficient) item.recommendedRate = 0;
+
     CommercialDecisionEngine.reconcileRecommendationTrace(item);
     const decision = CommercialDecisionEngine.deriveApprovalDecision(item);
     item.decision = decision;

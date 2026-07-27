@@ -1581,7 +1581,15 @@ function shouldSkipSheet(sheetName: string): boolean {
   // rollup page (e.g. "BOQ : OVERALL SUMMARY" with cross-sheet formulas like ='Summary -
   // C&I'!C6 and a derived Rate/SFT column, no genuine Quantity column at all) - never a real
   // line-item BOQ sheet, exactly like "summary"/"abstract" above.
-  return ["cover", "index", "summary", "abstract", "overall", "drawing", "tax", "note", "preamble", "schedule", "instruction", "tender", "payment", "term", "condition", "guarantee", "compliance", "commercial", "legal", "clause", "sign"].some(
+  //
+  // "sign" replaced with "signature"/"sign off"/"sign-off"/"signoff" (was a bare substring match
+  // intended to catch signature/sign-off pages, but "sign".includes("sign") also matches
+  // "Signages"/"Signage" - a genuine, real-line-item BOQ domain, not a non-BOQ page. This was
+  // silently deleting every Signages RFQ item on every server restart (the startup cleanup pass
+  // below re-filters rfqItems on every boot) and silently skipping every Signages worksheet
+  // during historical-BOQ ingestion (line ~2201) - see docs/audit/0002-identity-and-evidence-
+  // integrity-audit.md for the confirmed data-loss/evidence-starvation this caused.
+  return ["cover", "index", "summary", "abstract", "overall", "drawing", "tax", "note", "preamble", "schedule", "instruction", "tender", "payment", "term", "condition", "guarantee", "compliance", "commercial", "legal", "clause", "signature", "sign off", "sign-off", "signoff"].some(
     keyword => sheetNameLower.includes(keyword)
   );
 }
@@ -2220,6 +2228,9 @@ app.post("/api/historical-boqs", (req, res) => {
 
     // Detect column header index dynamically (Automatic Column Detection)
     // We scan the first 10 rows to locate headings
+    let colSupplyRate = -1;
+    let colInstallationRate = -1;
+    let colTotalRate = -1;
     for (let i = 0; i < Math.min(sheet.rows.length, 12); i++) {
       const row = sheet.rows[i];
       if (!row) continue;
@@ -2235,6 +2246,15 @@ app.post("/api/historical-boqs", (req, res) => {
           colQty = j;
         } else if (val === "rate" || val === "unit rate" || val === "unit price" || val === "price" || val.includes("rate") || val.includes("price") || val.includes("unit price") || val.includes("unit rate")) {
           colRate = j;
+          // Some BOQs (e.g. HVAC sheets with "Supply - A" / "Installation - B" merged group
+          // headers and no combined "Total Rate" column at all) split one logical rate across
+          // two columns. The qualifier word often sits one row ABOVE the bare "Rate" sub-header
+          // (a 2-row merged-header convention) rather than in the "Rate" cell itself, so check
+          // both the cell and the row above it.
+          const aboveVal = i > 0 ? cleanText(String((sheet.rows[i - 1] || [])[j] || "")) : "";
+          if (val.includes("total") || aboveVal.includes("total")) colTotalRate = j;
+          else if (val.includes("supply") || aboveVal.includes("supply")) colSupplyRate = j;
+          else if (val.includes("install") || aboveVal.includes("install")) colInstallationRate = j;
         } else if (val === "item no" || val === "sl no" || val === "s no" || val === "item code" || val === "serial no" || val === "sr no" || val.includes("item no") || val.includes("sl no") || val.includes("serial")) {
           colItemNo = j;
         } else if (val === "amount" || val === "total" || val === "total amount" || val === "amt" || val.includes("amount")) {
@@ -2244,6 +2264,16 @@ app.post("/api/historical-boqs", (req, res) => {
       if (colDesc !== -1 && colRate !== -1) break; // Found headers
     }
 
+    // When Supply and Installation rates are split across two separate columns with no dedicated
+    // combined "Total Rate" column (unlike sheets that already have an explicit Total Rate header,
+    // handled correctly by the generic colRate match above), the two must be SUMMED into one
+    // composite rate at ingestion time - every downstream consumer (MasterBOQItem.historicalRates,
+    // precomputeMasterItemFields's Supply/Installation 70/30 display split, retrieval/pricing
+    // throughout) expects a single already-final commercial rate, never just one half of it.
+    const splitSupplyInstallation = colTotalRate === -1 && colSupplyRate !== -1 && colInstallationRate !== -1;
+    if (colTotalRate !== -1) colRate = colTotalRate;
+    else if (splitSupplyInstallation) colRate = colSupplyRate;
+
     // Default fallbacks if header detection is partially missing
     if (colDesc === -1) colDesc = 1;
     if (colUnit === -1) colUnit = 2;
@@ -2252,21 +2282,31 @@ app.post("/api/historical-boqs", (req, res) => {
     if (colItemNo === -1) colItemNo = 0;
     if (colAmount === -1) colAmount = colRate + 1;
 
+    // Nullish-safe cell read: `row[col] || ""` treats a genuine numeric 0 (a common, legitimate
+    // "rate quoted, zero quantity purchased" BOQ convention - equipment rate-card sheets like HVAC
+    // routinely list every capacity/model option with 0 qty for the ones not ordered on this
+    // particular project) as falsy and silently coerces it to blank, making a real quoted quantity
+    // of 0 indistinguishable from a genuinely empty cell and causing the row below to be
+    // misclassified as a header (discarding its real, already-quoted rate along with it).
+    const cellText = (v: unknown) => (v === undefined || v === null ? "" : String(v));
+
     // Parse items
     for (let i = 2; i < sheet.rows.length; i++) {
       const row = sheet.rows[i];
       if (!row || row.length <= colDesc) continue;
 
-      const rawDesc = String(row[colDesc] || "").trim();
-      const rawUnit = String(row[colUnit] || "").trim();
-      const rawQtyStr = String(row[colQty] || "").trim();
-      const rawRateStr = String(row[colRate] || "").trim();
-      const rawItemNo = String(row[colItemNo] || "").trim();
+      const rawDesc = cellText(row[colDesc]).trim();
+      const rawUnit = cellText(row[colUnit]).trim();
+      const rawQtyStr = cellText(row[colQty]).trim();
+      const rawRateStr = cellText(row[colRate]).trim();
+      const rawItemNo = cellText(row[colItemNo]).trim();
 
       if (!rawDesc) continue;
 
       const qty = parseFloat(rawQtyStr.replace(/[^0-9.]/g, ""));
-      const rate = parseFloat(rawRateStr.replace(/[^0-9.]/g, ""));
+      const rate = splitSupplyInstallation
+        ? (parseFloat(rawRateStr.replace(/[^0-9.]/g, "")) || 0) + (parseFloat(cellText(row[colInstallationRate]).replace(/[^0-9.]/g, "")) || 0)
+        : parseFloat(rawRateStr.replace(/[^0-9.]/g, ""));
 
       // Standard hierarchical BOQ detection rules:
       // Rows with descriptions but missing units or missing positive quantities generally act as headings!
@@ -2815,7 +2855,12 @@ function getCellAddress(row: number, col: number): string {
 }
 
 // Classify worksheet type based on name and sample contents
-function classifyWorksheet(sheetName: string, sampleText: string, rows: string[][]): {
+function classifyWorksheet(
+  sheetName: string,
+  sampleText: string,
+  rows: string[][],
+  boqColumnSignal: { rateColumnFromHeader: boolean; amountColumnFromHeader: boolean; numericRateSampleRatio: number }
+): {
   detectedType: "Cover page" | "Index" | "General Notes" | "Preambles" | "Legends" | "Specifications" | "Measurement Rules" | "BOQ Sheets" | "Abstract" | "Summary";
   confidenceScore: number;
   classificationReason: string;
@@ -2921,14 +2966,26 @@ function classifyWorksheet(sheetName: string, sampleText: string, rows: string[]
   matchedKeywords["Summary"] = summaryContentCount;
   reasons["Summary"] = `Matched summary keywords in sheet name (${nameLower}) and found summary indicators: ${summaryContentCount.join(", ")}`;
 
-  // 10. BOQ Sheets scoring
-  let boqKeywords = ["boq", "schedule", "soq", "bill", "civil", "interior", "mep", "electrical", "plumbing", "hvac", "fire", "item rate", "rate sheet", "estimate", "tender dqr", "qty sheet"];
+  // 10. BOQ Sheets scoring - confidence reflects how unambiguous the ACTUAL column-to-field
+  // mapping was for THIS sheet (real header-text matches for Rate/Amount, plus how consistently
+  // the guessed Rate column holds a number across the sampled rows), never whether the sheet's
+  // tab name happens to name a recognized trade/domain. Previously this scored +50 purely for the
+  // sheet name containing one of a hardcoded list of core-trade words ("civil", "interior", "mep",
+  // "electrical", "plumbing", "hvac", "fire", ...) - a "Blinds" or "Modular Glass Partition &
+  // Doors" sheet with an identical, correctly-detected Rate/Amount column layout as a "Civil
+  // Works" sheet scored 40 points lower for no reason connected to parsing correctness. See
+  // docs/audit/0002-identity-and-evidence-integrity-audit.md for the confirmed evidence.
   let boqContentKeywords = ["description", "unit", "quantity", "qty", "rate", "amount", "uom", "item description"];
-  if (boqKeywords.some(kw => nameLower.includes(kw))) scores["BOQ Sheets"] += 50;
   let boqContentCount = boqContentKeywords.filter(kw => textLower.includes(kw));
   scores["BOQ Sheets"] += boqContentCount.length * 10;
+  if (boqColumnSignal.rateColumnFromHeader) scores["BOQ Sheets"] += 10;
+  if (boqColumnSignal.amountColumnFromHeader) scores["BOQ Sheets"] += 10;
+  scores["BOQ Sheets"] += Math.round(boqColumnSignal.numericRateSampleRatio * 20);
   matchedKeywords["BOQ Sheets"] = boqContentCount;
-  reasons["BOQ Sheets"] = `Matched BOQ keywords in sheet name (${nameLower}) and found tabular columns: ${boqContentCount.join(", ")}`;
+  reasons["BOQ Sheets"] = `Found tabular column headers: ${boqContentCount.join(", ") || "none"}. Rate column ` +
+    `${boqColumnSignal.rateColumnFromHeader ? "matched by header text" : "inferred positionally (no header keyword matched)"}, ` +
+    `Amount column ${boqColumnSignal.amountColumnFromHeader ? "matched by header text" : "inferred positionally (no header keyword matched)"}. ` +
+    `${Math.round(boqColumnSignal.numericRateSampleRatio * 100)}% of sampled rows had a numeric value in the guessed Rate column.`;
 
   // Find the highest score
   let detectedType: "Cover page" | "Index" | "General Notes" | "Preambles" | "Legends" | "Specifications" | "Measurement Rules" | "BOQ Sheets" | "Abstract" | "Summary" = "BOQ Sheets";
@@ -3206,8 +3263,17 @@ function generateWorkbookBlueprint(workbook: ExcelJS.Workbook, rfqId: string, fi
     let supplyAmountColumn = -1;
     let installationAmountColumn = -1;
     let totalColumn = -1;
+    let remarksColumn = -1;
     let supplyHeaderText = "";
     let installationHeaderText = "";
+    // Structural signal for classifyWorksheet's "BOQ Sheets" confidence score below - whether the
+    // Rate/Amount column was actually identified from real header text vs. the positional default
+    // fallback a few lines down. Deliberately separate from supplyConfidence ("high" only for a
+    // Supply/Installation-QUALIFIED header): a plain "Rate"/"Unit Rate" header via genericRateRegex
+    // is a perfectly real header match and should count here, even though it leaves supplyConfidence
+    // at "low" (that field specifically flags "no Supply/Installation qualifier was present").
+    let rateColumnFromHeader = false;
+    let amountColumnFromHeader = false;
     let supplyConfidence: "high" | "low" = "low"; // "high" only once a real Supply keyword hits
     let installationConfidence: "high" | "none" = "none";
 
@@ -3229,6 +3295,7 @@ function generateWorkbookBlueprint(workbook: ExcelJS.Workbook, rfqId: string, fi
     const totalOnlyRegex = /\btotal\b/i;
     const amountRegex = /\b(amount|total|total\s*amount|total\s*price)\b/i;
     const qtyRegex = /\b(qty|quantity|quantities)\b/i;
+    const remarksRegex = /\b(remarks?|notes?|comments?)\b/i;
     // Generic Rate fallback - a plain "Rate"/"Unit Rate"/"Price" header with no Supply/
     // Installation qualifier at all (the single-rate-column case, the overwhelming majority of
     // real BOQs). Checked after the semantic Supply/Installation keywords so a genuine
@@ -3253,8 +3320,10 @@ function generateWorkbookBlueprint(workbook: ExcelJS.Workbook, rfqId: string, fi
         // e.g. "Amount (INR)" group header + "INSTALLATION" sub-header on the row below -
         // this is the Installation AMOUNT column, not the Installation RATE column.
         installationAmountColumn = colNum;
+        amountColumnFromHeader = true;
       } else if (isSupply && isAmountQualified) {
         supplyAmountColumn = colNum;
+        amountColumnFromHeader = true;
       } else if (isInstall) {
         installationRateCellColumn = colNum;
         installationConfidence = "high";
@@ -3263,20 +3332,26 @@ function generateWorkbookBlueprint(workbook: ExcelJS.Workbook, rfqId: string, fi
         rateCellColumn = colNum;
         supplyConfidence = "high";
         supplyHeaderText = combinedRaw;
+        rateColumnFromHeader = true;
       } else if (totalOnlyRegex.test(combinedRaw)) {
         // Checked before the generic amount check: a merged group-header cell can combine
         // "Amount (INR)" with a "TOTAL" sub-header, so "total" must win even when "amount"
         // also appears in the same combined text.
         totalColumn = colNum;
+        amountColumnFromHeader = true;
       } else if (amountRegex.test(combinedRaw.toLowerCase())) {
         amountCellColumn = colNum;
+        amountColumnFromHeader = true;
       } else if (qtyRegex.test(combinedRaw.toLowerCase())) {
         quantityCellColumn = colNum;
+      } else if (remarksRegex.test(combinedRaw)) {
+        remarksColumn = colNum;
       } else if (genericRateRegex.test(combinedRaw)) {
         // Ascending column iteration order means a later-column match (e.g. "UNIT RATE (INR)")
         // correctly overwrites an earlier, more preliminary one (e.g. "BASIC RATE"), which
         // matches standard BOQ convention where the final actionable rate column comes last.
         rateCellColumn = colNum;
+        rateColumnFromHeader = true;
         supplyHeaderText = combinedRaw;
       }
     }
@@ -3358,7 +3433,22 @@ function generateWorkbookBlueprint(workbook: ExcelJS.Workbook, rfqId: string, fi
       }
     }
 
-    const classification = classifyWorksheet(sheetName, sampleText, sheetRows);
+    // How consistently the guessed Rate column actually holds a number across the sampled rows -
+    // the third structural signal (alongside rateColumnFromHeader/amountColumnFromHeader above)
+    // that "BOQ Sheets" confidence is based on below, instead of the sheet's tab name.
+    const rateColIdx = rateCellColumn - 1; // sheetRows is 0-indexed; rateCellColumn is 1-based
+    const rowsWithNumericRate = sheetRows.filter((r) => {
+      const raw = (r[rateColIdx] || "").replace(/[^0-9.\-]/g, "");
+      const n = parseFloat(raw);
+      return Number.isFinite(n) && n > 0;
+    }).length;
+    const numericRateSampleRatio = sheetRows.length > 0 ? rowsWithNumericRate / sheetRows.length : 0;
+
+    const classification = classifyWorksheet(sheetName, sampleText, sheetRows, {
+      rateColumnFromHeader,
+      amountColumnFromHeader,
+      numericRateSampleRatio
+    });
     const sheetMeta = extractMetadataFromRows(sheetRows);
 
     // Aggregate project-level metadata
@@ -3408,6 +3498,7 @@ function generateWorkbookBlueprint(workbook: ExcelJS.Workbook, rfqId: string, fi
       rateCellColumn,
       amountCellColumn,
       writableRateCells,
+      remarksColumn: remarksColumn !== -1 ? remarksColumn : undefined,
       installationRateCellColumn: installationRateCellColumn !== -1 ? installationRateCellColumn : undefined,
       writableInstallationRateCells: installationRateCellColumn !== -1 ? writableInstallationRateCells : undefined,
       supplyColumnConfidence: supplyConfidence,
@@ -4552,6 +4643,14 @@ app.post("/api/rfqs/:id/recommend", async (req, res) => {
           item.matchTier = relaxed.tier;
           item.reason = `[Progressive Match: ${relaxed.tier}] ${relaxed.explanation}`;
           item.confidenceScore = relaxed.tier === "Market Estimation" ? 40 : Math.min(70, 40 + relaxed.referenceCount * 3);
+          // Part 2 confidence-floor audit finding: this early call site previously left
+          // item.marketRateStatistics untouched, so CommercialDecisionEngine's evidence-quality
+          // check had nothing to read for an item priced here (unless the later whole-database
+          // calibration pass separately found its own evidence for the same item). Synced here so
+          // the floor check always sees the actual evidence that produced this rate. The later
+          // pass (below, `if (stats) item.marketRateStatistics = stats`) only overwrites this when
+          // it finds its OWN real evidence for the item, never wipes it back to empty.
+          if (relaxed.marketStats) item.marketRateStatistics = relaxed.marketStats;
         }
       } catch (relaxedMatchError) {
         console.error(`[Progressive Matching] Failed for item ${item.id} (non-fatal, keeping flat Basic Rate):`, relaxedMatchError);
@@ -5488,66 +5587,91 @@ function getCellRef(rowNum: number, colNum: number): string {
   return letter + rowNum;
 }
 
-function updateCellInXml(xml: string, cellRef: string, newValue: number): string {
+function xmlEscapeText(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+// newValue may be a string (used for the Remarks-column Manual Pricing flag and other plain text
+// writes) or a number (used for every Rate/Amount cell, including Manual Pricing rows - see the
+// Follow-up Fix 7 note below on why Manual Pricing no longer writes text into a Rate/Amount cell).
+// Text is written as an inline string (t="inlineStr", <is><t>...</t></is>) rather than a shared-
+// string reference, so no other part of the workbook (xl/sharedStrings.xml) needs touching.
+//
+// styleIndex, when provided, overwrites the cell's `s` (cellXfs) attribute - used to apply the
+// Manual Pricing highlight fill (see addManualPricingHighlightStyle) to a cell. Left undefined
+// (the default, and every non-Manual-Pricing call site) means the cell's existing style/number
+// format is preserved untouched, exactly as before this parameter existed.
+function updateCellInXml(xml: string, cellRef: string, newValue: number | string, styleIndex?: number): string {
   const escapedCellRef = cellRef.replace(/[-\/\\^$*+?.()|[\]{}]/g, "\\$&");
-  
+  const isText = typeof newValue === "string";
+  const valueTagXml = isText ? `<is><t>${xmlEscapeText(newValue)}</t></is>` : `<v>${newValue}</v>`;
+  const typeAttr = isText ? ` t="inlineStr"` : "";
+  const styleAttr = styleIndex !== undefined ? ` s="${styleIndex}"` : "";
+
   // 1. Check self-closing cell first
   const selfClosingRegex = new RegExp("<c\\s+([^>]*?\\br=['\"]" + escapedCellRef + "['\"][^>]*?)\\/\\>", "i");
   const selfMatch = xml.match(selfClosingRegex);
-  
+
   if (selfMatch) {
     const fullMatchStr = selfMatch[0];
     const attrs = selfMatch[1];
-    
+
     // Extract cell reference for verification
     const cellIdMatch = attrs.match(/\br=['"]([^'"]+)['"]/);
     const matchedCellId = cellIdMatch ? cellIdMatch[1] : null;
-    
+
     console.log(`Requested Cell: ${cellRef}`);
     console.log(`Matched XML Cell: ${matchedCellId}`);
-    
+
     if (matchedCellId !== cellRef) {
       throw new Error(`Verification failed: Expected cell ${cellRef}, but modified cell ${matchedCellId}`);
     }
-    
-    // Remove t="s" or t="str" attribute if present, as we are writing a numeric value
-    const cleanAttrs = attrs.replace(/\bt=['"](?:s|str)['"]\s*/g, "").trim();
-    const replacement = `<c ${cleanAttrs}><v>${newValue}</v></c>`;
-    
+
+    // Remove any existing type attribute - we set our own below based on whether newValue is
+    // numeric or text. Only strip/replace the existing style (`s=`) attribute when a new one was
+    // actually requested - otherwise leave the cell's original formatting completely alone.
+    let cleanAttrs = attrs.replace(/\bt=['"](?:s|str|inlineStr)['"]\s*/g, "").trim();
+    if (styleIndex !== undefined) cleanAttrs = cleanAttrs.replace(/\bs=['"][^'"]*['"]\s*/g, "").trim();
+    const replacement = `<c ${cleanAttrs}${typeAttr}${styleAttr}>${valueTagXml}</c>`;
+
     console.log(`Modified XML Cell: ${matchedCellId}`);
     return xml.replace(fullMatchStr, replacement);
   }
-  
+
   // 2. Check full cell
   const fullCellRegex = new RegExp("<c\\s+([^>]*?\\br=['\"]" + escapedCellRef + "['\"][^>]*?)>((?:(?!<c\\b).)*?)<\\/c>", "is");
   const fullMatch = xml.match(fullCellRegex);
-  
+
   if (fullMatch) {
     const fullMatchStr = fullMatch[0];
     const attrs = fullMatch[1];
     let innerContent = fullMatch[2];
-    
+
     // Extract cell reference for verification
     const cellIdMatch = attrs.match(/\br=['"]([^'"]+)['"]/);
     const matchedCellId = cellIdMatch ? cellIdMatch[1] : null;
-    
+
     console.log(`Requested Cell: ${cellRef}`);
     console.log(`Matched XML Cell: ${matchedCellId}`);
-    
+
     if (matchedCellId !== cellRef) {
       throw new Error(`Verification failed: Expected cell ${cellRef}, but modified cell ${matchedCellId}`);
     }
-    
-    // Remove t="s" or t="str" attribute if present, as we are writing a numeric value
-    const cleanAttrs = attrs.replace(/\bt=['"](?:s|str)['"]\s*/g, "").trim();
-    const newOpenTag = `<c ${cleanAttrs}>`;
-    
+
+    // Remove any existing type attribute - we set our own below based on whether newValue is
+    // numeric or text. Same styleIndex-gated `s=` handling as the self-closing branch above.
+    let cleanAttrs = attrs.replace(/\bt=['"](?:s|str|inlineStr)['"]\s*/g, "").trim();
+    if (styleIndex !== undefined) cleanAttrs = cleanAttrs.replace(/\bs=['"][^'"]*['"]\s*/g, "").trim();
+    const newOpenTag = `<c ${cleanAttrs}${typeAttr}${styleAttr}>`;
+
     if (/<v\b[^>]*>.*?<\/v>/i.test(innerContent)) {
-      innerContent = innerContent.replace(/<v\b[^>]*>.*?<\/v>/i, `<v>${newValue}</v>`);
+      innerContent = innerContent.replace(/<v\b[^>]*>.*?<\/v>/i, valueTagXml);
+    } else if (/<is\b[^>]*>.*?<\/is>/i.test(innerContent)) {
+      innerContent = innerContent.replace(/<is\b[^>]*>.*?<\/is>/i, valueTagXml);
     } else {
-      innerContent = innerContent + `<v>${newValue}</v>`;
+      innerContent = innerContent + valueTagXml;
     }
-    
+
     const replacement = `${newOpenTag}${innerContent}</c>`;
     
     console.log(`Modified XML Cell: ${matchedCellId}`);
@@ -5558,6 +5682,54 @@ function updateCellInXml(xml: string, cellRef: string, newValue: number): string
 }
 
 // Perform high-fidelity rate injection, workbook rebuild, and strict comparison validation
+// Part 2 confidence floor (2026-07-27, revised Follow-up Fix 7 2026-07-28): the human-readable
+// flag for a Manual Pricing item on export. Originally written as literal text directly into the
+// Rate/Amount cells - reverted (see Follow-up Fix 7 in docs/audit/0002-identity-and-evidence-
+// integrity-audit.md) because a Rate cell is frequently read by an Amount formula in the SAME row
+// (Amount = Rate x Qty) and/or a grand-total SUM elsewhere in the sheet; a text value in Rate
+// makes that Amount formula evaluate to #VALUE!, which then poisons any SUM/rollup that includes
+// it. The flag now goes in the Remarks column (when the sheet has one) and/or a highlight fill on
+// the row's Rate/Amount cells (see addManualPricingHighlightStyle below) - never in a numeric
+// Rate/Amount cell, which is written as a plain 0 instead so every downstream formula stays valid.
+const MANUAL_PRICING_EXPORT_FLAG = "MANUAL PRICING REQUIRED";
+
+// Appends a new solid-fill cell format to styles.xml and returns its cellXfs index, for
+// highlighting a Manual Pricing row's Rate/Amount cells on export (Follow-up Fix 7) - the flag
+// must be visible even on sheets with no Remarks column. Always appends fresh rather than trying
+// to detect/reuse an existing fill/format: every export re-reads from the pristine original
+// uploaded file (see `originalBuffer` above), so there is no risk of accumulating duplicate
+// styles across repeated exports of the same RFQ.
+const MANUAL_PRICING_HIGHLIGHT_RGB = "FFFFF59D"; // soft amber - visibly distinct, doesn't collide with typical BOQ header/theme colors
+function addManualPricingHighlightStyle(stylesXml: string): { xml: string; styleIndex: number } {
+  const fillsMatch = stylesXml.match(/<fills count="(\d+)">([\s\S]*?)<\/fills>/);
+  const cellXfsMatch = stylesXml.match(/<cellXfs count="(\d+)">([\s\S]*?)<\/cellXfs>/);
+  if (!fillsMatch || !cellXfsMatch) {
+    // Defensive: a styles.xml without these standard blocks would be malformed - leave it
+    // untouched and fall back to no highlight rather than risk corrupting the workbook.
+    return { xml: stylesXml, styleIndex: 0 };
+  }
+
+  const fillCount = parseInt(fillsMatch[1], 10);
+  const newFill = `<fill><patternFill patternType="solid"><fgColor rgb="${MANUAL_PRICING_HIGHLIGHT_RGB}"/><bgColor rgb="${MANUAL_PRICING_HIGHLIGHT_RGB}"/></patternFill></fill>`;
+  const newFillId = fillCount;
+  let xml = stylesXml.replace(
+    /<fills count="(\d+)">([\s\S]*?)<\/fills>/,
+    `<fills count="${fillCount + 1}">$2${newFill}</fills>`
+  );
+
+  const xfCount = parseInt(cellXfsMatch[1], 10);
+  // Minimal cellXf: only the fill is applied (numFmtId/fontId/borderId left at Excel's own
+  // defaults), so the highlighted cell still displays as a plain number, just visibly shaded.
+  const newXf = `<xf numFmtId="0" fontId="0" fillId="${newFillId}" borderId="0" xfId="0" applyFill="1"/>`;
+  const newXfIndex = xfCount;
+  xml = xml.replace(
+    /<cellXfs count="(\d+)">([\s\S]*?)<\/cellXfs>/,
+    `<cellXfs count="${xfCount + 1}">$2${newXf}</cellXfs>`
+  );
+
+  return { xml, styleIndex: newXfIndex };
+}
+
 app.post("/api/rfqs/:id/export", async (req, res) => {
   console.log("========== EXPORT ROUTE HIT ==========");
     console.log("RFQ ID:", req.params.id);
@@ -5622,6 +5794,23 @@ app.post("/api/rfqs/:id/export", async (req, res) => {
     const zip = await JSZip.loadAsync(originalBuffer);
     const xmlPaths = await getSheetXmlPaths(zip);
 
+    // Follow-up Fix 7: if this export has any Manual Pricing rows, add a highlight-fill cell
+    // format to styles.xml once up front, so the per-item loop below can just reference its index
+    // (styles.xml is a single shared part - patching it once here, rather than per-item, also
+    // avoids appending a duplicate fill/format for every Manual Pricing row in the export).
+    let manualPricingStyleIndex: number | undefined;
+    const anyManualPricing = activeItems.some(i => i.approvalStatus === "Manual Pricing" && !i.isOverridden);
+    if (anyManualPricing) {
+      const stylesPath = "xl/styles.xml";
+      const stylesZipFile = zip.file(stylesPath);
+      if (stylesZipFile) {
+        const stylesXml = await stylesZipFile.async("string");
+        const { xml: newStylesXml, styleIndex } = addManualPricingHighlightStyle(stylesXml);
+        zip.file(stylesPath, newStylesXml);
+        manualPricingStyleIndex = styleIndex;
+      }
+    }
+
     // Group items by sheet name to minimize XML reads/writes
     const itemsBySheet: Record<string, typeof activeItems> = {};
     activeItems.forEach(item => {
@@ -5664,20 +5853,38 @@ app.post("/api/rfqs/:id/export", async (req, res) => {
       // formula, and tallies it as "preserved" - updateCellInXml only ever replaces a cell's
       // <v> value, it never removes or alters an existing <f> tag, so any formula cell we
       // write into keeps its formula. Only its cached (soon-to-be-recalculated) value changes.
-      const trackFormulaAt = (cellRef: string) => {
+      // Returns whether the cell has a formula, so callers writing a Part 2 Manual Pricing text
+      // flag can skip formula cells entirely (see cellHasFormula below).
+      const trackFormulaAt = (cellRef: string): boolean => {
         const cell = sheet?.getCell(cellRef);
         const hasFormula = !!(cell && cell.value && typeof cell.value === "object" && "formula" in (cell.value as any));
         if (hasFormula) exportIntegrityCounters.formulaCellsPreserved++;
+        return hasFormula;
       };
 
       sheetItems.forEach(item => {
-        const rateToInject = item.overriddenRate || item.recommendedRate;
+        // Follow-up Fix 7 (2026-07-28): a Manual Pricing item's rate is 0 by design (see
+        // CommercialDecisionEngine.evaluateEvidenceSufficiency). Every Rate/Amount cell this item
+        // would otherwise populate is written as a plain numeric 0 - NOT a text flag - because a
+        // Rate cell is frequently read by an Amount formula in the same row (Amount = Rate x Qty)
+        // and/or a grand-total SUM elsewhere on the sheet; text in Rate makes that Amount formula
+        // (and any SUM that includes it) evaluate to #VALUE!, breaking every downstream rollup.
+        // Numbers are always safe to write into a formula-bearing cell (only the cached, soon-to-
+        // recalculate value changes - the formula itself is untouched, see trackFormulaAt below),
+        // so Manual Pricing rows no longer need to skip formula cells at all. The human-readable
+        // flag instead goes into the Remarks column (if this sheet has one) and a highlight fill
+        // on the row's Rate/Amount cells (manualPricingStyleIndex, computed once above) - visible
+        // to a reviewer, invisible to a formula.
+        const isManualPricing = item.approvalStatus === "Manual Pricing" && !item.isOverridden;
+        const numericRate = item.overriddenRate || item.recommendedRate;
+        const rateCellValue: number = isManualPricing ? 0 : numericRate;
+        const cellStyle = isManualPricing ? manualPricingStyleIndex : undefined;
 
         // 1. Inject Unit Rate (Supply Rate only - Installation Rate, if this sheet has a
         // dedicated Installation Rate column, is injected separately below.)
         const rateCellRef = getCellRef(item.rowNum, sheetBlue.rateCellColumn);
         trackFormulaAt(rateCellRef);
-        xml = updateCellInXml(xml, rateCellRef, rateToInject);
+        xml = updateCellInXml(xml, rateCellRef, rateCellValue, cellStyle);
         exportIntegrityCounters.rateCellsWritten++;
         exportIntegrityCounters.rowsWritten++;
 
@@ -5686,7 +5893,7 @@ app.post("/api/rfqs/:id/export", async (req, res) => {
         if (sheetBlue.installationRateCellColumn && sheetBlue.installationRateCellColumn !== -1 && item.installationRate !== undefined) {
           const installCellRef = getCellRef(item.rowNum, sheetBlue.installationRateCellColumn);
           trackFormulaAt(installCellRef);
-          xml = updateCellInXml(xml, installCellRef, item.installationRate);
+          xml = updateCellInXml(xml, installCellRef, isManualPricing ? 0 : item.installationRate, cellStyle);
           exportIntegrityCounters.rateCellsWritten++;
         }
 
@@ -5699,9 +5906,9 @@ app.post("/api/rfqs/:id/export", async (req, res) => {
           ?? (!sheetBlue.ratePair?.installationRateColumn ? sheetBlue.amountCellColumn : -1);
         if (supplyAmountCol !== -1 && supplyAmountCol !== sheetBlue.rateCellColumn) {
           const amtCellRef = getCellRef(item.rowNum, supplyAmountCol);
-          const amtVal = item.quantity * rateToInject;
           trackFormulaAt(amtCellRef);
-          xml = updateCellInXml(xml, amtCellRef, amtVal);
+          const amtVal: number = isManualPricing ? 0 : item.quantity * numericRate;
+          xml = updateCellInXml(xml, amtCellRef, amtVal, cellStyle);
           exportIntegrityCounters.amountCellsWritten++;
         }
 
@@ -5712,8 +5919,17 @@ app.post("/api/rfqs/:id/export", async (req, res) => {
         if (sheetBlue.ratePair?.installationAmountColumn && item.installationRate !== undefined) {
           const installAmtCellRef = getCellRef(item.rowNum, sheetBlue.ratePair.installationAmountColumn);
           trackFormulaAt(installAmtCellRef);
-          xml = updateCellInXml(xml, installAmtCellRef, item.quantity * item.installationRate);
+          const installAmtVal: number = isManualPricing ? 0 : item.quantity * item.installationRate;
+          xml = updateCellInXml(xml, installAmtCellRef, installAmtVal, cellStyle);
           exportIntegrityCounters.amountCellsWritten++;
+        }
+
+        // 3. Manual Pricing flag placement (Follow-up Fix 7): write the human-readable flag into
+        // the Remarks column, if this sheet has one - a Remarks cell is never referenced by a
+        // numeric Rate/Amount formula, so plain text here is always safe.
+        if (isManualPricing && sheetBlue.remarksColumn) {
+          const remarksCellRef = getCellRef(item.rowNum, sheetBlue.remarksColumn);
+          xml = updateCellInXml(xml, remarksCellRef, MANUAL_PRICING_EXPORT_FLAG);
         }
       });
 

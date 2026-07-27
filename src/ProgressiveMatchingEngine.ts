@@ -2,6 +2,7 @@ import { HistoricalBOQ, MasterBOQItem, RFQItem } from "./types.js";
 import { ProjectCalibrationEngine, MarketRateStatistics } from "./ProjectCalibrationEngine.js";
 import { HistoricalRetrievalEngine } from "./HistoricalRetrievalEngine.js";
 import { LearningAnalysis } from "./LearningEngine.js";
+import { MIN_RELAXED_TIER_REFERENCES } from "./decisionConstants.js";
 
 // Progressive Relaxation Matching - additive, only ever invoked for items that are genuinely
 // stuck (no matched master item AND fewer than 2 candidates from HistoricalRetrievalEngine's own
@@ -30,9 +31,10 @@ export interface ProgressiveMatchResult {
   explanation: string;
 }
 
-const MIN_REFERENCES = 2; // these relaxed tiers use synthetic, not engineering-matched, scores -
-// requiring 2+ corroborating observations here (unlike the primary evidence path, which now
-// accepts a single strong match) keeps this weaker evidence category to a higher bar.
+// MIN_RELAXED_TIER_REFERENCES (src/decisionConstants.ts, part of the Part 2 confidence-floor
+// audit) - these relaxed tiers use synthetic, not engineering-matched, scores - requiring 2+
+// corroborating observations here (unlike the primary evidence path, which accepts a single
+// strong match) keeps this weaker evidence category to a higher bar.
 // decomposeBOQItem's (server.ts) own default values when no specific keyword matches - not a
 // real classification, so must never be treated as a matching criterion (see Tier 2/3 below).
 const GENERIC_MATERIAL_FALLBACK = "Standard Material Group";
@@ -107,7 +109,7 @@ export const ProgressiveMatchingEngine = {
         item.domain,
         learningAnalysis
       );
-      if (!stats || stats.referenceCount < MIN_REFERENCES) return null;
+      if (!stats || stats.referenceCount < MIN_RELAXED_TIER_REFERENCES) return null;
       return {
         applied: true,
         finalRate: stats.representativeRate,

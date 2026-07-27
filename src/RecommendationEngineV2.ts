@@ -105,7 +105,36 @@ export const RecommendationEngineV2 = {
       [Domain.Electrical]: { wastage: 0.03, handling: 0.015, installation: 0.12, margin: 0.12 },
       [Domain.Mechanical]: { wastage: 0.02, handling: 0.02, installation: 0.10, margin: 0.10 }
     };
-    return DOMAIN_ADJUSTMENTS[domain] || DOMAIN_ADJUSTMENTS[Domain.Civil];
+    if (DOMAIN_ADJUSTMENTS[domain]) return DOMAIN_ADJUSTMENTS[domain];
+
+    // The real historical/RFQ database has 50+ distinct domain/worksheet labels (Signages, PHE,
+    // Passive Networking, FLSS Works, Toilet Works, ...), not just these 4 canonical Domain enum
+    // values - a raw label falling through to here used to silently collapse to
+    // DOMAIN_ADJUSTMENTS[Domain.Civil] unconditionally, which is why the Basic Rate baseline
+    // (₹1000 seed, no matched master) produced the EXACT SAME built-up rate (₹1,354.82 - the
+    // Civil stack's 1000*1.05*1.02*1.15*1.10) for Signages, Passive Networking, PHE, FLSS Works,
+    // and Toilet Works items alike: one shared computation regardless of what the item actually
+    // is. A signage/networking item does not have Civil construction's wastage/installation/
+    // margin profile. Classify by keyword into the nearest of the 4 real cost structures instead,
+    // extending the civil/interior/electrical/mechanical keyword groups server.ts's detectDomain
+    // already uses to tag Domain at ingest time (with plumbing-adjacent labels - PHE, Toilet
+    // Works, Sanitary - added to the Mechanical group, since detectDomain itself leaves them
+    // unclassified rather than resolving to one of the 4 canonical values). Duplicated locally
+    // (matching this file's existing "small local copy, not a cross-file import" convention, e.g.
+    // HistoricalRetrievalEngine's deriveProjectGrade) rather than importing from server.ts, which
+    // imports this file.
+    const d = (domain || "").toLowerCase();
+    if (/mech|hvac|plumb|\bac\b|air\s*cond|fire|flss|networking|network|passive|toilet|sanitary|\bphe\b/.test(d)) return DOMAIN_ADJUSTMENTS[Domain.Mechanical];
+    if (/elect|power|wire|cabl|light|sign|graphic/.test(d)) return DOMAIN_ADJUSTMENTS[Domain.Electrical];
+    if (/interior|fitout|furniture|ceiling|paint|blind|planter|carpet|glass|partition|chair/.test(d)) return DOMAIN_ADJUSTMENTS[Domain.Interior];
+    if (/civil|struc|brick|concrete/.test(d)) return DOMAIN_ADJUSTMENTS[Domain.Civil];
+
+    // Genuinely unclassifiable - a distinct blended default (average of the 4 known cost
+    // structures), never silently mislabeled as one specific trade's profile.
+    const keys = [Domain.Civil, Domain.Interior, Domain.Electrical, Domain.Mechanical];
+    const sum = (field: "wastage" | "handling" | "installation" | "margin") =>
+      keys.reduce((acc, k) => acc + DOMAIN_ADJUSTMENTS[k][field], 0) / keys.length;
+    return { wastage: sum("wastage"), handling: sum("handling"), installation: sum("installation"), margin: sum("margin") };
   },
 
   // One recommendation engine, no historical-BOQ special case: every item is priced from this

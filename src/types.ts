@@ -673,6 +673,11 @@ export interface WorkbookBlueprint {
     amountCellColumn: number;
     writableRateCells: Record<number, { cellAddress: string; rfqItemId: string }>;
 
+    // A "Remarks"/"Notes"/"Comments" column, if this sheet has one - never referenced by a
+    // numeric Rate/Amount formula, so it's a safe place to write a human-readable Manual
+    // Pricing flag on export without risking #VALUE! errors in downstream SUM/rollup formulas.
+    remarksColumn?: number;
+
     // Set only when the sheet has a genuinely separate Installation Rate column (distinct from
     // the Supply/Unit Rate column above) - undefined/-1 means this sheet has just one Rate
     // column, and installation recommendation logic must be ignored entirely for it.

@@ -1,5 +1,21 @@
 [
   {
+    "version": "v1.0.69",
+    "timestamp": "2026-07-27 19:15:18 UTC",
+    "changeDescription": "Ingested historical BOQ file \"KOHLER_PUNE_FS_16TH JUNE.xlsx\" for project \"KOHLER PUNE FS 16TH JUNE\" containing 663 items.",
+    "historicalProjectsUsed": 6,
+    "masterItemsCount": 2014,
+    "historicalRatesCount": 2769
+  },
+  {
+    "version": "v1.0.68",
+    "timestamp": "2026-07-27 19:15:09 UTC",
+    "changeDescription": "Removed historical project \"KOHLER PUNE FS 16TH JUNE\" and cleaned all its rate variants.",
+    "historicalProjectsUsed": 5,
+    "masterItemsCount": 1738,
+    "historicalRatesCount": 2107
+  },
+  {
     "version": "v1.0.67",
     "timestamp": "2026-07-22 19:24:41 UTC",
     "changeDescription": "Ingested historical BOQ file \"Priced_Nuvama I Hyd I C & I & Long Lead  MEP Tender BOQ I 06.08.25 (5).xlsx\" for project \"Priced Nuvama I Hyd I C & I & Long Lead  MEP Tender BOQ I 06\" containing 375 items.",

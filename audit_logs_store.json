@@ -1,5 +1,965 @@
 [
   {
+    "id": "log_3w1rah1ix",
+    "timestamp": "2026-07-27 20:09:09 UTC",
+    "user": "Estimator Admin",
+    "action": "Export",
+    "details": "Exported fully priced Excel workbook \"Copy of Keppel Final BOQ - 30 Dec 2025_8.75Cr.xlsx\" for project \"Copy of Keppel Final BOQ   30 Dec 2025 8\" with formatting preserved. Mode: AI Hybrid. Replay: false.",
+    "status": "Success"
+  },
+  {
+    "id": "log_wnuzg5ptw",
+    "timestamp": "2026-07-27 20:09:09 UTC",
+    "user": "Estimator Admin",
+    "action": "Export",
+    "details": "High-fidelity rated RFQ \"Copy of Keppel Final BOQ - 30 Dec 2025_8.75Cr.xlsx\" successfully exported with formatted rate injection. Preserving original layout and styles.",
+    "status": "Success"
+  },
+  {
+    "id": "log_aczd0w8e2",
+    "timestamp": "2026-07-27 20:08:48 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of Keppel Final BOQ   30 Dec 2025 8\" in 1680ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_xd6oxy5ly",
+    "timestamp": "2026-07-27 20:08:24 UTC",
+    "user": "Estimator Admin",
+    "action": "RFQ Upload",
+    "details": "Uploaded RFQ \"Copy of Keppel Final BOQ - 30 Dec 2025_8.75Cr.xlsx\" analyzed and parsed successfully (485 item(s)); workspace prepared as a Draft estimation.",
+    "status": "Success"
+  },
+  {
+    "id": "log_rl2a3p9vk",
+    "timestamp": "2026-07-27 20:06:34 UTC",
+    "user": "Estimator Admin",
+    "action": "Export",
+    "details": "Exported fully priced Excel workbook \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" for project \"Copy of KOHLER PUNE FS 16TH JUNE\" with formatting preserved. Mode: AI Hybrid. Replay: false.",
+    "status": "Success"
+  },
+  {
+    "id": "log_kd7o8v45j",
+    "timestamp": "2026-07-27 20:06:33 UTC",
+    "user": "Estimator Admin",
+    "action": "Export",
+    "details": "High-fidelity rated RFQ \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" successfully exported with formatted rate injection. Preserving original layout and styles.",
+    "status": "Success"
+  },
+  {
+    "id": "log_07ms7qh7v",
+    "timestamp": "2026-07-27 20:06:15 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of KOHLER PUNE FS 16TH JUNE\" in 2138ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_vn5418d9r",
+    "timestamp": "2026-07-27 20:05:54 UTC",
+    "user": "Estimator Admin",
+    "action": "RFQ Upload",
+    "details": "Uploaded RFQ \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" analyzed and parsed successfully (677 item(s)); workspace prepared as a Draft estimation.",
+    "status": "Success"
+  },
+  {
+    "id": "log_g8h2nsrtg",
+    "timestamp": "2026-07-27 19:54:46 UTC",
+    "user": "Estimator Admin",
+    "action": "Export",
+    "details": "High-fidelity rated RFQ \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" successfully exported with formatted rate injection. Preserving original layout and styles.",
+    "status": "Success"
+  },
+  {
+    "id": "log_vtr6spke6",
+    "timestamp": "2026-07-27 19:49:20 UTC",
+    "user": "Estimator Admin",
+    "action": "Export",
+    "details": "High-fidelity rated RFQ \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" successfully exported with formatted rate injection. Preserving original layout and styles.",
+    "status": "Success"
+  },
+  {
+    "id": "log_z1xooonn8",
+    "timestamp": "2026-07-27 19:49:03 UTC",
+    "user": "Estimator Admin",
+    "action": "Export",
+    "details": "High-fidelity rated RFQ \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" successfully exported with formatted rate injection. Preserving original layout and styles.",
+    "status": "Success"
+  },
+  {
+    "id": "log_1cdmvc3tw",
+    "timestamp": "2026-07-27 19:47:38 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of KOHLER PUNE FS 16TH JUNE\" in 1409ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_kwlxm8j73",
+    "timestamp": "2026-07-27 19:46:54 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of KOHLER PUNE FS 16TH JUNE\" in 1359ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_0ejfi7jas",
+    "timestamp": "2026-07-27 19:24:20 UTC",
+    "user": "Estimator Admin",
+    "action": "Export",
+    "details": "Exported fully priced Excel workbook \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" for project \"Copy of KOHLER PUNE FS 16TH JUNE\" with formatting preserved. Mode: AI Hybrid. Replay: false.",
+    "status": "Success"
+  },
+  {
+    "id": "log_6g49tjjil",
+    "timestamp": "2026-07-27 19:24:20 UTC",
+    "user": "Estimator Admin",
+    "action": "Export",
+    "details": "High-fidelity rated RFQ \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" successfully exported with formatted rate injection. Preserving original layout and styles.",
+    "status": "Success"
+  },
+  {
+    "id": "log_cj68zr0iw",
+    "timestamp": "2026-07-27 19:23:30 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of KOHLER PUNE FS 16TH JUNE\" in 3320ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_u22a2gu7a",
+    "timestamp": "2026-07-27 19:22:55 UTC",
+    "user": "Estimator Admin",
+    "action": "RFQ Upload",
+    "details": "Uploaded RFQ \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" analyzed and parsed successfully (677 item(s)); workspace prepared as a Draft estimation.",
+    "status": "Success"
+  },
+  {
+    "id": "log_v13cndlfd",
+    "timestamp": "2026-07-27 19:18:04 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of KOHLER PUNE FS 16TH JUNE\" in 1296ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_s1z4aj6qg",
+    "timestamp": "2026-07-27 19:17:48 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of KOHLER PUNE FS 16TH JUNE\" in 1071ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_sk3qnxzye",
+    "timestamp": "2026-07-27 19:17:47 UTC",
+    "user": "Estimator Admin",
+    "action": "RFQ Upload",
+    "details": "Uploaded RFQ \"SELFREPLAYTEST_hist_trmqgzht2.xlsx\" analyzed and parsed successfully (663 item(s)); workspace prepared as a Draft estimation.",
+    "status": "Success"
+  },
+  {
+    "id": "log_o2lhlr6mo",
+    "timestamp": "2026-07-27 19:17:47 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of Priced Nuvama I Hyd I C & I & Long Lead  MEP Tender BOQ I 06\" in 640ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_uo4z9ch85",
+    "timestamp": "2026-07-27 19:17:46 UTC",
+    "user": "Estimator Admin",
+    "action": "RFQ Upload",
+    "details": "Uploaded RFQ \"SELFREPLAYTEST_hist_3ljfsvqo3.xlsx\" analyzed and parsed successfully (375 item(s)); workspace prepared as a Draft estimation.",
+    "status": "Success"
+  },
+  {
+    "id": "log_d5gg0bsp9",
+    "timestamp": "2026-07-27 19:17:46 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of Priced COWRKS, CHENNAI Overall Price BOQ CW MILLENIA 4A 2F\" in 1383ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_9kl5u5lb3",
+    "timestamp": "2026-07-27 19:17:44 UTC",
+    "user": "Estimator Admin",
+    "action": "RFQ Upload",
+    "details": "Uploaded RFQ \"SELFREPLAYTEST_hist_b7gnk6fwz.xlsx\" analyzed and parsed successfully (452 item(s)); workspace prepared as a Draft estimation.",
+    "status": "Success"
+  },
+  {
+    "id": "log_0ch7ad515",
+    "timestamp": "2026-07-27 19:17:44 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of Keppel Final BOQ   30 Dec 2025 8\" in 811ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_o3bev387b",
+    "timestamp": "2026-07-27 19:17:43 UTC",
+    "user": "Estimator Admin",
+    "action": "RFQ Upload",
+    "details": "Uploaded RFQ \"SELFREPLAYTEST_hist_5qqjvg6gr.xlsx\" analyzed and parsed successfully (473 item(s)); workspace prepared as a Draft estimation.",
+    "status": "Success"
+  },
+  {
+    "id": "log_nedzqrma1",
+    "timestamp": "2026-07-27 19:17:43 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of FS Submission FINAL SKF Phoenix 22\" in 808ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_66514fo64",
+    "timestamp": "2026-07-27 19:17:42 UTC",
+    "user": "Estimator Admin",
+    "action": "RFQ Upload",
+    "details": "Uploaded RFQ \"SELFREPLAYTEST_hist_g1t37na88.xlsx\" analyzed and parsed successfully (711 item(s)); workspace prepared as a Draft estimation.",
+    "status": "Success"
+  },
+  {
+    "id": "log_blzc8lqpt",
+    "timestamp": "2026-07-27 19:17:42 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of DHL Chennai Estimated BOQ 31 March 2026 R0\" in 204ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_iktt7dpn6",
+    "timestamp": "2026-07-27 19:17:42 UTC",
+    "user": "Estimator Admin",
+    "action": "RFQ Upload",
+    "details": "Uploaded RFQ \"SELFREPLAYTEST_hist_2j0k2k6h3.xlsx\" analyzed and parsed successfully (99 item(s)); workspace prepared as a Draft estimation.",
+    "status": "Success"
+  },
+  {
+    "id": "log_v74p900cd",
+    "timestamp": "2026-07-27 19:16:51 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of KOHLER PUNE FS 16TH JUNE\" in 1054ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_lor3xiqqt",
+    "timestamp": "2026-07-27 19:16:50 UTC",
+    "user": "Estimator Admin",
+    "action": "RFQ Upload",
+    "details": "Uploaded RFQ \"SELFREPLAYTEST_hist_trmqgzht2.xlsx\" analyzed and parsed successfully (663 item(s)); workspace prepared as a Draft estimation.",
+    "status": "Success"
+  },
+  {
+    "id": "log_ecmrp7qou",
+    "timestamp": "2026-07-27 19:15:50 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of KOHLER PUNE FS 16TH JUNE\" in 2034ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_yhhe8e5o8",
+    "timestamp": "2026-07-27 19:15:18 UTC",
+    "user": "Estimator Admin",
+    "action": "Historical Ingestion",
+    "details": "Ingested historical BOQ file \"KOHLER_PUNE_FS_16TH JUNE.xlsx\" for project \"KOHLER PUNE FS 16TH JUNE\" containing 663 items under domains: Civil, Interior, Modular Glass Partition & Doors, Graphics And Films, Signages, Blinds, Planters, Carpet Flooring, Electrical, Mechanical, Passive Networking, Phe, Flss Works, Make List, Toilet Works. KB Version bumped to v1.0.69.",
+    "status": "Success"
+  },
+  {
+    "id": "log_1ykmanrcp",
+    "timestamp": "2026-07-27 19:15:18 UTC",
+    "user": "Estimator Admin",
+    "action": "Knowledge Base Merge",
+    "details": "Knowledge Base version bumped to v1.0.69. Reason: Ingested historical BOQ file \"KOHLER_PUNE_FS_16TH JUNE.xlsx\" for project \"KOHLER PUNE FS 16TH JUNE\" containing 663 items.",
+    "status": "Success"
+  },
+  {
+    "id": "log_6l2c50sxq",
+    "timestamp": "2026-07-27 19:15:09 UTC",
+    "user": "Estimator Admin",
+    "action": "Deletion",
+    "details": "Removed historical project \"KOHLER PUNE FS 16TH JUNE\" (ID: hist_vsro0d05m) and cleaned all contributing rate variations from the Master BOQ Catalog. KB Version bumped to v1.0.68.",
+    "status": "Success"
+  },
+  {
+    "id": "log_svqr61ruk",
+    "timestamp": "2026-07-27 19:15:09 UTC",
+    "user": "Estimator Admin",
+    "action": "Knowledge Base Merge",
+    "details": "Knowledge Base version bumped to v1.0.68. Reason: Removed historical project \"KOHLER PUNE FS 16TH JUNE\" and cleaned all its rate variants.",
+    "status": "Success"
+  },
+  {
+    "id": "log_b4j3biwuq",
+    "timestamp": "2026-07-27 18:39:55 UTC",
+    "user": "Estimator Admin",
+    "action": "Export",
+    "details": "Exported fully priced Excel workbook \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" for project \"Copy of KOHLER PUNE FS 16TH JUNE\" with formatting preserved. Mode: AI Hybrid. Replay: false.",
+    "status": "Success"
+  },
+  {
+    "id": "log_ecnmuwryi",
+    "timestamp": "2026-07-27 18:39:54 UTC",
+    "user": "Estimator Admin",
+    "action": "Export",
+    "details": "High-fidelity rated RFQ \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" successfully exported with formatted rate injection. Preserving original layout and styles.",
+    "status": "Success"
+  },
+  {
+    "id": "log_9x2y4fw0c",
+    "timestamp": "2026-07-27 18:39:31 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of KOHLER PUNE FS 16TH JUNE\" in 4008ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_41r6hm35u",
+    "timestamp": "2026-07-27 18:38:59 UTC",
+    "user": "Estimator Admin",
+    "action": "RFQ Upload",
+    "details": "Uploaded RFQ \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" analyzed and parsed successfully (677 item(s)); workspace prepared as a Draft estimation.",
+    "status": "Success"
+  },
+  {
+    "id": "log_ogcvenwac",
+    "timestamp": "2026-07-27 18:31:54 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of Priced Nuvama I Hyd I C & I & Long Lead  MEP Tender BOQ I 06\" in 605ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_kjqhv8p6v",
+    "timestamp": "2026-07-27 18:31:53 UTC",
+    "user": "Estimator Admin",
+    "action": "RFQ Upload",
+    "details": "Uploaded RFQ \"SELFREPLAYTEST_hist_3ljfsvqo3.xlsx\" analyzed and parsed successfully (375 item(s)); workspace prepared as a Draft estimation.",
+    "status": "Success"
+  },
+  {
+    "id": "log_abyyfe119",
+    "timestamp": "2026-07-27 18:31:53 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of Priced COWRKS, CHENNAI Overall Price BOQ CW MILLENIA 4A 2F\" in 1320ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_u9bmqo1nd",
+    "timestamp": "2026-07-27 18:31:52 UTC",
+    "user": "Estimator Admin",
+    "action": "RFQ Upload",
+    "details": "Uploaded RFQ \"SELFREPLAYTEST_hist_b7gnk6fwz.xlsx\" analyzed and parsed successfully (452 item(s)); workspace prepared as a Draft estimation.",
+    "status": "Success"
+  },
+  {
+    "id": "log_hzpbx32nu",
+    "timestamp": "2026-07-27 18:31:51 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of KOHLER PUNE FS 16TH JUNE\" in 535ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_tfd6q0l4c",
+    "timestamp": "2026-07-27 18:31:51 UTC",
+    "user": "Estimator Admin",
+    "action": "RFQ Upload",
+    "details": "Uploaded RFQ \"SELFREPLAYTEST_hist_vsro0d05m.xlsx\" analyzed and parsed successfully (533 item(s)); workspace prepared as a Draft estimation.",
+    "status": "Success"
+  },
+  {
+    "id": "log_mu6hze1j0",
+    "timestamp": "2026-07-27 18:31:50 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of Keppel Final BOQ   30 Dec 2025 8\" in 772ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_4tjozw8c3",
+    "timestamp": "2026-07-27 18:31:49 UTC",
+    "user": "Estimator Admin",
+    "action": "RFQ Upload",
+    "details": "Uploaded RFQ \"SELFREPLAYTEST_hist_5qqjvg6gr.xlsx\" analyzed and parsed successfully (473 item(s)); workspace prepared as a Draft estimation.",
+    "status": "Success"
+  },
+  {
+    "id": "log_od74hs2op",
+    "timestamp": "2026-07-27 18:31:49 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of FS Submission FINAL SKF Phoenix 22\" in 789ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_wy66qd00g",
+    "timestamp": "2026-07-27 18:31:48 UTC",
+    "user": "Estimator Admin",
+    "action": "RFQ Upload",
+    "details": "Uploaded RFQ \"SELFREPLAYTEST_hist_g1t37na88.xlsx\" analyzed and parsed successfully (711 item(s)); workspace prepared as a Draft estimation.",
+    "status": "Success"
+  },
+  {
+    "id": "log_nz077ymnx",
+    "timestamp": "2026-07-27 18:31:48 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of DHL Chennai Estimated BOQ 31 March 2026 R0\" in 235ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_7dii4nckv",
+    "timestamp": "2026-07-27 18:31:47 UTC",
+    "user": "Estimator Admin",
+    "action": "RFQ Upload",
+    "details": "Uploaded RFQ \"SELFREPLAYTEST_hist_2j0k2k6h3.xlsx\" analyzed and parsed successfully (99 item(s)); workspace prepared as a Draft estimation.",
+    "status": "Success"
+  },
+  {
+    "id": "log_iee35u4ry",
+    "timestamp": "2026-07-27 18:30:42 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of KOHLER PUNE FS 16TH JUNE\" in 611ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_vvdzhje7c",
+    "timestamp": "2026-07-27 18:30:41 UTC",
+    "user": "Estimator Admin",
+    "action": "RFQ Upload",
+    "details": "Uploaded RFQ \"SELFREPLAYTEST_hist_vsro0d05m.xlsx\" analyzed and parsed successfully (533 item(s)); workspace prepared as a Draft estimation.",
+    "status": "Success"
+  },
+  {
+    "id": "log_gwkmcgqjh",
+    "timestamp": "2026-07-27 18:28:33 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of KOHLER PUNE FS 16TH JUNE\" in 636ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_51dvivmmh",
+    "timestamp": "2026-07-27 18:28:32 UTC",
+    "user": "Estimator Admin",
+    "action": "RFQ Upload",
+    "details": "Uploaded RFQ \"SELFREPLAYTEST_hist_vsro0d05m.xlsx\" analyzed and parsed successfully (533 item(s)); workspace prepared as a Draft estimation.",
+    "status": "Success"
+  },
+  {
+    "id": "log_9mhs4iknh",
+    "timestamp": "2026-07-27 18:27:22 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of Priced Nuvama I Hyd I C & I & Long Lead  MEP Tender BOQ I 06\" in 632ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_4mp6gwskk",
+    "timestamp": "2026-07-27 18:27:22 UTC",
+    "user": "Estimator Admin",
+    "action": "RFQ Upload",
+    "details": "Uploaded RFQ \"SELFREPLAYTEST_hist_3ljfsvqo3.xlsx\" analyzed and parsed successfully (375 item(s)); workspace prepared as a Draft estimation.",
+    "status": "Success"
+  },
+  {
+    "id": "log_10cjk9r07",
+    "timestamp": "2026-07-27 18:27:21 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of Priced COWRKS, CHENNAI Overall Price BOQ CW MILLENIA 4A 2F\" in 1310ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_95cdu9amp",
+    "timestamp": "2026-07-27 18:27:20 UTC",
+    "user": "Estimator Admin",
+    "action": "RFQ Upload",
+    "details": "Uploaded RFQ \"SELFREPLAYTEST_hist_b7gnk6fwz.xlsx\" analyzed and parsed successfully (452 item(s)); workspace prepared as a Draft estimation.",
+    "status": "Success"
+  },
+  {
+    "id": "log_6xilu3bw2",
+    "timestamp": "2026-07-27 18:27:19 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of KOHLER PUNE FS 16TH JUNE\" in 544ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_80lg97t09",
+    "timestamp": "2026-07-27 18:27:19 UTC",
+    "user": "Estimator Admin",
+    "action": "RFQ Upload",
+    "details": "Uploaded RFQ \"SELFREPLAYTEST_hist_vsro0d05m.xlsx\" analyzed and parsed successfully (533 item(s)); workspace prepared as a Draft estimation.",
+    "status": "Success"
+  },
+  {
+    "id": "log_1uwxvfqzm",
+    "timestamp": "2026-07-27 18:27:18 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of Keppel Final BOQ   30 Dec 2025 8\" in 764ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_dbesukpxp",
+    "timestamp": "2026-07-27 18:27:17 UTC",
+    "user": "Estimator Admin",
+    "action": "RFQ Upload",
+    "details": "Uploaded RFQ \"SELFREPLAYTEST_hist_5qqjvg6gr.xlsx\" analyzed and parsed successfully (473 item(s)); workspace prepared as a Draft estimation.",
+    "status": "Success"
+  },
+  {
+    "id": "log_9fsnwp0ed",
+    "timestamp": "2026-07-27 18:27:17 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of FS Submission FINAL SKF Phoenix 22\" in 880ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_d3uopvtq7",
+    "timestamp": "2026-07-27 18:27:15 UTC",
+    "user": "Estimator Admin",
+    "action": "RFQ Upload",
+    "details": "Uploaded RFQ \"SELFREPLAYTEST_hist_g1t37na88.xlsx\" analyzed and parsed successfully (711 item(s)); workspace prepared as a Draft estimation.",
+    "status": "Success"
+  },
+  {
+    "id": "log_ujjwdnv6m",
+    "timestamp": "2026-07-27 18:27:15 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of DHL Chennai Estimated BOQ 31 March 2026 R0\" in 253ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_4tqfnorjj",
+    "timestamp": "2026-07-27 18:27:14 UTC",
+    "user": "Estimator Admin",
+    "action": "RFQ Upload",
+    "details": "Uploaded RFQ \"SELFREPLAYTEST_hist_2j0k2k6h3.xlsx\" analyzed and parsed successfully (99 item(s)); workspace prepared as a Draft estimation.",
+    "status": "Success"
+  },
+  {
+    "id": "log_tddezb4dt",
+    "timestamp": "2026-07-27 18:26:36 UTC",
+    "user": "Estimator Admin",
+    "action": "Export",
+    "details": "High-fidelity rated RFQ \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" successfully exported with formatted rate injection. Preserving original layout and styles.",
+    "status": "Success"
+  },
+  {
+    "id": "log_cwsk3cqoq",
+    "timestamp": "2026-07-27 18:23:37 UTC",
+    "user": "Estimator Admin",
+    "action": "Export",
+    "details": "High-fidelity rated RFQ \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" successfully exported with formatted rate injection. Preserving original layout and styles.",
+    "status": "Success"
+  },
+  {
+    "id": "log_wmze2os0q",
+    "timestamp": "2026-07-27 18:23:16 UTC",
+    "user": "Estimator Admin",
+    "action": "Export",
+    "details": "High-fidelity rated RFQ \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" successfully exported with formatted rate injection. Preserving original layout and styles.",
+    "status": "Success"
+  },
+  {
+    "id": "log_rxj57biyg",
+    "timestamp": "2026-07-27 18:22:53 UTC",
+    "user": "Estimator Admin",
+    "action": "Export",
+    "details": "High-fidelity rated RFQ \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" successfully exported with formatted rate injection. Preserving original layout and styles.",
+    "status": "Success"
+  },
+  {
+    "id": "log_z1rk3qdq6",
+    "timestamp": "2026-07-27 18:22:32 UTC",
+    "user": "Estimator Admin",
+    "action": "Export",
+    "details": "High-fidelity rated RFQ \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" successfully exported with formatted rate injection. Preserving original layout and styles.",
+    "status": "Success"
+  },
+  {
+    "id": "log_t07i1lbjl",
+    "timestamp": "2026-07-27 18:22:13 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of KOHLER PUNE FS 16TH JUNE\" in 1712ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_lsbmdipy2",
+    "timestamp": "2026-07-27 18:03:34 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of Priced Nuvama I Hyd I C & I & Long Lead  MEP Tender BOQ I 06\" in 721ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_p45kzcjc3",
+    "timestamp": "2026-07-27 18:03:33 UTC",
+    "user": "Estimator Admin",
+    "action": "RFQ Upload",
+    "details": "Uploaded RFQ \"SELFREPLAYTEST_hist_3ljfsvqo3.xlsx\" analyzed and parsed successfully (375 item(s)); workspace prepared as a Draft estimation.",
+    "status": "Success"
+  },
+  {
+    "id": "log_rspbvim4c",
+    "timestamp": "2026-07-27 18:03:32 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of Priced COWRKS, CHENNAI Overall Price BOQ CW MILLENIA 4A 2F\" in 1354ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_wg2o4tk7j",
+    "timestamp": "2026-07-27 18:03:31 UTC",
+    "user": "Estimator Admin",
+    "action": "RFQ Upload",
+    "details": "Uploaded RFQ \"SELFREPLAYTEST_hist_b7gnk6fwz.xlsx\" analyzed and parsed successfully (452 item(s)); workspace prepared as a Draft estimation.",
+    "status": "Success"
+  },
+  {
+    "id": "log_f60iahqa6",
+    "timestamp": "2026-07-27 18:03:30 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of KOHLER PUNE FS 16TH JUNE\" in 570ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_aiwhj6dti",
+    "timestamp": "2026-07-27 18:03:30 UTC",
+    "user": "Estimator Admin",
+    "action": "RFQ Upload",
+    "details": "Uploaded RFQ \"SELFREPLAYTEST_hist_vsro0d05m.xlsx\" analyzed and parsed successfully (533 item(s)); workspace prepared as a Draft estimation.",
+    "status": "Success"
+  },
+  {
+    "id": "log_orj37jcb8",
+    "timestamp": "2026-07-27 18:03:29 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of Keppel Final BOQ   30 Dec 2025 8\" in 809ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_rzg839d2h",
+    "timestamp": "2026-07-27 18:03:28 UTC",
+    "user": "Estimator Admin",
+    "action": "RFQ Upload",
+    "details": "Uploaded RFQ \"SELFREPLAYTEST_hist_5qqjvg6gr.xlsx\" analyzed and parsed successfully (473 item(s)); workspace prepared as a Draft estimation.",
+    "status": "Success"
+  },
+  {
+    "id": "log_dpmi9ax49",
+    "timestamp": "2026-07-27 18:03:28 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of FS Submission FINAL SKF Phoenix 22\" in 900ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_8d5yd64od",
+    "timestamp": "2026-07-27 18:03:27 UTC",
+    "user": "Estimator Admin",
+    "action": "RFQ Upload",
+    "details": "Uploaded RFQ \"SELFREPLAYTEST_hist_g1t37na88.xlsx\" analyzed and parsed successfully (711 item(s)); workspace prepared as a Draft estimation.",
+    "status": "Success"
+  },
+  {
+    "id": "log_dhy2g6bag",
+    "timestamp": "2026-07-27 18:03:27 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of DHL Chennai Estimated BOQ 31 March 2026 R0\" in 223ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_vdwdpftp0",
+    "timestamp": "2026-07-27 18:03:26 UTC",
+    "user": "Estimator Admin",
+    "action": "RFQ Upload",
+    "details": "Uploaded RFQ \"SELFREPLAYTEST_hist_2j0k2k6h3.xlsx\" analyzed and parsed successfully (99 item(s)); workspace prepared as a Draft estimation.",
+    "status": "Success"
+  },
+  {
+    "id": "log_4udbu3g37",
+    "timestamp": "2026-07-27 18:01:18 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of Priced Nuvama I Hyd I C & I & Long Lead  MEP Tender BOQ I 06\" in 607ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_s1vmlexnq",
+    "timestamp": "2026-07-27 18:01:18 UTC",
+    "user": "Estimator Admin",
+    "action": "RFQ Upload",
+    "details": "Uploaded RFQ \"SELFREPLAYTEST_hist_3ljfsvqo3.xlsx\" analyzed and parsed successfully (375 item(s)); workspace prepared as a Draft estimation.",
+    "status": "Success"
+  },
+  {
+    "id": "log_e3gq8r677",
+    "timestamp": "2026-07-27 18:01:17 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of Priced COWRKS, CHENNAI Overall Price BOQ CW MILLENIA 4A 2F\" in 1334ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_6r0pazuec",
+    "timestamp": "2026-07-27 18:01:16 UTC",
+    "user": "Estimator Admin",
+    "action": "RFQ Upload",
+    "details": "Uploaded RFQ \"SELFREPLAYTEST_hist_b7gnk6fwz.xlsx\" analyzed and parsed successfully (452 item(s)); workspace prepared as a Draft estimation.",
+    "status": "Success"
+  },
+  {
+    "id": "log_um026ry1h",
+    "timestamp": "2026-07-27 18:01:15 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of KOHLER PUNE FS 16TH JUNE\" in 543ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_43gy99d73",
+    "timestamp": "2026-07-27 18:01:15 UTC",
+    "user": "Estimator Admin",
+    "action": "RFQ Upload",
+    "details": "Uploaded RFQ \"SELFREPLAYTEST_hist_vsro0d05m.xlsx\" analyzed and parsed successfully (533 item(s)); workspace prepared as a Draft estimation.",
+    "status": "Success"
+  },
+  {
+    "id": "log_7gy6433xa",
+    "timestamp": "2026-07-27 18:01:15 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of Keppel Final BOQ   30 Dec 2025 8\" in 736ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_m7gktou90",
+    "timestamp": "2026-07-27 18:01:14 UTC",
+    "user": "Estimator Admin",
+    "action": "RFQ Upload",
+    "details": "Uploaded RFQ \"SELFREPLAYTEST_hist_5qqjvg6gr.xlsx\" analyzed and parsed successfully (473 item(s)); workspace prepared as a Draft estimation.",
+    "status": "Success"
+  },
+  {
+    "id": "log_clg70ee0t",
+    "timestamp": "2026-07-27 18:01:13 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of FS Submission FINAL SKF Phoenix 22\" in 808ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_ltqz8unot",
+    "timestamp": "2026-07-27 18:01:13 UTC",
+    "user": "Estimator Admin",
+    "action": "RFQ Upload",
+    "details": "Uploaded RFQ \"SELFREPLAYTEST_hist_g1t37na88.xlsx\" analyzed and parsed successfully (711 item(s)); workspace prepared as a Draft estimation.",
+    "status": "Success"
+  },
+  {
+    "id": "log_hyyatz2dq",
+    "timestamp": "2026-07-27 18:01:12 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of DHL Chennai Estimated BOQ 31 March 2026 R0\" in 204ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_j6kwgo8hk",
+    "timestamp": "2026-07-27 18:01:12 UTC",
+    "user": "Estimator Admin",
+    "action": "RFQ Upload",
+    "details": "Uploaded RFQ \"SELFREPLAYTEST_hist_2j0k2k6h3.xlsx\" analyzed and parsed successfully (99 item(s)); workspace prepared as a Draft estimation.",
+    "status": "Success"
+  },
+  {
+    "id": "log_mxpul378h",
+    "timestamp": "2026-07-27 18:00:59 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of KOHLER PUNE FS 16TH JUNE\" in 596ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_3mhakaczd",
+    "timestamp": "2026-07-27 18:00:59 UTC",
+    "user": "Estimator Admin",
+    "action": "RFQ Upload",
+    "details": "Uploaded RFQ \"SELFREPLAYTEST_hist_vsro0d05m.xlsx\" analyzed and parsed successfully (533 item(s)); workspace prepared as a Draft estimation.",
+    "status": "Success"
+  },
+  {
+    "id": "log_kw6wv7ti9",
+    "timestamp": "2026-07-27 17:43:58 UTC",
+    "user": "Estimator Admin",
+    "action": "Export",
+    "details": "Exported fully priced Excel workbook \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" for project \"Copy of KOHLER PUNE FS 16TH JUNE\" with formatting preserved. Mode: AI Hybrid. Replay: false.",
+    "status": "Success"
+  },
+  {
+    "id": "log_oy4c1s8gh",
+    "timestamp": "2026-07-27 17:43:57 UTC",
+    "user": "Estimator Admin",
+    "action": "Export",
+    "details": "High-fidelity rated RFQ \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" successfully exported with formatted rate injection. Preserving original layout and styles.",
+    "status": "Success"
+  },
+  {
+    "id": "log_h4w3ek1iq",
+    "timestamp": "2026-07-27 17:43:27 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of KOHLER PUNE FS 16TH JUNE\" in 2702ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_zo1ls9s75",
+    "timestamp": "2026-07-27 17:31:42 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of KOHLER PUNE FS 16TH JUNE\" in 1928ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_dttby8bsz",
+    "timestamp": "2026-07-27 17:25:21 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of KOHLER PUNE FS 16TH JUNE\" in 1792ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_zzxjrl1se",
+    "timestamp": "2026-07-27 17:24:11 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of KOHLER PUNE FS 16TH JUNE\" in 1863ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_8fe6pnuab",
+    "timestamp": "2026-07-27 16:44:36 UTC",
+    "user": "Estimator Admin",
+    "action": "Export",
+    "details": "Exported fully priced Excel workbook \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" for project \"Copy of KOHLER PUNE FS 16TH JUNE\" with formatting preserved. Mode: AI Hybrid. Replay: false.",
+    "status": "Success"
+  },
+  {
+    "id": "log_xilvikpwh",
+    "timestamp": "2026-07-27 16:44:36 UTC",
+    "user": "Estimator Admin",
+    "action": "Export",
+    "details": "High-fidelity rated RFQ \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" successfully exported with formatted rate injection. Preserving original layout and styles.",
+    "status": "Success"
+  },
+  {
+    "id": "log_e70l3vu2e",
+    "timestamp": "2026-07-27 16:40:20 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of KOHLER PUNE FS 16TH JUNE\" in 4234ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_di0cbm4qo",
+    "timestamp": "2026-07-27 16:39:52 UTC",
+    "user": "Estimator Admin",
+    "action": "RFQ Upload",
+    "details": "Uploaded RFQ \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" analyzed and parsed successfully (677 item(s)); workspace prepared as a Draft estimation.",
+    "status": "Success"
+  },
+  {
+    "id": "log_zkwn62jh2",
+    "timestamp": "2026-07-27 15:05:10 UTC",
+    "user": "Estimator Admin",
+    "action": "Export",
+    "details": "Exported fully priced Excel workbook \"Copy of Keppel Final BOQ - 30 Dec 2025_8.75Cr.xlsx\" for project \"Copy of Keppel Final BOQ   30 Dec 2025 8\" with formatting preserved. Mode: AI Hybrid. Replay: false.",
+    "status": "Success"
+  },
+  {
+    "id": "log_luy5upjhb",
+    "timestamp": "2026-07-27 15:05:10 UTC",
+    "user": "Estimator Admin",
+    "action": "Export",
+    "details": "High-fidelity rated RFQ \"Copy of Keppel Final BOQ - 30 Dec 2025_8.75Cr.xlsx\" successfully exported with formatted rate injection. Preserving original layout and styles.",
+    "status": "Success"
+  },
+  {
+    "id": "log_ysrxntdwh",
+    "timestamp": "2026-07-25 16:37:07 UTC",
+    "user": "Estimator Admin",
+    "action": "Export",
+    "details": "Exported fully priced Excel workbook \"Copy of Keppel Final BOQ - 30 Dec 2025_8.75Cr.xlsx\" for project \"Copy of Keppel Final BOQ   30 Dec 2025 8\" with formatting preserved. Mode: AI Hybrid. Replay: false.",
+    "status": "Success"
+  },
+  {
+    "id": "log_6q9e74eu4",
+    "timestamp": "2026-07-25 16:37:07 UTC",
+    "user": "Estimator Admin",
+    "action": "Export",
+    "details": "High-fidelity rated RFQ \"Copy of Keppel Final BOQ - 30 Dec 2025_8.75Cr.xlsx\" successfully exported with formatted rate injection. Preserving original layout and styles.",
+    "status": "Success"
+  },
+  {
+    "id": "log_s5uptzwe8",
+    "timestamp": "2026-07-25 16:36:48 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of Keppel Final BOQ   30 Dec 2025 8\" in 2730ms.",
+    "status": "Success"
+  },
+  {
+    "id": "log_aj9pl91f9",
+    "timestamp": "2026-07-25 08:13:57 UTC",
+    "user": "Estimator Admin",
+    "action": "System Administration",
+    "details": "Cleared client-side cache and re-loaded database store descriptors.",
+    "status": "Success"
+  },
+  {
+    "id": "log_dg1f5thgf",
+    "timestamp": "2026-07-25 07:52:09 UTC",
+    "user": "Estimator Admin",
+    "action": "Export",
+    "details": "Exported fully priced Excel workbook \"Copy of Keppel Final BOQ - 30 Dec 2025_8.75Cr.xlsx\" for project \"Copy of Keppel Final BOQ   30 Dec 2025 8\" with formatting preserved. Mode: AI Hybrid. Replay: false.",
+    "status": "Success"
+  },
+  {
+    "id": "log_eqo2qwfgk",
+    "timestamp": "2026-07-25 07:52:09 UTC",
+    "user": "Estimator Admin",
+    "action": "Export",
+    "details": "High-fidelity rated RFQ \"Copy of Keppel Final BOQ - 30 Dec 2025_8.75Cr.xlsx\" successfully exported with formatted rate injection. Preserving original layout and styles.",
+    "status": "Success"
+  },
+  {
+    "id": "log_t5xhdw2t2",
+    "timestamp": "2026-07-25 07:51:19 UTC",
+    "user": "Estimator Admin",
+    "action": "Rate Recommendation",
+    "details": "Completed similar project context-aware rate recommendations for RFQ \"Copy of Keppel Final BOQ   30 Dec 2025 8\" in 2518ms.",
+    "status": "Success"
+  },
+  {
     "id": "log_vy09x03lq",
     "timestamp": "2026-07-24 20:02:40 UTC",
     "user": "Estimator Admin",
@@ -3037,230 +3997,6 @@
     "user": "Estimator Admin",
     "action": "Historical Ingestion",
     "details": "Ingested historical BOQ file \"FS Submission_FINAL_SKF_Phoenix_22.05.2026_R4.xlsx\" for project \"FS Submission FINAL SKF Phoenix 22\" containing 711 items under domains: Civil, Interior, Modular Glass Partition & Doors, Graphics And Films, Blinds, Planters, Carpet Flooring, Phe, Electrical, Ups, Mechanical, Passive Networking, Networking Nodes, Fire & Security, Gss, Toilet Works, Make List. KB Version bumped to v1.0.2.",
-    "status": "Success"
-  },
-  {
-    "id": "log_2swoc2mbw",
-    "timestamp": "2026-07-17 15:53:50 UTC",
-    "user": "Estimator Admin",
-    "action": "Knowledge Base Merge",
-    "details": "Knowledge Base version bumped to v1.0.2. Reason: Ingested historical BOQ file \"FS Submission_FINAL_SKF_Phoenix_22.05.2026_R4.xlsx\" for project \"FS Submission FINAL SKF Phoenix 22\" containing 711 items.",
-    "status": "Success"
-  },
-  {
-    "id": "log_hljul3e4y",
-    "timestamp": "2026-07-17 15:53:47 UTC",
-    "user": "Estimator Admin",
-    "action": "Historical Ingestion",
-    "details": "Ingested historical BOQ file \"DHL Chennai Estimated BOQ 31 March 2026_R0.xlsx\" for project \"DHL Chennai Estimated BOQ 31 March 2026 R0\" containing 99 items under domains: Price Comparison, Interior, Civil, Chairs, Planters, Sanitary Fixtures, Electrical, White Goods. KB Version bumped to v1.0.1.",
-    "status": "Success"
-  },
-  {
-    "id": "log_txvk9o6j4",
-    "timestamp": "2026-07-17 15:53:47 UTC",
-    "user": "Estimator Admin",
-    "action": "Knowledge Base Merge",
-    "details": "Knowledge Base version bumped to v1.0.1. Reason: Ingested historical BOQ file \"DHL Chennai Estimated BOQ 31 March 2026_R0.xlsx\" for project \"DHL Chennai Estimated BOQ 31 March 2026 R0\" containing 99 items.",
-    "status": "Success"
-  },
-  {
-    "id": "log_nzt4lb57a",
-    "timestamp": "2026-07-11 23:01:13 UTC",
-    "user": "Estimator Admin",
-    "action": "Export",
-    "details": "High-fidelity rated RFQ \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" successfully exported with formatted rate injection. Preserving original layout and styles.",
-    "status": "Success"
-  },
-  {
-    "id": "log_ijr7jnl6d",
-    "timestamp": "2026-07-11 22:59:21 UTC",
-    "user": "Estimator Admin",
-    "action": "Export",
-    "details": "High-fidelity rated RFQ \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" successfully exported with formatted rate injection. Preserving original layout and styles.",
-    "status": "Success"
-  },
-  {
-    "id": "log_u0s3epbuy",
-    "timestamp": "2026-07-11 22:58:11 UTC",
-    "user": "Estimator Admin",
-    "action": "Historical Replay",
-    "details": "Completed strict deterministic rate replay & verification for RFQ \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" based on matching historical project \"KOHLER PUNE FS 16TH JUNE\" (0 mismatches).",
-    "status": "Success"
-  },
-  {
-    "id": "log_1vv6xpyhc",
-    "timestamp": "2026-07-11 22:57:10 UTC",
-    "user": "Estimator Admin",
-    "action": "Historical Replay",
-    "details": "Completed strict deterministic rate replay & verification for RFQ \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" based on matching historical project \"FS Submission FINAL SKF Phoenix 22\" (0 mismatches).",
-    "status": "Success"
-  },
-  {
-    "id": "log_stouoqoky",
-    "timestamp": "2026-07-11 21:22:53 UTC",
-    "user": "Estimator Admin",
-    "action": "Export",
-    "details": "Exported fully priced Excel workbook \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" for project \"Copy of KOHLER PUNE FS 16TH JUNE\" with formatting preserved. Mode: AI Hybrid. Replay: false.",
-    "status": "Success"
-  },
-  {
-    "id": "log_365yiqkuk",
-    "timestamp": "2026-07-11 21:22:47 UTC",
-    "user": "Estimator Admin",
-    "action": "Export",
-    "details": "High-fidelity rated RFQ \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" successfully exported with formatted rate injection. Preserving original layout and styles.",
-    "status": "Success"
-  },
-  {
-    "id": "log_6ogwco5wg",
-    "timestamp": "2026-07-11 21:21:59 UTC",
-    "user": "Estimator Admin",
-    "action": "Historical Replay",
-    "details": "Completed deterministic rate replay for RFQ \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" based on matching historical project \"FS Submission FINAL SKF Phoenix 22\" (0 tokens consumed, 100% deterministic accuracy).",
-    "status": "Success"
-  },
-  {
-    "id": "log_1pkt96pqp",
-    "timestamp": "2026-07-11 21:20:42 UTC",
-    "user": "Estimator Admin",
-    "action": "Historical Replay",
-    "details": "Uploaded RFQ \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" analyzed. Historical Replay detected (Matched project: FS Submission FINAL SKF Phoenix 22, Workbook overlap: 80%).",
-    "status": "Success"
-  },
-  {
-    "id": "log_ejs8gpng5",
-    "timestamp": "2026-07-11 21:16:59 UTC",
-    "user": "Estimator Admin",
-    "action": "Historical Replay",
-    "details": "Completed deterministic rate replay for RFQ \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" based on matching historical project \"FS Submission FINAL SKF Phoenix 22\" (0 tokens consumed, 100% deterministic accuracy).",
-    "status": "Success"
-  },
-  {
-    "id": "log_6bu9m88of",
-    "timestamp": "2026-07-11 21:06:28 UTC",
-    "user": "Estimator Admin",
-    "action": "Historical Replay",
-    "details": "Completed deterministic rate replay for RFQ \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" based on matching historical project \"FS Submission FINAL SKF Phoenix 22\" (0 tokens consumed, 100% deterministic accuracy).",
-    "status": "Success"
-  },
-  {
-    "id": "log_4wsyg6qc4",
-    "timestamp": "2026-07-11 21:03:34 UTC",
-    "user": "Estimator Admin",
-    "action": "Historical Replay",
-    "details": "Uploaded RFQ \"Copy of KOHLER_PUNE_FS_16TH JUNE.xlsx\" analyzed. Historical Replay detected (Matched project: FS Submission FINAL SKF Phoenix 22, Workbook overlap: 80%).",
-    "status": "Success"
-  },
-  {
-    "id": "log_pxcqzvdei",
-    "timestamp": "2026-07-11 21:01:53 UTC",
-    "user": "Estimator Admin",
-    "action": "System Administration",
-    "details": "Seeded 18 CPWD standard master catalog specification templates into the active repository. KB Version bumped to v1.0.7.",
-    "status": "Success"
-  },
-  {
-    "id": "log_6dn9hml0s",
-    "timestamp": "2026-07-11 21:01:53 UTC",
-    "user": "Estimator Admin",
-    "action": "Knowledge Base Merge",
-    "details": "Knowledge Base version bumped to v1.0.7. Reason: Seeded 18 CPWD standard master catalog specification templates.",
-    "status": "Success"
-  },
-  {
-    "id": "log_m4b75wmou",
-    "timestamp": "2026-07-11 21:01:50 UTC",
-    "user": "Estimator Admin",
-    "action": "Historical Ingestion",
-    "details": "Ingested historical BOQ file \"Priced_Nuvama I Hyd I C & I & Long Lead  MEP Tender BOQ I 06.08.25 (5).xlsx\" for project \"Priced Nuvama I Hyd I C & I & Long Lead  MEP Tender BOQ I 06\" containing 375 items under domains: Civil, Metal & Wooden Fire Rated Doors, Glass Partition,skirting & Door, Glass Fire Rated Part. & Doors, Blinds, Raised Flooring Works, Interior, Graphics, Frost Film & Internal, Racks Compactors & Lockers, Toilet Finishes Works, Sf, Approved Make Sf, Chair, Approved Make Chair, Technical Specification Carpet, Carpet, Approved Make Carpet, Approved Makes Lf, White Good, Plants, Make List C & I, Phe Toilet, Make List Phe, Fa, Pa, Fps, Fe, Rodent, Wld, Fire Elv Make List, Acs, Cctv, Ss Make List, Electrical, Makes, Ups Make, Ups Boq, Vrf System, Vrf Lowside. KB Version bumped to v1.0.6.",
-    "status": "Success"
-  },
-  {
-    "id": "log_t6v9mltp",
-    "timestamp": "2026-07-11 21:01:50 UTC",
-    "user": "Estimator Admin",
-    "action": "Knowledge Base Merge",
-    "details": "Knowledge Base version bumped to v1.0.6. Reason: Ingested historical BOQ file \"Priced_Nuvama I Hyd I C & I & Long Lead  MEP Tender BOQ I 06.08.25 (5).xlsx\" for project \"Priced Nuvama I Hyd I C & I & Long Lead  MEP Tender BOQ I 06\" containing 375 items.",
-    "status": "Success"
-  },
-  {
-    "id": "log_g0h9etvic",
-    "timestamp": "2026-07-11 21:01:43 UTC",
-    "user": "Estimator Admin",
-    "action": "Historical Ingestion",
-    "details": "Ingested historical BOQ file \"Priced_COWRKS, CHENNAI_Overall Price_BOQ_CW_MILLENIA 4A 2F.xlsx\" for project \"Priced COWRKS, CHENNAI Overall Price BOQ CW MILLENIA 4A 2F\" containing 452 items under domains: C&i Boq R0, Door Hardware R0 Dormakaba, Chairs, Carpet, Mats & Rugs R0, Cp & Sanitary Fixtures, Electrical, Wide Glass Partions, Interior, Art & Graphics, Mechanical, Fps, Fas, Pas, Fe, Gss, Wld, Rr. KB Version bumped to v1.0.5.",
-    "status": "Success"
-  },
-  {
-    "id": "log_db8lbrr4l",
-    "timestamp": "2026-07-11 21:01:43 UTC",
-    "user": "Estimator Admin",
-    "action": "Knowledge Base Merge",
-    "details": "Knowledge Base version bumped to v1.0.5. Reason: Ingested historical BOQ file \"Priced_COWRKS, CHENNAI_Overall Price_BOQ_CW_MILLENIA 4A 2F.xlsx\" for project \"Priced COWRKS, CHENNAI Overall Price BOQ CW MILLENIA 4A 2F\" containing 452 items.",
-    "status": "Success"
-  },
-  {
-    "id": "log_yroy0gar4",
-    "timestamp": "2026-07-11 21:01:39 UTC",
-    "user": "Estimator Admin",
-    "action": "Historical Ingestion",
-    "details": "Ingested historical BOQ file \"KOHLER_PUNE_FS_16TH JUNE.xlsx\" for project \"KOHLER PUNE FS 16TH JUNE\" containing 533 items under domains: Civil, Interior, Modular Glass Partition & Doors, Graphics And Films, Blinds, Planters, Carpet Flooring, Electrical, Mechanical, Passive Networking, Phe, Flss Works, Make List, Toilet Works. KB Version bumped to v1.0.4.",
-    "status": "Success"
-  },
-  {
-    "id": "log_oe9nmbjzb",
-    "timestamp": "2026-07-11 21:01:39 UTC",
-    "user": "Estimator Admin",
-    "action": "Knowledge Base Merge",
-    "details": "Knowledge Base version bumped to v1.0.4. Reason: Ingested historical BOQ file \"KOHLER_PUNE_FS_16TH JUNE.xlsx\" for project \"KOHLER PUNE FS 16TH JUNE\" containing 533 items.",
-    "status": "Success"
-  },
-  {
-    "id": "log_0xbzdh565",
-    "timestamp": "2026-07-11 21:01:34 UTC",
-    "user": "Estimator Admin",
-    "action": "Historical Ingestion",
-    "details": "Ingested historical BOQ file \"Keppel Final BOQ - 30 Dec 2025_8.75Cr.xlsx\" for project \"Keppel Final BOQ   30 Dec 2025 8\" containing 493 items under domains: Overall, C&i, Interior, Chairs, Electrical, Mechanical, Dishwash Area, Planters, Makelist, Fa, Pa, Cctv, Multipurpose Hall, Stage 1st Floor, White Goods, Gym Equipments, Gas Connection, Mist Cooling. KB Version bumped to v1.0.3.",
-    "status": "Success"
-  },
-  {
-    "id": "log_b86r7nljk",
-    "timestamp": "2026-07-11 21:01:34 UTC",
-    "user": "Estimator Admin",
-    "action": "Knowledge Base Merge",
-    "details": "Knowledge Base version bumped to v1.0.3. Reason: Ingested historical BOQ file \"Keppel Final BOQ - 30 Dec 2025_8.75Cr.xlsx\" for project \"Keppel Final BOQ   30 Dec 2025 8\" containing 493 items.",
-    "status": "Success"
-  },
-  {
-    "id": "log_i0wtinyqv",
-    "timestamp": "2026-07-11 21:01:31 UTC",
-    "user": "Estimator Admin",
-    "action": "Historical Ingestion",
-    "details": "Ingested historical BOQ file \"FS Submission_FINAL_SKF_Phoenix_22.05.2026_R4.xlsx\" for project \"FS Submission FINAL SKF Phoenix 22\" containing 711 items under domains: Civil, Interior, Modular Glass Partition & Doors, Graphics And Films, Blinds, Planters, Carpet Flooring, Phe, Electrical, Ups, Mechanical, Passive Networking, Networking Nodes, Fire & Security, Gss, Toilet Works, Make List. KB Version bumped to v1.0.2.",
-    "status": "Success"
-  },
-  {
-    "id": "log_gi82l68tb",
-    "timestamp": "2026-07-11 21:01:31 UTC",
-    "user": "Estimator Admin",
-    "action": "Knowledge Base Merge",
-    "details": "Knowledge Base version bumped to v1.0.2. Reason: Ingested historical BOQ file \"FS Submission_FINAL_SKF_Phoenix_22.05.2026_R4.xlsx\" for project \"FS Submission FINAL SKF Phoenix 22\" containing 711 items.",
-    "status": "Success"
-  },
-  {
-    "id": "log_xa6sfybp1",
-    "timestamp": "2026-07-11 21:01:23 UTC",
-    "user": "Estimator Admin",
-    "action": "Historical Ingestion",
-    "details": "Ingested historical BOQ file \"DHL Chennai Estimated BOQ 31 March 2026_R0.xlsx\" for project \"DHL Chennai Estimated BOQ 31 March 2026 R0\" containing 99 items under domains: Price Comparison, Interior, Civil, Chairs, Planters, Sanitary Fixtures, Electrical, White Goods. KB Version bumped to v1.0.1.",
-    "status": "Success"
-  },
-  {
-    "id": "log_bm4u05u7q",
-    "timestamp": "2026-07-11 21:01:23 UTC",
-    "user": "Estimator Admin",
-    "action": "Knowledge Base Merge",
-    "details": "Knowledge Base version bumped to v1.0.1. Reason: Ingested historical BOQ file \"DHL Chennai Estimated BOQ 31 March 2026_R0.xlsx\" for project \"DHL Chennai Estimated BOQ 31 March 2026 R0\" containing 99 items.",
     "status": "Success"
   }
 ]

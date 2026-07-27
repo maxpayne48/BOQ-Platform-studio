@@ -8,7 +8,6 @@ import {
   Download,
   RefreshCw,
   AlertCircle,
-  ChevronRight,
   ChevronDown,
   ChevronUp,
   ArrowLeft,
@@ -84,10 +83,7 @@ export default function RecommendationsTab({
   const [showBlueprintPanel, setShowBlueprintPanel] = useState(true);
   const [blueprintSubTab, setBlueprintSubTab] = useState<"sheets" | "knowledge">("sheets");
 
-  // "Items Requiring Attention" dashboard state - purely informational, additive on top of the
-  // existing recommendation table. Never affects recommendedRate, export, or the Recommendation
-  // Quality report.
-  const [showAttentionPanel, setShowAttentionPanel] = useState(true);
+  // Jump-to-row highlight pulse, set by focusItem (search results dropdown).
   const [highlightedItemId, setHighlightedItemId] = useState<string | null>(null);
 
   // ==========================================================================
@@ -305,11 +301,11 @@ export default function RecommendationsTab({
     setTableScrollTop(e.currentTarget.scrollTop);
   };
 
-  // Jump-to-row navigation - used by both the search results dropdown and the "Items Requiring
-  // Attention" panel. Switches worksheet tab if needed, then (once the target sheet's filtered
-  // row list is available) scrolls the virtualized table directly to that row's computed offset
-  // and pulses a highlight - scrollIntoView doesn't work here since an off-screen virtualized row
-  // may not exist in the DOM at all.
+  // Jump-to-row navigation - used by the search results dropdown. Switches worksheet tab if
+  // needed, then (once the target sheet's filtered row list is available) scrolls the
+  // virtualized table directly to that row's computed offset and pulses a highlight -
+  // scrollIntoView doesn't work here since an off-screen virtualized row may not exist in the
+  // DOM at all.
   const focusItem = (item: RFQItem) => {
     setShowSearchDropdown(false);
     if (activeSheet !== item.sheetName) {
@@ -385,6 +381,24 @@ export default function RecommendationsTab({
   const [modalCity, setModalCity] = useState("Gurgaon");
   const [modalBuildingGrade, setModalBuildingGrade] = useState("Grade A");
   const [profileFormError, setProfileFormError] = useState("");
+  // Follow-up Fix 8 (2026-07-28): tracks which fields the user actually edited in this modal
+  // session, as opposed to fields still showing their pre-filled/default value. The form always
+  // shows a non-empty value in every field (pre-filled from projectContext, or a hardcoded
+  // default like "Gurgaon"/"Grade A") - so the value itself can never tell the server "the user
+  // deliberately chose this" apart from "the user never touched this." Previously every field was
+  // submitted unconditionally, which - per the server's own documented precedence (explicit body >
+  // identified historical twin's real profile > projectContext > placeholder) - permanently
+  // prevented a recognized historical twin from ever being used, even when one was correctly
+  // identified server-side (see docs/audit/0002-identity-and-evidence-integrity-audit.md,
+  // Follow-up Fix 7/8). Only genuinely touched fields are now sent; untouched fields are omitted
+  // from the request body entirely, letting the server's existing twin-detection fallback apply.
+  const [profileFieldsTouched, setProfileFieldsTouched] = useState({
+    cost: false,
+    size: false,
+    type: false,
+    city: false,
+    grade: false
+  });
 
   const openProfileModal = () => {
     if (rfqDetails?.projectContext) {
@@ -397,22 +411,23 @@ export default function RecommendationsTab({
       setModalCity(pc.location ? pc.location.split(",")[0].trim() : "Gurgaon");
       setModalBuildingGrade(pc.buildingType || "Grade A");
     }
+    setProfileFieldsTouched({ cost: false, size: false, type: false, city: false, grade: false });
     setProfileFormError("");
     setShowProfileModal(true);
   };
 
-  const runEstimationEngine = (projectCostNum: number, projectSizeNum: number, projectType: string, city: string, buildingGrade: string) => {
+  const runEstimationEngine = (profile: {
+    projectCost?: number;
+    projectSize?: number;
+    projectType?: string;
+    city?: string;
+    buildingGrade?: string;
+  }) => {
     setAnalyzing(true);
     fetch(`/api/rfqs/${rfqId}/recommend`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        projectCost: projectCostNum,
-        projectSize: projectSizeNum,
-        projectType,
-        city,
-        buildingGrade
-      })
+      body: JSON.stringify(profile)
     })
       .then((res) => res.json())
       .then((data) => {
@@ -470,7 +485,16 @@ export default function RecommendationsTab({
     }
 
     setShowProfileModal(false);
-    runEstimationEngine(costNum, sizeNum, modalProjectType.trim(), modalCity.trim(), modalBuildingGrade.trim());
+    // Only send fields the user actually edited - an untouched field (still showing its
+    // pre-filled or default value) is omitted so the server can fall back to a recognized
+    // historical twin's real profile instead (see profileFieldsTouched above).
+    runEstimationEngine({
+      ...(profileFieldsTouched.cost ? { projectCost: costNum } : {}),
+      ...(profileFieldsTouched.size ? { projectSize: sizeNum } : {}),
+      ...(profileFieldsTouched.type ? { projectType: modalProjectType.trim() } : {}),
+      ...(profileFieldsTouched.city ? { city: modalCity.trim() } : {}),
+      ...(profileFieldsTouched.grade ? { buildingGrade: modalBuildingGrade.trim() } : {})
+    });
   };
 
   const startOverride = (item: RFQItem) => {
@@ -687,19 +711,6 @@ export default function RecommendationsTab({
     document.body.removeChild(link);
   };
 
-  // Recommendation Summary: a pure READ of the Commercial Decision Engine's approvalStatus
-  // (ADR-0001). The dashboard never re-derives its own bucketing - attention flags are
-  // informational only and can no longer demote an approved item here.
-  const recommendationSummary = items.reduce(
-    (acc, item) => {
-      if (item.approvalStatus === "Manual Pricing") acc.manualPricing++;
-      else if (item.approvalStatus === "Needs Review") acc.needsReview++;
-      else if (item.approvalStatus === "Auto Approved") acc.autoApproved++;
-      return acc;
-    },
-    { autoApproved: 0, needsReview: 0, manualPricing: 0 }
-  );
-  const attentionItems = items.filter((item) => (item.attentionFlags?.length || 0) > 0);
 
   // Display-only Title Case for worksheet tab labels - the uploaded workbook's own sheet names
   // are used verbatim as data keys everywhere (activeSheet state, itemsBySheet Map, tooltips'
@@ -1434,80 +1445,6 @@ export default function RecommendationsTab({
                   <div className="text-base font-black text-indigo-700 mt-1">{rfqDetails.recommendationAuditReport.approvalAccuracy.toFixed(1)}%</div>
                 </div>
               </div>
-            </div>
-          )}
-
-          {/* Recommendation Summary + Items Requiring Attention - a read-only view of
-              item.approvalStatus/attentionFlags computed server-side by the Commercial
-              Decision Engine; never re-derives or mutates any decision. */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-5">
-            <div className="p-4 bg-emerald-50/60 border border-emerald-100 rounded-xl flex items-center gap-3">
-              <span className="text-2xl">✅</span>
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">Auto Approved</p>
-                <p className="text-xl font-black text-emerald-800">{recommendationSummary.autoApproved}</p>
-              </div>
-            </div>
-            <div className="p-4 bg-amber-50/60 border border-amber-100 rounded-xl flex items-center gap-3">
-              <span className="text-2xl">🟡</span>
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700">Needs Review</p>
-                <p className="text-xl font-black text-amber-800">{recommendationSummary.needsReview}</p>
-              </div>
-            </div>
-            <div className="p-4 bg-red-50/60 border border-red-100 rounded-xl flex items-center gap-3">
-              <span className="text-2xl">🔴</span>
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-red-700">Manual Pricing</p>
-                <p className="text-xl font-black text-red-800">{recommendationSummary.manualPricing}</p>
-              </div>
-            </div>
-          </div>
-
-          {attentionItems.length > 0 && (
-            <div className="bg-white border border-amber-200 rounded-xl overflow-hidden shadow-3xs mb-5">
-              <div
-                onClick={() => setShowAttentionPanel(!showAttentionPanel)}
-                className="flex items-center justify-between p-4 bg-amber-50/60 border-b border-amber-100 cursor-pointer hover:bg-amber-50 transition-colors"
-              >
-                <div className="flex items-center gap-2.5">
-                  <span className="text-base">⚠️</span>
-                  <div className="space-y-0.5">
-                    <span className="text-xs font-bold text-amber-900 uppercase tracking-wider">Items Requiring Attention</span>
-                    <p className="text-[10px] text-amber-700">
-                      {attentionItems.length} item{attentionItems.length === 1 ? "" : "s"} flagged for review - click to jump to the row below.
-                    </p>
-                  </div>
-                </div>
-                <button className="text-amber-600 hover:text-amber-800 cursor-pointer">
-                  {showAttentionPanel ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                </button>
-              </div>
-              {showAttentionPanel && (
-                <div className="max-h-80 overflow-y-auto divide-y divide-amber-50">
-                  {attentionItems.map((item) => (
-                    <div
-                      key={item.id}
-                      onClick={() => focusItem(item)}
-                      className="p-3 flex items-center justify-between gap-3 hover:bg-amber-50/40 cursor-pointer transition-colors"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <p className="text-[11px] font-semibold text-slate-800 truncate">
-                          Row {item.rowNum} - {item.originalDescription}
-                        </p>
-                        <div className="flex flex-wrap gap-1 mt-1">
-                          {item.attentionFlags?.map((flag) => (
-                            <span key={flag} className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-amber-100 text-amber-800">
-                              {flag}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                      <ChevronRight className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
           )}
 
@@ -2820,7 +2757,7 @@ export default function RecommendationsTab({
                       id="input_project_cost"
                       type="text"
                       value={modalProjectCost}
-                      onChange={(e) => setModalProjectCost(e.target.value)}
+                      onChange={(e) => { setModalProjectCost(e.target.value); setProfileFieldsTouched((t) => ({ ...t, cost: true })); }}
                       placeholder="e.g. 15000000"
                       className="w-full pl-7 pr-3 py-1.5 border border-slate-200 rounded-lg text-xs font-medium text-slate-800 focus:outline-hidden focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                     />
@@ -2840,7 +2777,7 @@ export default function RecommendationsTab({
                       id="input_project_size"
                       type="text"
                       value={modalProjectSize}
-                      onChange={(e) => setModalProjectSize(e.target.value)}
+                      onChange={(e) => { setModalProjectSize(e.target.value); setProfileFieldsTouched((t) => ({ ...t, size: true })); }}
                       placeholder="e.g. 50000"
                       className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-medium text-slate-800 focus:outline-hidden focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                     />
@@ -2856,7 +2793,7 @@ export default function RecommendationsTab({
                   <select
                     id="select_project_type"
                     value={modalProjectType}
-                    onChange={(e) => setModalProjectType(e.target.value)}
+                    onChange={(e) => { setModalProjectType(e.target.value); setProfileFieldsTouched((t) => ({ ...t, type: true })); }}
                     className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-medium text-slate-800 focus:outline-hidden focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 bg-white"
                   >
                     <option value="Commercial Office">Commercial Office</option>
@@ -2879,7 +2816,7 @@ export default function RecommendationsTab({
                     id="input_city"
                     type="text"
                     value={modalCity}
-                    onChange={(e) => setModalCity(e.target.value)}
+                    onChange={(e) => { setModalCity(e.target.value); setProfileFieldsTouched((t) => ({ ...t, city: true })); }}
                     placeholder="e.g. Gurgaon, Mumbai, Pune, Bangalore"
                     className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-medium text-slate-800 focus:outline-hidden focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                   />
@@ -2896,7 +2833,7 @@ export default function RecommendationsTab({
                   <select
                     id="select_building_grade"
                     value={modalBuildingGrade}
-                    onChange={(e) => setModalBuildingGrade(e.target.value)}
+                    onChange={(e) => { setModalBuildingGrade(e.target.value); setProfileFieldsTouched((t) => ({ ...t, grade: true })); }}
                     className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-medium text-slate-800 focus:outline-hidden focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 bg-white"
                   >
                     <option value="Grade A">Grade A (Premium Corporate / Multinational)</option>

@@ -325,3 +325,57 @@ No score, no threshold, no blending — a hard gate, evaluated once, before any 
 6. Scope of §7.0 (multi-row description assembly): is this bundled into the same Phase B change as attribute extraction, or landed first/separately as an ingestion-parser fix, given it's a different layer of the pipeline (parsing, not matching) and has its own regression risk (the existing `currentHierarchy` short-text subheading logic already reads these same "no rate" rows for a different purpose and must not be broken)?
 7. The brief cited "five" exact-arithmetic-average cases in Keppel; this pass found eight (§4.11) plus one confirmed-latent risk (§4.10). Confirm this fuller count as the basis for Phase B scoping rather than the original five.
 8. **§4.12's "custom scope-of-work" risk category**: is description length/structural-complexity a signal worth building into Phase B's matching rule (lowering confidence or forcing Manual Pricing when a bespoke multi-clause item's best candidate is only a generic/simply-worded catalog fitting), or is this adequately covered by the existing confidence/validation thresholds once §7.4's structural-identity gate is in place, without a dedicated new signal?
+
+---
+
+## 10. Addendum (2026-07-29): identity-INPUT corruption found upstream of the matcher — revises Phase B's prerequisites
+
+This addendum records findings from the deployment-readiness pass. It materially changes what Phase B must assume, so read it before scoping any implementation.
+
+### 10.1 A large share of "matching failure" was never a matching failure
+
+This ADR (and the four preceding rounds of fixes) assumed the matcher received the correct item text and chose wrongly. For real uploaded workbooks that assumption was **false**.
+
+`BOQParserEngine.detectColumnMap` resolved the description column by **leftmost header match**. Real commercial BOQs routinely carry two description-like columns — a short ALL-CAPS label and the full specification text. COWRKS is the live case (`B = "ITEM"`, `D = "DESCRIPTION"`), and the RFQ upload path extracted **column B** while `server.ts`'s historical-ingestion parser extracted **column D**. Identity was therefore compared across two entirely different strings for the same physical row.
+
+Measured consequence, via controlled before/after on the real binary (`uploads/rfq_cm14qwsvs.xlsx`) through the real upload + recommend routes:
+
+| Row | Real rate | Old parser's extracted identity | Result | After fix |
+|---|---|---|---|---|
+| C&I 351 | ₹11,550 | `"WET PANTRY CABINETRY AND COUNTER"` | collapsed | ₹11,550 (0.0%) |
+| C&I 352 | ₹33,000 | `"WET PANTRY CABINETRY AND COUNTER"` (identical) | collapsed | ₹33,000 (0.0%) |
+| C&I 64 | ₹1,100 | `"WATER PROOFING PLASTER"` | wrong match | ₹1,100 (0.0%) |
+| C&I 342 | ₹207,900 | `"TYPE 1 - LINEAR FUEL BAR"` | wrong match | ₹207,900 (0.0%) |
+| C&I 376 | ₹300,000 | `"RECEPTION TABLE"` | wrong match | ₹300,000 (0.0%) |
+
+Rows 351 and 352 are two differently-priced products whose column-B labels are **byte-identical**. That is the mechanism behind the reported COWRKS ₹80,000/₹300,000/₹3,488 incident, and specifically explains *why the same numeric output appeared on multiple unrelated items* — the question left unanswered for the earlier ₹1,354.82 instance. It is an identity-**input** defect, not an identity-**resolution** defect, and no amount of structural-attribute matching downstream could have corrected it.
+
+**Implication for Phase B**: the ADR's §7.0 ingestion prerequisite is confirmed and must be broadened. Attribute extraction cannot be specified against "the row's description text" until the pipeline agrees on *which cell that is*. Phase B should treat "both ingestion and upload resolve the same description column, by content not header order" as a hard precondition, now satisfied by `resolveDescriptionColumn`.
+
+### 10.2 The self-replay harness structurally cannot detect this class of defect
+
+`test_historical_replay.cjs` reconstructs each project's workbook from ground-truth mappings into a synthetic six-column layout with exactly **one** description column. Every structural property that causes the defects in this ADR — multi-description-column layouts, split Supply/Erection rate headers, merged group headers, continuation rows, formula-valued quantity columns — is erased by that reconstruction.
+
+It reported **90.3% within 1%** across all six projects while real uploads of the same projects were catastrophically mis-identified, and it reported that number unchanged before and after the parser fix.
+
+A second harness, `test_real_upload_replay.cjs`, was added: it uploads each project's **actual retained `.xlsx` binary** through the real routes, joins to ground truth by `(worksheetName, rowNumber)`, drives the real export route, and scans for repeated-constant fingerprints. **Phase B must be validated against this harness**; a green self-replay number is not evidence that the real upload path works.
+
+### 10.3 Four further structural defects, all invisible to self-replay
+
+Found and fixed in the same pass; each independently blocked or corrupted a whole project:
+
+1. **ExcelJS cannot index comment parts** written as `xl/comments/commentN.xml` + `xl/drawings/commentsDrawingN.vml` (it only matches `xl/commentsN.xml`). Its lookup map stays empty while the worksheet still carries a Comments relationship, so reconcile dereferences `undefined` and the **entire workbook fails to load** — DHL Chennai fell through to the legacy fixed-position parser or failed upload outright.
+2. **Blank quantity was treated as "section label"**. Keppel's `TOTAL QUANTITY` column is a formula with no cached value (real quantities live in per-floor breakdown columns), so **389 of 473 ground-truth rows (82%) were discarded**. The unit-of-measure cell is the correct discriminator: a priced BOQ line always carries one, a section label never does.
+3. **Split Supply/Erection layouts** whose quantity column is headed just `"TOTAL"` classify as an amount, leaving quantity undetected and entire sheets skipped. Disambiguated structurally: an amount column never sits to the *left* of the rate column.
+4. **A 50 MB Express body limit** rejected the real 79 MB Nuvama Hyderabad BOQ (100.3 MB base64) before any application code ran, returning an HTML error page that every client reported as `Unexpected token '<'`.
+
+Ground-truth row coverage from real binaries, before → after: **76.5% → 96.6%** (529 → 80 rows never parsed), with Keppel 17.8% → 100%, DHL 0% (total failure) → 98.0%, Nuvama 0% (total failure) → 98.4%.
+
+### 10.4 What this does *not* change
+
+The core thesis stands, and the remaining deviations are now a **cleaner** signal for it, because the identity-input noise has been removed. Measured across all six real binaries after the parser fixes, the largest surviving cluster is exactly §5.2 #4's parent-hierarchy gap:
+
+- **`mstr_ml0t3eb1f` "End terminations"** holds **22 historical rates spanning ₹120–₹2,200** in one master, with no parent context stored anywhere on `MasterBOQItem`. It produces ₹2,200 for **27 items on SKF Phoenix and 20+ on Kohler** — roughly 18% of all remaining >5% deviations across the suite, and the single largest identifiable cluster.
+- Keppel's "Pipeline" rows (§4.x, non-description attributes) and the Wet/Serving counter subtype case remain live and unfixed.
+
+**Phase B remains necessary and is not implemented.** Its highest-value first increment, on this evidence, is parent-hierarchy-aware identity (§5.2 #4 / Phase B item 5) rather than the shape/subtype vocabulary — note this requires a **master-catalog re-ingestion**, since `MasterBOQItem` currently persists no parent/context field at all and existing masters have already fused the distinction away.

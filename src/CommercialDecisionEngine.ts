@@ -19,7 +19,8 @@ import { RFQItem, CommercialDecision, ApprovalStatus, DecisionReasonCode } from 
 import {
   CONFIDENCE_APPROVAL_THRESHOLD,
   MIN_SELECTED_MATCH_SCORE_FOR_AUTO_RATE,
-  MIN_PROJECT_SIMILARITY_FOR_AUTO_RATE
+  MIN_PROJECT_SIMILARITY_FOR_AUTO_RATE,
+  MIN_ENGINEERING_ADJUSTMENT_CONFIDENCE_FOR_AUTO_RATE
 } from "./decisionConstants.js";
 
 export interface ApprovalMetrics {
@@ -197,6 +198,29 @@ export class CommercialDecisionEngine {
       };
     }
 
+    // Engineering-adjustment confidence floor (2026-07-29): when EngineeringAdjustmentEngine's own
+    // interpolation/extrapolation is what the final rate actually rests on - true whenever it
+    // `applied`, since ProjectCalibrationEngine.runProjectCalibration explicitly skips (never
+    // overwrites) any item with `engineeringAdjustment.applied`, regardless of whether
+    // marketRateStatistics also happens to exist for it - that adjustment's OWN reported confidence
+    // must clear a floor too, the same way a statistical match must clear
+    // MIN_SELECTED_MATCH_SCORE_FOR_AUTO_RATE below. Previously nothing checked this: a confidence-30
+    // extrapolation (heavy extrapolation, thin reference set) was treated as fully sufficient just
+    // because `applied === true`.
+    if (
+      item.engineeringAdjustment?.applied &&
+      item.engineeringAdjustment.confidence < MIN_ENGINEERING_ADJUSTMENT_CONFIDENCE_FOR_AUTO_RATE
+    ) {
+      return {
+        sufficient: false,
+        reasonCode: "NO_EVIDENCE",
+        summary:
+          `Engineering dimensional adjustment confidence (${item.engineeringAdjustment.confidence}%) falls below ` +
+          `the minimum ${MIN_ENGINEERING_ADJUSTMENT_CONFIDENCE_FOR_AUTO_RATE}% required to auto-price from a ` +
+          `size/dimension interpolation alone - manual pricing required.`
+      };
+    }
+
     const rateStillBackedByUntouchedExactMatch =
       !!item.matchedMasterId && !item.calibrationApplied && !item.matchTier;
     const selectedEvidence = stats?.historicalEvidence?.find((e) => e.selected);
@@ -312,7 +336,20 @@ export class CommercialDecisionEngine {
     // needed downstream.
     // Also covers the Part 2 confidence-floor case (evidence exists but is too weak to trust) -
     // see evaluateEvidenceSufficiency's own comment.
-    if (!CommercialDecisionEngine.evaluateEvidenceSufficiency(item).sufficient) item.recommendedRate = 0;
+    // Gap F (2026-07-29): item.installationRate is computed earlier in the pipeline
+    // (InstallationRateEngine.computeInstallationRate, server.ts) directly from whatever
+    // item.recommendedRate held AT THAT TIME - a flat per-domain baseline percentage applied
+    // unconditionally, never itself gated by this engine. When the supply rate is cleared below
+    // for insufficient evidence, the installation rate derived from it is now stale (a confident-
+    // looking non-zero number for an item that has otherwise been correctly flagged Manual
+    // Pricing) and must be cleared alongside it - previously only the export route re-gated this
+    // specific field at write time, leaving the live item/API JSON showing a number nothing backs.
+    if (!CommercialDecisionEngine.evaluateEvidenceSufficiency(item).sufficient) {
+      item.recommendedRate = 0;
+      item.installationRate = undefined;
+      item.installationPercentage = undefined;
+      item.installationSource = undefined;
+    }
 
     CommercialDecisionEngine.reconcileRecommendationTrace(item);
     const decision = CommercialDecisionEngine.deriveApprovalDecision(item);

@@ -293,7 +293,7 @@ export default function UploadRFQTab({ onNavigateToRecommendations, loadTrigger,
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-fade-in">
       {/* Upload unrated RFQ (1/3 columns width) */}
-      <div className="lg:col-span-1 p-6 bg-white border border-slate-100 rounded-xl space-y-5 shadow-xs">
+      <div data-tour="rfq-upload" className="lg:col-span-1 p-6 bg-white border border-slate-100 rounded-xl space-y-5 shadow-xs">
         <div className="space-y-1">
           <h2 className="text-base font-semibold text-slate-800 flex items-center gap-2">
             <Upload className="w-4 h-4 text-indigo-500" /> New Estimating Draft

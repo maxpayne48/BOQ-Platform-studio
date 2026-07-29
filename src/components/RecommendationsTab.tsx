@@ -40,6 +40,7 @@ import ExcelJS from "exceljs";
 import * as XLSX from "xlsx";
 import { RFQItem, MasterBOQItem, ValidationReport, ValidationDifference } from "../types.js";
 import { CONFIDENCE_APPROVAL_THRESHOLD } from "../decisionConstants.js";
+import { useTourAction } from "../tour/TourContext.tsx";
 
 interface RecommendationsTabProps {
   rfqId: string;
@@ -415,6 +416,25 @@ export default function RecommendationsTab({
     setProfileFormError("");
     setShowProfileModal(true);
   };
+
+  // Guided-walkthrough hooks. These let a tour step put the real modal/drawer it is
+  // describing on screen - the same ones the user would open by hand - and close it again
+  // when the step is left, so the screen is returned exactly as it was. Purely view state:
+  // nothing here submits a profile, runs a recommendation, or touches any rate.
+  useTourAction("open-profile-modal", () => {
+    setSelectedItemId(null);
+    openProfileModal();
+  });
+  useTourAction("close-profile-modal", () => setShowProfileModal(false));
+  useTourAction("open-first-item", () => {
+    setShowProfileModal(false);
+    const firstItem = items[0];
+    if (firstItem) {
+      setSelectedItemId(firstItem.id);
+      setActiveDrawerTab("auditor");
+    }
+  });
+  useTourAction("close-item-drawer", () => setSelectedItemId(null));
 
   const runEstimationEngine = (profile: {
     projectCost?: number;
@@ -993,6 +1013,7 @@ export default function RecommendationsTab({
 
           <button
             id="btn_export_rfq_rates"
+            data-tour="export-button"
             disabled={isExporting}
             onClick={handleExportWorkbook}
             className={`px-3 py-2 rounded-lg font-semibold text-xs border border-slate-700 shadow-xs transition-colors inline-flex items-center gap-1.5 cursor-pointer ${
@@ -1419,7 +1440,7 @@ export default function RecommendationsTab({
                   Approval Accuracy: {rfqDetails.recommendationAuditReport.approvalAccuracy.toFixed(1)}%
                 </span>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 text-center">
+              <div data-tour="summary-bar" className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 text-center">
                 <div className="p-3 bg-white rounded-xl border border-purple-100/60 shadow-3xs">
                   <div className="text-[10px] text-purple-600 font-bold uppercase tracking-wider">Total Rows</div>
                   <div className="text-base font-black text-purple-950 mt-1">{rfqDetails.recommendationAuditReport.totalRows}</div>
@@ -1843,7 +1864,7 @@ export default function RecommendationsTab({
               </div>
 
               {/* Tabs list */}
-              <div className="flex border-b border-slate-100 bg-slate-50/50 px-6 text-[11px] font-semibold text-slate-500">
+              <div data-tour="drawer-tabs" className="flex border-b border-slate-100 bg-slate-50/50 px-6 text-[11px] font-semibold text-slate-500">
                 <button
                   onClick={() => setActiveDrawerTab("auditor")}
                   className={`py-3 border-b-2 px-4 transition-all -mb-[2px] font-bold inline-flex items-center gap-1.5 cursor-pointer ${
@@ -2715,7 +2736,7 @@ export default function RecommendationsTab({
           height of this component's own content (e.g. a long items table). */}
       {showProfileModal && createPortal(
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-2xl max-w-md w-full flex flex-col max-h-[90vh] overflow-hidden animate-zoom-in">
+          <div data-tour="project-profile" className="bg-white rounded-2xl border border-slate-100 shadow-2xl max-w-md w-full flex flex-col max-h-[90vh] overflow-hidden animate-zoom-in">
             {/* Modal Header */}
             <div className="flex items-center justify-between p-5 border-b border-slate-100 bg-slate-50/50">
               <div className="flex items-center gap-2.5">

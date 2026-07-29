@@ -19,6 +19,11 @@ export interface ColumnMap {
   rate: number | null;
   amount: number | null;
   itemNo: number | null;
+  // Every column whose header text classified as description-like, in column order. Real BOQs
+  // frequently carry TWO such columns (e.g. COWRKS: B="ITEM" short label, D="DESCRIPTION" full
+  // spec text) - the leftmost is not reliably the real one, so the parser disambiguates by body
+  // content (see resolveDescriptionColumn) instead of trusting header order.
+  descriptionCandidates?: number[];
 }
 
 export interface ExtractedRow {
@@ -148,14 +153,68 @@ function classifyHeaderCell(rawText: string): ColumnCategory {
 
 function detectColumnMap(cellTexts: string[]): ColumnMap {
   const map: ColumnMap = { description: null, quantity: null, unit: null, rate: null, amount: null, itemNo: null };
+  const descriptionCandidates: number[] = [];
   for (let col = 1; col < cellTexts.length; col++) {
     const category = classifyHeaderCell(cellTexts[col] || "");
     if (!category) continue;
+    if (category === "description") descriptionCandidates.push(col);
     // First match wins per category (leftmost column of that kind), so a repeated/merged label
     // spanning several columns doesn't overwrite an already-found column.
     if (map[category] === null) map[category] = col;
   }
+  map.descriptionCandidates = descriptionCandidates;
+
+  // Split-rate BOQ convention (found live on COWRKS's FAS sheet, general to any Supply/Erection
+  // split layout): the quantity column is headed just "TOTAL" (total quantity), with the split
+  // SUPPLY/ERECTION/TOTAL sub-headers living one row below under "UNIT RATE"/"TOTAL AMOUNT"
+  // group headers. "TOTAL" classifies as an amount keyword, leaving quantity undetected and the
+  // whole sheet skipped. Structural disambiguation, no sheet/domain names involved: a genuine
+  // amount column NEVER sits to the LEFT of the rate column (amount = qty x rate, always after) -
+  // so an "amount" match left of the detected rate column is really the quantity column. A
+  // replacement amount column, if any, is re-scanned strictly to the right of the rate column.
+  if (map.quantity === null && map.rate !== null && map.amount !== null && map.amount < map.rate) {
+    map.quantity = map.amount;
+    map.amount = null;
+    for (let col = map.rate + 1; col < cellTexts.length; col++) {
+      if (classifyHeaderCell(cellTexts[col] || "") === "amount") {
+        map.amount = col;
+        break;
+      }
+    }
+  }
   return map;
+}
+
+// Content-based disambiguation between multiple description-like header columns (e.g. COWRKS
+// C&I: B="ITEM" carries a short ALL-CAPS label, D="DESCRIPTION" carries the actual specification
+// text; historical ingestion reads D, so an RFQ parse reading B breaks item identity matching
+// catalog-wide). Header text alone cannot break the tie - the BODY content can: the real
+// description column has, by far, the longest average text across the section's data rows.
+function resolveDescriptionColumn(
+  candidates: number[],
+  bodyRows: string[][],
+  sampleLimit: number
+): number | null {
+  if (candidates.length === 0) return null;
+  if (candidates.length === 1) return candidates[0];
+  let bestCol = candidates[0];
+  let bestAvg = -1;
+  for (const col of candidates) {
+    let total = 0;
+    let counted = 0;
+    for (let i = 0; i < bodyRows.length && counted < sampleLimit; i++) {
+      const text = (bodyRows[i][col] || "").trim();
+      if (!text) continue;
+      total += text.length;
+      counted++;
+    }
+    const avg = counted > 0 ? total / counted : 0;
+    if (avg > bestAvg) {
+      bestAvg = avg;
+      bestCol = col;
+    }
+  }
+  return bestCol;
 }
 
 // A row only counts as a genuine BOQ section header if it has BOTH a description-like column and
@@ -213,31 +272,50 @@ function parseWorksheet(worksheet: ExcelJS.Worksheet): { items: ExtractedRow[]; 
   // value, which is both correct and safe regardless of a workbook's declared used-range size.
   const MAX_COLUMNS_PER_ROW = 60; // generous ceiling for any realistic BOQ column layout
 
+  // Two-pass parse. Pass 1 collects every non-blank row's cell texts; pass 2 does the actual
+  // header/section detection and item extraction. The second pass needs the FULL row list up
+  // front because a section's description column can only be resolved by looking at the body
+  // rows BELOW its header (see resolveDescriptionColumn) - a single streaming pass would have to
+  // commit to a description column before seeing any of the evidence needed to pick it.
+  const collectedRows: { rowNum: number; cellTexts: string[] }[] = [];
   worksheet.eachRow({ includeEmpty: false }, (row, rowNum) => {
     const lastCol = Math.min(row.cellCount || 0, MAX_COLUMNS_PER_ROW);
     const cellTexts: string[] = [""];
     for (let col = 1; col <= lastCol; col++) {
       cellTexts[col] = getCellText(row.getCell(col).value);
     }
-
     const isRowBlank = cellTexts.every((t) => !t || !t.trim());
     if (isRowBlank) return; // blank separator rows are expected, never an error
+    collectedRows.push({ rowNum, cellTexts });
+  });
 
+  const DESCRIPTION_SAMPLE_ROWS = 40;
+
+  for (let rowIdx = 0; rowIdx < collectedRows.length; rowIdx++) {
+    const { rowNum, cellTexts } = collectedRows[rowIdx];
     log.rowsScanned++;
 
     // Always check for a NEW section header, even mid-sheet - supports multiple BOQ sections
     // and multiple header rows within one worksheet.
     const candidateMap = detectColumnMap(cellTexts);
     if (isValidHeaderCandidate(candidateMap)) {
+      // Resolve which description-like column is the REAL description by body content of the
+      // rows below this header (up to the sample limit) - never by header order alone.
+      const bodyBelow = collectedRows.slice(rowIdx + 1, rowIdx + 1 + DESCRIPTION_SAMPLE_ROWS * 2).map((r) => r.cellTexts);
+      candidateMap.description = resolveDescriptionColumn(
+        candidateMap.descriptionCandidates || [],
+        bodyBelow,
+        DESCRIPTION_SAMPLE_ROWS
+      ) ?? candidateMap.description;
       currentColumnMap = candidateMap;
       log.sectionsDetected++;
       log.headerRows.push(rowNum);
       log.detectedColumns.push(candidateMap);
       currentHierarchy = [];
-      return;
+      continue;
     }
 
-    if (!currentColumnMap) return; // pre-header content (titles, metadata) - skip silently
+    if (!currentColumnMap) continue; // pre-header content (titles, metadata) - skip silently
 
     const desc = currentColumnMap.description !== null ? (cellTexts[currentColumnMap.description] || "").trim() : "";
     const qtyRaw = currentColumnMap.quantity !== null ? cellTexts[currentColumnMap.quantity] || "" : "";
@@ -247,28 +325,48 @@ function parseWorksheet(worksheet: ExcelJS.Worksheet): { items: ExtractedRow[]; 
     if (!desc) {
       log.rowsSkipped++;
       bump(log.skippedReasons, "Missing description");
-      return;
+      continue;
     }
 
     if (isTotalOrSummaryRow(desc)) {
       log.rowsSkipped++;
       bump(log.skippedReasons, "Total/summary row");
-      return;
+      continue;
     }
 
-    const qty = parseQuantity(qtyRaw);
+    let qty = parseQuantity(qtyRaw);
     if (qty === null) {
-      // No usable quantity - treat as a hierarchy/section label (e.g. "1.2 Flooring Works"),
-      // exactly like the previous implementation's grouping behavior, not an error.
-      if (itemNo && /^\d+(\.\d+)*$/.test(itemNo)) {
-        const depth = itemNo.split(".").length;
-        currentHierarchy = currentHierarchy.slice(0, depth - 1);
-        currentHierarchy.push(desc);
-      } else if (desc.length < 100) {
-        currentHierarchy.push(desc);
-        if (currentHierarchy.length > 3) currentHierarchy.shift();
+      // A blank quantity does NOT by itself mean "section label". Two real, common BOQ layouts
+      // produce a genuine priced line item with an unreadable quantity cell:
+      //   - the quantity column is a formula (e.g. TOTAL QUANTITY = SUM of per-floor breakdown
+      //     columns) whose cached result the writing tool never stored, so it reads as empty;
+      //   - the sheet quotes a rate card where quantity is deliberately left blank.
+      // Keppel's BOQ sheets are the live case: every priced row has a description, a unit and a
+      // rate, but its TOTAL QUANTITY formula has no cached value - reclassifying all of them as
+      // hierarchy labels discarded 389 of 473 ground-truth rows (82%) from that project.
+      // A true section label ("1.2 Flooring Works") has a description and nothing else, so the
+      // presence of a unit AND a numeric rate/amount on the same row is what separates the two.
+      // Quantity is not an input to rate recommendation, so admitting these at quantity 0 (the
+      // same value already used for legitimately zero-quantity rate-card rows elsewhere) recovers
+      // the item without inventing data.
+      // The unit-of-measure cell is the discriminator: a priced/priceable BOQ line always carries
+      // one ("Sqmt", "Nos.", "Rmt"), while a section label ("DEMOLITION & PROTECTION WORKS",
+      // "1.2 Flooring Works") never does. Deliberately NOT also requiring a rate/amount on the row -
+      // an RFQ awaiting pricing has empty rate cells by definition, which is exactly the population
+      // this parser exists to extract.
+      if (!unit) {
+        // Genuine hierarchy/section label - same grouping behavior as before.
+        if (itemNo && /^\d+(\.\d+)*$/.test(itemNo)) {
+          const depth = itemNo.split(".").length;
+          currentHierarchy = currentHierarchy.slice(0, depth - 1);
+          currentHierarchy.push(desc);
+        } else if (desc.length < 100) {
+          currentHierarchy.push(desc);
+          if (currentHierarchy.length > 3) currentHierarchy.shift();
+        }
+        continue;
       }
-      return;
+      qty = 0;
     }
 
     items.push({
@@ -281,7 +379,7 @@ function parseWorksheet(worksheet: ExcelJS.Worksheet): { items: ExtractedRow[]; 
       parentHierarchy: [...currentHierarchy]
     });
     log.rowsParsed++;
-  });
+  }
 
   if (log.sectionsDetected === 0) {
     log.status = "Skipped";
@@ -329,6 +427,78 @@ export interface WorkbookValidationResult {
   definedNamesRemoved?: number;
 }
 
+// Some third-party tools (Google Sheets export, LibreOffice, various xlsx writer libraries) emit
+// xl/drawings/drawingN.xml with every element bound to the default (unprefixed) namespace instead
+// of the "xdr:" prefix real Excel always writes. ExcelJS's drawing parser matches tag names
+// literally ("xdr:wsDr", "xdr:oneCellAnchor", ...) rather than resolving XML namespaces, so it
+// silently fails to populate the drawing model on these files and later crashes trying to read
+// `.anchors` off `undefined` (during ExcelJS's own workbook reconcile step). Rewriting bare tag
+// names to carry the "xdr:" prefix is a no-op for normal, already-prefixed files - Excel itself
+// opens files in either style identically - and fixes the crash for this entire class of workbook.
+function normalizeDrawingXmlNamespace(xml: string): string {
+  if (!/<wsDr[\s>]/.test(xml)) {
+    return xml;
+  }
+  return xml.replace(/<(\/?)([A-Za-z][A-Za-z0-9]*)(?=[\s/>])/g, (_match, slash, tagName) => `<${slash}xdr:${tagName}`);
+}
+
+// Cell comments (and their VML anchor drawings) are pure annotation metadata - nothing in BOQ item
+// extraction, blueprint generation, or rate injection reads them. ExcelJS, however, only indexes
+// comment parts written at the exact paths IT emits: `xl/commentsN.xml` (keyed `../commentsN.xml`)
+// and `xl/drawings/vmlDrawingN.vml`. The equally-legal layout other writers produce -
+// `xl/comments/commentN.xml` + `xl/drawings/commentsDrawingN.vml`, seen live on the DHL Chennai
+// workbook - never matches those regexes, so the lookup maps stay EMPTY while the worksheet still
+// carries a Comments relationship. ExcelJS then dereferences `options.comments[rel.Target].comments`
+// on `undefined` and the ENTIRE workbook fails to load, silently dropping the file to the legacy
+// fixed-position fallback parser (or failing upload outright). Dropping just these two relationship
+// types is the minimal repair: the comment parts themselves stay in the zip untouched, and because
+// this normalization is applied ONLY to the bytes handed to ExcelJS - never to the bytes saved to
+// uploads/ or patched at export time - the user's exported workbook keeps every comment intact.
+function stripUnindexableCommentRels(xml: string): string {
+  return xml.replace(
+    /<Relationship\b[^>]*\bType="[^"]*\/(?:comments|vmlDrawing)"[^>]*\/>/g,
+    ""
+  );
+}
+
+// Applies both ExcelJS-compatibility workarounds above across the workbook zip. Returns the
+// original buffer unchanged if nothing needed fixing, so callers can cheaply detect "was this
+// rewritten". EXCELJS-FACING ONLY - never persist or export the result (see the comment note above).
+export async function normalizeWorkbookForExcelJs(fileBuf: Buffer): Promise<Buffer> {
+  let zip: JSZip;
+  try {
+    zip = await JSZip.loadAsync(fileBuf);
+  } catch {
+    return fileBuf;
+  }
+
+  let changed = false;
+  for (const filePath of Object.keys(zip.files)) {
+    let original: string | null = null;
+    let fixed: string | null = null;
+
+    if (/^xl\/drawings\/drawing\d+\.xml$/.test(filePath)) {
+      original = await zip.file(filePath)!.async("string");
+      fixed = normalizeDrawingXmlNamespace(original);
+    } else if (/^xl\/worksheets\/_rels\/[^/]+\.rels$/.test(filePath)) {
+      original = await zip.file(filePath)!.async("string");
+      fixed = stripUnindexableCommentRels(original);
+    }
+
+    if (original !== null && fixed !== null && fixed !== original) {
+      zip.file(filePath, fixed);
+      changed = true;
+    }
+  }
+
+  return changed ? await zip.generateAsync({ type: "nodebuffer" }) : fileBuf;
+}
+
+// Note: this function deliberately does NOT apply normalizeWorkbookForExcelJs. Its `cleanedBuffer`
+// is what callers PERSIST to uploads/ and later patch at export time, so it must stay a faithful
+// copy of the user's workbook apart from the genuine defined-names repair below. The ExcelJS-only
+// compatibility workarounds are applied separately, at each point where bytes are handed to
+// ExcelJS, and never persisted.
 export async function validateAndSanitizeWorkbook(fileBuf: Buffer): Promise<WorkbookValidationResult> {
   let zip: JSZip;
   try {

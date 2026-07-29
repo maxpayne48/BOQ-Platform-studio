@@ -37,7 +37,7 @@ import { ProjectCalibrationEngine, MarketRateStatistics } from "./src/ProjectCal
 import { HistoricalRetrievalEngine } from "./src/HistoricalRetrievalEngine.js";
 import { ProgressiveMatchingEngine } from "./src/ProgressiveMatchingEngine.js";
 import { LearningEngine } from "./src/LearningEngine.js";
-import { parseWorkbookForUpload, validateAndSanitizeWorkbook, UploadLog as BOQUploadLog } from "./src/BOQParserEngine.js";
+import { parseWorkbookForUpload, validateAndSanitizeWorkbook, normalizeWorkbookForExcelJs, UploadLog as BOQUploadLog } from "./src/BOQParserEngine.js";
 import { CommercialDecisionEngine } from "./src/CommercialDecisionEngine.js";
 import {
   CONFIDENCE_APPROVAL_THRESHOLD,
@@ -115,9 +115,29 @@ try {
 const app = express();
 const PORT = 3000;
 
-// Increase JSON body limits for base64 Excel uploads
-app.use(express.json({ limit: "50mb" }));
-app.use(express.urlencoded({ limit: "50mb", extended: true }));
+// Increase JSON body limits for base64 Excel uploads. Base64 inflates a binary by ~33%, so the
+// limit must be sized against the ENCODED payload, not the file on disk: the real 79 MB Nuvama
+// Hyderabad BOQ encodes to 100.3 MB and was silently rejected by the previous 50 MB limit - the
+// upload never reached any application code, so the client received Express's default HTML error
+// page instead of JSON and the whole project was untestable/unusable end to end.
+const MAX_UPLOAD_PAYLOAD = "250mb";
+app.use(express.json({ limit: MAX_UPLOAD_PAYLOAD }));
+app.use(express.urlencoded({ limit: MAX_UPLOAD_PAYLOAD, extended: true }));
+
+// Body-parser rejections (payload too large, malformed JSON) otherwise fall through to Express's
+// default HTML error page, which every client here parses as JSON and reports as an unhelpful
+// "Unexpected token '<'". Surface them as real JSON with an actionable message instead.
+app.use((err: any, _req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (err?.type === "entity.too.large") {
+    return res.status(413).json({
+      error: `This workbook is too large to upload (limit ${MAX_UPLOAD_PAYLOAD} after base64 encoding, which is roughly a ${parseInt(MAX_UPLOAD_PAYLOAD, 10) * 0.75}MB file).`
+    });
+  }
+  if (err instanceof SyntaxError && "body" in err) {
+    return res.status(400).json({ error: "The request body could not be parsed as valid JSON." });
+  }
+  return next(err);
+});
 
 // Database storage files (Local JSON DB)
 const HISTORICAL_DB_PATH = path.join(process.cwd(), "historical_boqs_store.json");
@@ -3568,6 +3588,21 @@ function validatePairedInstallationRates(
     const isPairedSheet = !!sheetBlue?.installationRateCellColumn;
     if (!isPairedSheet) continue; // Rule 3: single Rate column sheets are exempt entirely
 
+    // A Manual Pricing item is DELIBERATELY unpriced on both sides - CommercialDecisionEngine
+    // .finalizeItemDecision clears recommendedRate to 0 and installationRate to undefined
+    // together, precisely so nothing downstream presents a number no evidence backs. That is the
+    // "both genuinely empty" case this validator already treats as correctly paired, but it could
+    // not recognize it: isFiniteRate accepts 0 (>= 0), so the cleared supply rate read as
+    // "populated" while the cleared installation rate read as "empty", manufacturing a violation
+    // out of a deliberately-consistent state and hard-blocking the ENTIRE export (422) for any
+    // workbook containing even one Manual Pricing row on a split Supply/Installation sheet.
+    // Skipping them here keeps the pair rule meaning what it says - it governs items the engine
+    // actually priced, not items it explicitly declined to price.
+    if (item.approvalStatus === "Manual Pricing" && !item.isOverridden) {
+      console.log(`[Installation Rate Validation] Row ${item.rowNum} ("${item.sheetName}") SKIPPED - Manual Pricing (supply and installation both intentionally cleared).`);
+      continue;
+    }
+
     const supplyOk = isFiniteRate(item.overriddenRate) || isFiniteRate(item.recommendedRate);
     const installOk = isFiniteRate(item.installationRate);
 
@@ -3674,6 +3709,15 @@ function generateInstallationDebugReport(items: RFQItem[], blueprint: WorkbookBl
 
     sheetItems.forEach((item) => {
       if (item.matchedMasterId) matchedItems++;
+
+      // Same Manual-Pricing carve-out as validatePairedInstallationRates above (see its comment):
+      // a deliberately-unpriced row is not a "skipped because something went wrong" row, so it
+      // must not be counted as one in this debug report either.
+      if (item.approvalStatus === "Manual Pricing" && !item.isOverridden) {
+        rowsSkipped++;
+        skippedReasons["Manual Pricing (intentionally unpriced)"] = (skippedReasons["Manual Pricing (intentionally unpriced)"] || 0) + 1;
+        return;
+      }
 
       const supplyOk = isFiniteRate(item.overriddenRate) || isFiniteRate(item.recommendedRate);
       const installOk = isFiniteRate(item.installationRate);
@@ -3902,7 +3946,13 @@ app.post("/api/rfqs", async (req, res) => {
   if (workbookBytesToUse) {
     try {
       wb = new ExcelJS.Workbook();
-      await wb.xlsx.load(workbookBytesToUse);
+      // ExcelJS-only compatibility pass (comment/VML parts it cannot index, unprefixed drawing
+      // namespaces) - applied to the bytes fed to ExcelJS ONLY, never to workbookBytesToUse, which
+      // is what gets persisted to uploads/ and later patched at export time. Without this, a
+      // workbook using the equally-legal xl/comments/commentN.xml layout (DHL Chennai) throws
+      // during ExcelJS's reconcile step and silently falls through to the legacy fixed-position
+      // parser below.
+      await wb.xlsx.load(await normalizeWorkbookForExcelJs(workbookBytesToUse));
 
       const parseResult = parseWorkbookForUpload(wb);
       uploadLog = parseResult.uploadLog;
@@ -4098,10 +4148,12 @@ app.post("/api/rfqs", async (req, res) => {
       if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true });
       }
+      // The PERSISTED copy stays byte-faithful (only the defined-names repair, if any) - export
+      // patches this file's raw XML, so ExcelJS-only workarounds must never be baked into it.
       fs.writeFileSync(path.join(dir, `${rfqId}.xlsx`), workbookBytesToUse);
 
       const wb = new ExcelJS.Workbook();
-      await wb.xlsx.load(workbookBytesToUse);
+      await wb.xlsx.load(await normalizeWorkbookForExcelJs(workbookBytesToUse));
       blueprint = generateWorkbookBlueprint(wb, rfqId, fileName, parsedItems);
       
       // Perform AI enrichment on the generated workbook blueprint
@@ -5568,8 +5620,15 @@ async function getSheetXmlPaths(zip: JSZip): Promise<Record<string, string>> {
   Object.entries(sheetMap).forEach(([name, rId]) => {
     const target = relsMap[rId];
     if (target) {
-      const cleanTarget = target.startsWith("/") ? target.slice(1) : target;
-      paths[name] = `xl/${cleanTarget}`;
+      // A Target starting with "/" is package-root-relative per the OPC spec (already the full
+      // in-zip path, e.g. openpyxl writes "/xl/worksheets/sheet1.xml") - use it as-is, just
+      // stripping the leading slash. Only a target WITHOUT a leading slash is relative to this
+      // rels file's own folder (xl/_rels/ -> xl/), which is what needs the "xl/" prefix added -
+      // that's Excel's own normal convention (e.g. "worksheets/sheet1.xml"). Treating both forms
+      // the same way (always prepending "xl/") silently produced "xl/xl/worksheets/..." paths
+      // that don't exist in the zip for every openpyxl-saved workbook, so every sheet lookup
+      // failed and the export silently wrote zero cells while still reporting success.
+      paths[name] = target.startsWith("/") ? target.slice(1) : `xl/${target}`;
     }
   });
 
@@ -5628,9 +5687,15 @@ function updateCellInXml(xml: string, cellRef: string, newValue: number | string
     }
 
     // Remove any existing type attribute - we set our own below based on whether newValue is
-    // numeric or text. Only strip/replace the existing style (`s=`) attribute when a new one was
-    // actually requested - otherwise leave the cell's original formatting completely alone.
-    let cleanAttrs = attrs.replace(/\bt=['"](?:s|str|inlineStr)['"]\s*/g, "").trim();
+    // numeric or text. Must strip ANY t="..." value, not just the shared-string/formula-string/
+    // inlineStr trio: some non-Excel writers (openpyxl, notably) explicitly emit t="n" on plain
+    // numeric cells (Excel itself normally omits t entirely for numbers). Only stripping the
+    // three known values left an untouched t="n" in place, and appending our own t="inlineStr"
+    // for a text write produced a tag with two t= attributes - invalid XML that crashes strict
+    // parsers (and risks Excel's own "repair file" prompt). Only strip/replace the existing style
+    // (`s=`) attribute when a new one was actually requested - otherwise leave the cell's original
+    // formatting completely alone.
+    let cleanAttrs = attrs.replace(/\bt=['"][^'"]*['"]\s*/g, "").trim();
     if (styleIndex !== undefined) cleanAttrs = cleanAttrs.replace(/\bs=['"][^'"]*['"]\s*/g, "").trim();
     const replacement = `<c ${cleanAttrs}${typeAttr}${styleAttr}>${valueTagXml}</c>`;
 
@@ -5659,8 +5724,9 @@ function updateCellInXml(xml: string, cellRef: string, newValue: number | string
     }
 
     // Remove any existing type attribute - we set our own below based on whether newValue is
-    // numeric or text. Same styleIndex-gated `s=` handling as the self-closing branch above.
-    let cleanAttrs = attrs.replace(/\bt=['"](?:s|str|inlineStr)['"]\s*/g, "").trim();
+    // numeric or text (see the self-closing branch above for why this must match ANY t="..."
+    // value, not just s/str/inlineStr). Same styleIndex-gated `s=` handling as that branch.
+    let cleanAttrs = attrs.replace(/\bt=['"][^'"]*['"]\s*/g, "").trim();
     if (styleIndex !== undefined) cleanAttrs = cleanAttrs.replace(/\bs=['"][^'"]*['"]\s*/g, "").trim();
     const newOpenTag = `<c ${cleanAttrs}${typeAttr}${styleAttr}>`;
 
@@ -5673,11 +5739,45 @@ function updateCellInXml(xml: string, cellRef: string, newValue: number | string
     }
 
     const replacement = `${newOpenTag}${innerContent}</c>`;
-    
+
     console.log(`Modified XML Cell: ${matchedCellId}`);
     return xml.replace(fullMatchStr, replacement);
   }
-  
+
+  // 3. Neither a self-closing nor a full <c> element exists for this ref at all - most commonly a
+  // deliberately-synthesized "past every real column" cell (see the Manual Pricing flag fallback
+  // below), on a row that has no prior content there. Previously this silently no-op'd, which is
+  // exactly how a Remarks-column flag write could vanish with zero signal that it had. Insert a
+  // brand-new cell into the row instead - safe here because every caller of this fallback
+  // deliberately picks a column past all known Rate/Amount/Total/Remarks columns, so there is
+  // nothing else in that cell to clobber.
+  const newCellXml = `<c r="${cellRef}"${typeAttr}${styleAttr}>${valueTagXml}</c>`;
+  return insertCellIntoRow(xml, cellRef, newCellXml);
+}
+
+// Supports updateCellInXml's fallback above: inserts a brand-new <c> into an existing <row>
+// element that doesn't yet have a cell at this ref, rather than silently doing nothing.
+function insertCellIntoRow(xml: string, cellRef: string, cellXml: string): string {
+  const rowNumMatch = cellRef.match(/(\d+)$/);
+  if (!rowNumMatch) return xml;
+  const rowNum = rowNumMatch[1];
+
+  // Self-closing row (no cells at all yet, e.g. <row r="64"/>) - expand into an open/close pair
+  // containing just the new cell.
+  const selfClosingRowRegex = new RegExp("<row\\s+([^>]*?\\br=['\"]" + rowNum + "['\"][^>]*?)\\/>", "i");
+  const selfClosingRowMatch = xml.match(selfClosingRowRegex);
+  if (selfClosingRowMatch) {
+    return xml.replace(selfClosingRowMatch[0], `<row ${selfClosingRowMatch[1]}>${cellXml}</row>`);
+  }
+
+  // Full row with existing cells - append the new cell just before the row's own closing tag.
+  const fullRowRegex = new RegExp("(<row\\s+[^>]*?\\br=['\"]" + rowNum + "['\"][^>]*?>)([\\s\\S]*?)(<\\/row>)", "i");
+  const fullRowMatch = xml.match(fullRowRegex);
+  if (fullRowMatch) {
+    return xml.replace(fullRowMatch[0], `${fullRowMatch[1]}${fullRowMatch[2]}${cellXml}${fullRowMatch[3]}`);
+  }
+
+  // The row itself doesn't exist in this sheet's XML at all - nothing safe to insert into.
   return xml;
 }
 
@@ -5751,9 +5851,16 @@ app.post("/api/rfqs/:id/export", async (req, res) => {
     const startLoad = Date.now();
     const originalBuffer = fs.readFileSync(filePath);
 
+    // Files uploaded before drawing-namespace normalization was added to the upload pipeline (or
+    // any file that otherwise bypassed it) can still have xl/drawings/*.xml in the unprefixed form
+    // that crashes ExcelJS's drawing parser (reads `.anchors` off `undefined`). Only the bytes fed
+    // to ExcelJS need the fix here - the actual exported file is built below by patching
+    // `originalBuffer`'s raw XML directly and must stay byte-for-byte untouched otherwise.
+    const workbookBytesForExcelJs = await normalizeWorkbookForExcelJs(originalBuffer);
+
     // Load original workbook with ExcelJS for read-only metadata / blueprint generation
     const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(originalBuffer);
+    await workbook.xlsx.load(workbookBytesForExcelJs);
     const loadMs = Date.now() - startLoad;
 
     const startInjection = Date.now();
@@ -5924,12 +6031,30 @@ app.post("/api/rfqs/:id/export", async (req, res) => {
           exportIntegrityCounters.amountCellsWritten++;
         }
 
-        // 3. Manual Pricing flag placement (Follow-up Fix 7): write the human-readable flag into
-        // the Remarks column, if this sheet has one - a Remarks cell is never referenced by a
-        // numeric Rate/Amount formula, so plain text here is always safe.
-        if (isManualPricing && sheetBlue.remarksColumn) {
-          const remarksCellRef = getCellRef(item.rowNum, sheetBlue.remarksColumn);
-          xml = updateCellInXml(xml, remarksCellRef, MANUAL_PRICING_EXPORT_FLAG);
+        // 3. Manual Pricing flag placement (Follow-up Fix 7, extended 2026-07-29): write the
+        // human-readable flag into the Remarks column when this sheet has one - a Remarks cell is
+        // never referenced by a numeric Rate/Amount formula, so plain text there is always safe.
+        // Most real BOQs have no column whose header matches remarksRegex at all, which previously
+        // meant NO visible flag reached the export for the overwhelming majority of Manual Pricing
+        // items - only the highlight fill on the Rate/Amount cells did, and that alone turned out
+        // to be too easy to miss when spot-checking raw cell values rather than rendered styling.
+        // When there's no real Remarks column, synthesize one: a column guaranteed to sit past
+        // every column this sheet actually uses (Rate/Amount/Installation/Total/Remarks/whatever
+        // ExcelJS itself thinks the sheet's real extent is), so the flag always lands somewhere
+        // visible without ever colliding with real data or a formula.
+        if (isManualPricing) {
+          const flagColumn = sheetBlue.remarksColumn ?? (Math.max(
+            sheetBlue.rateCellColumn || 0,
+            sheetBlue.amountCellColumn || 0,
+            sheetBlue.installationRateCellColumn || 0,
+            sheetBlue.ratePair?.supplyAmountColumn || 0,
+            sheetBlue.ratePair?.installationAmountColumn || 0,
+            sheetBlue.ratePair?.totalColumn || 0,
+            sheet?.actualColumnCount || 0,
+            sheet?.columnCount || 0
+          ) + 2);
+          const remarksCellRef = getCellRef(item.rowNum, flagColumn);
+          xml = updateCellInXml(xml, remarksCellRef, MANUAL_PRICING_EXPORT_FLAG, cellStyle);
         }
       });
 
@@ -5985,8 +6110,11 @@ app.post("/api/rfqs/:id/export", async (req, res) => {
     
     let patchedWorkbook: ExcelJS.Workbook | null = null;
     if (debugModeRequested) {
+      // outputBuffer carries the original (possibly unprefixed) drawing XML through untouched -
+      // this load is only for the debug comparison report below, never the returned file, so it's
+      // safe to sanitize a copy purely for ExcelJS's benefit here too.
       patchedWorkbook = new ExcelJS.Workbook();
-      await patchedWorkbook.xlsx.load(outputBuffer);
+      await patchedWorkbook.xlsx.load(await normalizeWorkbookForExcelJs(outputBuffer));
     }
 
     let validationReport: ValidationReport;
@@ -5994,7 +6122,7 @@ app.post("/api/rfqs/:id/export", async (req, res) => {
     if (debugModeRequested && patchedWorkbook) {
       console.log("Debug Mode: Loading ExcelJS and running full workbook comparisons...");
       const originalWb = new ExcelJS.Workbook();
-      await originalWb.xlsx.load(originalBuffer);
+      await originalWb.xlsx.load(workbookBytesForExcelJs);
       validationReport = compareWorkbooks(originalWb, patchedWorkbook, blueprint, activeItems);
 
       // Supply and Installation are always kept independent - never summed, never written into

@@ -23,6 +23,9 @@ import AdminConsoleTab from "./components/AdminConsoleTab.tsx";
 import LoginPage from "./components/LoginPage.tsx";
 import FlipspacesLogo from "./components/FlipspacesLogo.tsx";
 import ThemeToggle from "./components/ThemeToggle.tsx";
+import { hasSeenTour, useTour, useTourAction } from "./tour/TourContext.tsx";
+import TourOverlay from "./tour/TourOverlay.tsx";
+import TourButton from "./tour/TourButton.tsx";
 
 
 function deriveNameFromEmail(email: string): string {
@@ -118,6 +121,29 @@ export default function App() {
 
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
+  // --- Guided walkthrough ---------------------------------------------------------
+  // Lets the tour's first step land on the real RFQ upload screen no matter which tab
+  // the user launched it from.
+  const { startTour } = useTour();
+  useTourAction("goto-rfq-tab", () => {
+    // Never yank a user out of an RFQ they have open: that would also unmount the
+    // recommendations screen the later steps point at. From anywhere else, land on the
+    // real upload screen so step one has something to highlight.
+    if (activeTab === "recommendations") return;
+    setActiveTab("rfq");
+    setIsMobileSidebarOpen(false);
+  });
+
+  // Auto-open once, for a genuinely new user. The persisted flag is the only guard needed:
+  // startTour() writes it immediately, so this can never fire twice for the same browser.
+  // (Deliberately not also guarded by an "already attempted" ref - under StrictMode the effect is
+  // mounted, cleaned up and mounted again, and such a ref would cancel the real run.)
+  useEffect(() => {
+    if (!isAuthenticated || hasSeenTour()) return;
+    const timer = window.setTimeout(() => startTour(), 700);
+    return () => window.clearTimeout(timer);
+  }, [isAuthenticated, startTour]);
+
   if (!isAuthenticated) {
     return <LoginPage onLoginSuccess={handleLoginSuccess} />;
   }
@@ -132,6 +158,7 @@ export default function App() {
         </div>
 
         <div className="flex items-center gap-2">
+          <TourButton compact />
           <ThemeToggle />
           <button
             onClick={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
@@ -269,6 +296,8 @@ export default function App() {
           {/* Top Actions block */}
           <div className="flex items-center justify-end gap-4">
 
+            <TourButton />
+
             <ThemeToggle />
 
             {/* User Profile avatar */}
@@ -362,6 +391,10 @@ export default function App() {
         </footer>
 
       </div>
+
+      {/* Guided walkthrough overlay. Renders through a portal on top of everything, and
+          only when the tour is actually running. */}
+      <TourOverlay />
 
     </div>
   );

@@ -92,3 +92,19 @@ export const MIN_PROJECT_SIMILARITY_FOR_AUTO_RATE = 40;
  * common correct case: an item that IS its own historical twin).
  */
 export const MIN_RELAXED_TIER_REFERENCES = 2;
+
+/**
+ * Minimum confidence (%) EngineeringAdjustmentEngine's own interpolation/extrapolation must clear
+ * before CommercialDecisionEngine treats a purely-engineering-adjusted rate as sufficient evidence.
+ * Gap found during the 2026-07-29 fabricated/cross-contaminated-rate investigation:
+ * `evaluateEvidenceSufficiency`'s `zeroEvidence` check treated `item.engineeringAdjustment?.applied
+ * === true` as sufficient on its own, with no floor on that adjustment's OWN `confidence` field -
+ * which EngineeringAdjustmentEngine itself can report as low as 30 (heavy extrapolation, far
+ * outside the historical reference range, on as few as 2 references). A weak, possibly wrong-family
+ * interpolation could therefore never be routed to Manual Pricing by this gate, unlike a weak
+ * statistical-evidence match (MIN_SELECTED_MATCH_SCORE_FOR_AUTO_RATE above already covers that
+ * case). Set below EngineeringAdjustmentEngine's normal interpolation range (78-92, +2/reference)
+ * and its normal non-extrapolated range, so a routine, well-supported dimensional adjustment is
+ * unaffected - only genuinely weak extrapolations (confidence 30-44) are caught.
+ */
+export const MIN_ENGINEERING_ADJUSTMENT_CONFIDENCE_FOR_AUTO_RATE = 45;
